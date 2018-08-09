@@ -1,5 +1,4 @@
-
-
+#!/usr/bin/env python
 
 
 import sys
@@ -9,7 +8,8 @@ import thread
 from lib_vct import NVME
 
 def verify(func,args=""):
-        #mNVME.write_SML_data("0x55")        
+        
+        mNVME.write_SML_data("0x55")        
         ncap=mNVME.IdNs.NCAP
         nn=mNVME.IdCtrl.NN
         cap=mNVME.CR.CAP
@@ -17,26 +17,38 @@ def verify(func,args=""):
         
         func(*args)
         
+        passtest = 1
         # if LBCC=0 and data no change or LBCC=1 and data changed(XOR)
         if (LBCC==0) == mNVME.isequal_SML_data("0x55"):
-            print "pass"
+            pass
         else:
-            print "fail"
+            passtest = 0
         # if NCC=0 and ncap is equal to last value or NCC=1 and ncap is changed
         if (NCC==0) == (ncap==mNVME.IdNs.NCAP):
-            print "pass"
+            pass
         else:
-            print "fail"       
+            passtest = 0       
 
         if (NIC==0) == (nn==mNVME.IdCtrl.NN):
-            print "pass"
+            pass
         else:
-            print "fail"           
+            passtest = 0           
         
         if (CCC==0) == (cap==mNVME.CR.CAP):
-            print "pass"
+            pass
         else:
-            print "fail"             
+            passtest = 0
+        
+        # print test command name and pass/fail     
+        #print "func = %s" %(func)            
+        funcname=str(func)
+        funcname=funcname[funcname.find("NVME_VCT.")+9:funcname.find("of")]
+        print "test %s" %(funcname)
+        
+        if (passtest==1):
+            print  "\033[32m PASS! \033[0m"  
+        else:
+            print  "\033[31m FAIL! \033[0m"                    
 
 
 # check device parameter
@@ -53,17 +65,10 @@ else:
     sys.exit(-1)
 
 
-'''
-if mNVME.fio_isequal("1G", "0x19"):
-    print "equal"
-else:
-    print "not equal"    
-'''
-
-
+#-- Get Log Page - Commands Supported and Effects Log
 mCSAEL=mNVME.get_CSAEL()
 
-for i in range(0,0xC0):
+for i in range(0,0x200): # 0 to 0xC0=admin command in spec
     mstruct=mCSAEL[i*8:(i+1)*8]
     #print "%s: %s" %(i,mstruct)
     
@@ -82,7 +87,7 @@ for i in range(0,0xC0):
     #print "%s: %s: %s: %s :%s: %s: %s" %(i,CSUPP,LBCC,NCC,NIC,CCC,CSE)
     if i == 0:      # Delete I/O Submission Queue
         donothing=0
-        '''
+        
     elif i == 1:    # Create I/O Submission Queue
         donothing=0
     elif i == 2:   # Get Log Page      
@@ -92,17 +97,17 @@ for i in range(0,0xC0):
     elif i == 5:    # Create I/O Completion Queue
         donothing=0          
     elif i == 6:   # Identify    
-        verify(mNVME.get_nn)      
+        verify(mNVME.Identify_command)      
     elif i == 8:    # Abort
         donothing=0              
     elif i == 9:   # Set Features    
         verify(mNVME.set_feature, ("2", "0x1"))      
     elif i == 0xA:    # Get Features
         verify(mNVME.get_feature, ("2", "0"))    
-        '''
+       
     elif i == 0xC:    # Asynchronous Event Request
         verify(mNVME.asynchronous_event_request)     
-        ''' 
+       
     elif i == 0xD:    # Namespace Management
         donothing=0
     elif i == 0x10:    # Firmware Commit
@@ -136,21 +141,21 @@ for i in range(0,0xC0):
     elif i == 0x82:    # secure receive
         donothing=0    
     elif i == 0x84:    # sanitize
-        verify(mNVME.sanitize)
+        verify(mNVME.sanitize)   
     #---------------------------------------------------- I/O command -------------------------------------------------------    
-    elif i == 0x400:    # Flush
+    elif i == 0x100:    # Flush
         verify(mNVME.flush)
-    elif i == 0x401:    # write
+    elif i == 0x101:    # write
         verify(mNVME.write)      
-    elif i == 0x402:    # read
+    elif i == 0x102:    # read
         verify(mNVME.read) 
-    elif i == 0x404:    # write_unc
+    elif i == 0x104:    # write_unc
         verify(mNVME.write_unc) 
-    elif i == 0x405:    # compare
+    elif i == 0x105:    # compare
         verify(mNVME.compare) 
-    elif i == 0x408:    # write_zero
-        verify(mNVME.write_zero)                  
-    elif i == 0x409:    # dsm_deallocate
+    elif i == 0x108:    # write_zero
+        verify(mNVME.write_zero)                
+    elif i == 0x109:    # dsm_deallocate
         verify(mNVME.dsm_deallo) 
     elif i == 8:    # abort
         donothing=0
@@ -163,7 +168,7 @@ for i in range(0,0xC0):
     elif i == 8:    # abort
         donothing=0
     elif i == 8:    # abort
-        donothing=0'''
+        donothing=0
     else:    # abort
         donothing=0  
 

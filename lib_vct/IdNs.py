@@ -3,7 +3,7 @@ Created on Aug 3, 2018
 
 @author: root
 '''
-from lib_vct import NVMECom
+from lib_vct.NVMECom import NVMECom
 
 
 # register class
@@ -12,28 +12,20 @@ from lib_vct import NVMECom
 
 
    
-class IdNs_NUSE_(object):
-    dev="null"
-    def __init__(self, dev="/dev/nvme0n1"):
-        IdNs_NUSE_.dev = dev
+class IdNs_NUSE_(object, NVMECom):
     def __get__(self, obj, objtype):
-        return NVMECom.get_reg(IdNs_NUSE_.dev,"id-ns", "nuse", 16)
+        return self.get_reg("id-ns", "nuse", 16)
 
         
  
-class IdNs_NCAP_(object):
-    dev="null"
-    def __init__(self, dev="/dev/nvme0n1"):
-        IdNs_NCAP_.dev = dev
+class IdNs_NCAP_(object, NVMECom):
     def __get__(self, obj, objtype):
-        return NVMECom.get_reg(IdNs_NCAP_.dev,"id-ns", "ncap", 16)
+        return self.get_reg("id-ns", "ncap", 16)
 
-class IdNs_(object):
+class IdNs_(object, NVMECom):
     NUSE=IdNs_NUSE_()
     NCAP=IdNs_NCAP_()
-    def __init__(self, dev):
-        IdNs_NUSE_(dev)
-        IdNs_NCAP_(dev)
+
 
 
     
