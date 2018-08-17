@@ -7,13 +7,21 @@ import thread
 
 from lib_vct import NVME
 
+ret_code=0
 def verify(func,args=""):
         
         mNVME.write_SML_data("0x55")        
         ncap=mNVME.IdNs.NCAP
         nn=mNVME.IdCtrl.NN
         cap=mNVME.CR.CAP
+        funcname=str(func)
+        funcname=funcname[funcname.find("NVME_VCT.")+9:funcname.find("of")]        
         
+        # check if opcode is supported
+        if CSUPP==0:
+            print "%s is not supported" %(funcname)
+            return 1
+            
         
         func(*args)
         
@@ -41,14 +49,12 @@ def verify(func,args=""):
         
         # print test command name and pass/fail     
         #print "func = %s" %(func)            
-        funcname=str(func)
-        funcname=funcname[funcname.find("NVME_VCT.")+9:funcname.find("of")]
-        print "test %s" %(funcname)
-        
+        print "test %s" %(funcname)        
         if (passtest==1):
             print  "\033[32m PASS! \033[0m"  
         else:
-            print  "\033[31m FAIL! \033[0m"                    
+            print  "\033[31m FAIL! \033[0m"   
+            ret_code = 1                 
 
 
 # check device parameter
@@ -173,7 +179,7 @@ for i in range(0,0x200): # 0 to 0xC0=admin command in spec
         donothing=0  
 
 
-
+sys.exit(ret_code)
 
 
 

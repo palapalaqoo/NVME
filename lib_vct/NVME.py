@@ -12,6 +12,7 @@ from lib_vct.NVMECom import NVMECom
 from lib_vct import ControllerRegister
 from lib_vct import IdCtrl
 from lib_vct import IdNs
+from lib_vct.GetLog import GetLog
 
 def foo1():
     print "foo!"
@@ -20,12 +21,17 @@ def foo1():
 class NVME_VCT(object, NVMECom):
     
     
+    @property
+    def dev_alive(self):
+        return self.dev_exist()    
     
     
     def __init__(self, dev):
         self.dev=dev
-        self.dev_alive=False        
-        self.chk_dev_exist()
+        self.dev_port=dev[0:dev.find("nvme")+5]
+        
+             
+       
         
         # the start 1G start block, middle and last, 
         self.start_SB=0
@@ -42,9 +48,13 @@ class NVME_VCT(object, NVMECom):
         self.CR = ControllerRegister.CR_()
         self.IdCtrl = IdCtrl.IdCtrl_()
         self.IdNs = IdNs.IdNs_()
+        self.GetLog = GetLog.GetLog_()
+        
+        self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev))         
+        self.bridge_port = self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port)) 
 
         # get valume of ssd
-        nuse=int(self.IdNs.NUSE,16)
+        nuse=self.IdNs.NUSE
         # the start 1G start block
         self.start_SB=0
         # the middle 1G start block
@@ -55,15 +65,13 @@ class NVME_VCT(object, NVMECom):
         
 
 
-    def chk_dev_exist(self):
+    def dev_exist(self):
     #-- return boolean
-        fd = os.popen("find %s |grep %s" %(self.dev,self.dev))
-        msg = fd.read().strip()
-        fd.close()
-        if not msg:
-            self.dev_alive=False
+        buf=self.shell_cmd("find %s 2> /dev/null |grep %s " %(self.dev,self.dev))
+        if not buf:
+            return False
         else:
-            self.dev_alive=True
+            return True
 
                 
 
@@ -96,9 +104,7 @@ class NVME_VCT(object, NVMECom):
      
         return ret      
     
-    def get_log(self, log_id, size):
-    #-- return string byte[0]+byte[1]+byte[2]+ ...
-        return self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b |xxd|cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.dev, log_id, size))
+
     def Identify_command(self):
         return self.get_reg("id-ctrl", "nn")
         
@@ -138,7 +144,7 @@ class NVME_VCT(object, NVMECom):
     # feature id, value
         return self.shell_cmd(" nvme set-feature %s -f %s -v %s" %(self.dev, fid, value))
      
-    def get_feature(self, fid, cdw11): 
+    def get_feature(self, fid, cdw11=0): 
     # feature id, cdw11(If applicable)
         return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s"%(self.dev, fid, cdw11))
 
@@ -181,7 +187,7 @@ class NVME_VCT(object, NVMECom):
         self.shell_cmd("  nvme sanitize %s -a 0x02 2>&1 > /dev/null"%(self.dev))    
         sleep(0.1)
         # wait for sanitize command complate
-        while self.get_log(0x81, 4)[0:2] != "ff" :
+        while self.GetLog.SanitizeStatus.SPROG != "ffff" :
             sleep(0.1)
         return 0
     def flush(self):
@@ -207,8 +213,85 @@ class NVME_VCT(object, NVMECom):
         self.shell_cmd("  buf=$(nvme dsm %s -s 0 -b 1 -d 2>&1 >  /dev/null) "%(self.dev)) 
         return 0     
 
+    def nvme_reset(self):
+        self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
+        return 0     
+    def subsystem_reset(self):
+        self.shell_cmd("  nvme subsystem-reset %s  "%(self.dev_port), 0.5) 
+        self.shell_cmd("  rm -f %s* "%(self.dev_port), 0.5) 
+        self.hot_reset()         
+        return 0         
+    def hot_reset(self):
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.5) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 2)     
+        return 0         
+    def link_reset(self):
+        self.shell_cmd("  setpci -s %s 3E.b=50 2>&1 >  /dev/null" %(self.bridge_port), 0.5) 
+        self.shell_cmd("  setpci -s %s 3E.b=10 2>&1 >  /dev/null" %(self.bridge_port), 0.5) 
+        self.hot_reset()
+        return 0            
 
+    def nvme_write_1_block(self, value, block):
+        # write 1 block data, ex, nvme_write_1_block(0x32,0)
+        # if csts.rdy=0, return false
+        # value, value to write        
+        # block, block to  write  
+        oct_val=oct(value)[-3:]
+        if self.dev_alive:
+            self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null | nvme write %s --start-block=%s --data-size=512 2>&1 > /dev/null) "%(oct_val, self.dev, block))   
+        else:
+            return False
+        return True   
+    def nvme_write_blocks(self, value, sb, nob):
+        # value, value to write        
+        # sb, start block   
+        # nob, number of block to write
+        # ex, sb=0, nob=4, write 0, 1, 2, 3 blocks
+        i=0
+        while i<nob: 
+            if self.nvme_write_1_block(value, sb+i):
+                i=i+1
+        
+    def nvme_write_multi_thread(self, thread, sbk, bkperthr,value):
+        #ex, nvme_write_multi_thread(2, 100, 200, 0x54)
+        # thread0 write 200 blocks from 100th block
+        # thread1 write 200 blocks from 300th block
+        # total write (thread x  bkperthr)=2 x 200=400 blocks from 100th block to 500th block
+        # ---------------------------------------
+        # thread,  number of threads 
+        # sbl,  start block 
+        # bkperthr,  block per threads 
+        # value,  value to write
+        # ---------------------------------------
+        # return thread can using following statement to check if all process is finished or not in main program
+        #    mThreads=nvme_write_multi_thread(2, 100, 200, 0x54)
+        #    for process in mThreads:
+        #        process.join()  
+        
+        thread_w=thread
+        block_w=bkperthr             
+        RetThreads = []        
+        for i in range(thread_w):                
+            t = threading.Thread(target = self.nvme_write_blocks, args=(value, sbk+block_w*i, block_w,))
+            t.start() 
+            RetThreads.append(t)     
+        return RetThreads
+           
+        
     
     
-       
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
