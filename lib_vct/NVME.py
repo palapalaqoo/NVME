@@ -18,7 +18,7 @@ def foo1():
     print "foo!"
     
     
-class NVME_VCT(object, NVMECom):
+class NVME(object, NVMECom):
     
     
     @property
@@ -26,9 +26,10 @@ class NVME_VCT(object, NVMECom):
         return self.dev_exist()    
     
     
-    def __init__(self, dev):
-        self.dev=dev
-        self.dev_port=dev[0:dev.find("nvme")+5]
+    def __init__(self, argv):
+        
+        self.dev, self.TestModeOn =  self.ParserArgv(argv)
+        self.dev_port=self.dev[0:self.dev.find("nvme")+5]
         
              
        
@@ -40,21 +41,21 @@ class NVME_VCT(object, NVMECom):
         
         if self.dev_alive:
             self.init_parameters()
-        
+            self.status="normal"
         
 
     def init_parameters(self):
-        self.set_NVME_dev(self.dev)
+        self.set_NVMECom_par(self)
         self.CR = ControllerRegister.CR_()
         self.IdCtrl = IdCtrl.IdCtrl_()
         self.IdNs = IdNs.IdNs_()
         self.GetLog = GetLog.GetLog_()
         
         self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev))         
-        self.bridge_port = self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port)) 
+        self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port)) 
 
         # get valume of ssd
-        nuse=self.IdNs.NUSE
+        nuse=self.IdNs.NUSE.int
         # the start 1G start block
         self.start_SB=0
         # the middle 1G start block
@@ -187,8 +188,8 @@ class NVME_VCT(object, NVMECom):
         self.shell_cmd("  nvme sanitize %s -a 0x02 2>&1 > /dev/null"%(self.dev))    
         sleep(0.1)
         # wait for sanitize command complate
-        while self.GetLog.SanitizeStatus.SPROG != "ffff" :
-            sleep(0.1)
+        while self.GetLog.SanitizeStatus.SPROG != 65535 :
+            sleep(0.5)
         return 0
     def flush(self):
         self.fio_write(self.start_SB*512, "1M", "0x11") 
@@ -214,21 +215,33 @@ class NVME_VCT(object, NVMECom):
         return 0     
 
     def nvme_reset(self):
+        self.status="reset"
         self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
+        self.status="normal"
         return 0     
     def subsystem_reset(self):
+        self.status="reset"
         self.shell_cmd("  nvme subsystem-reset %s  "%(self.dev_port), 0.5) 
-        self.shell_cmd("  rm -f %s* "%(self.dev_port), 0.5) 
-        self.hot_reset()         
+        self.shell_cmd("  rm -f %s* "%(self.dev_port))
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port))  
+        self.hot_reset() 
+        self.status="normal"        
         return 0         
     def hot_reset(self):
+        self.status="reset"
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.5) 
         self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 2)     
+        self.status="normal"
         return 0         
     def link_reset(self):
-        self.shell_cmd("  setpci -s %s 3E.b=50 2>&1 >  /dev/null" %(self.bridge_port), 0.5) 
-        self.shell_cmd("  setpci -s %s 3E.b=10 2>&1 >  /dev/null" %(self.bridge_port), 0.5) 
+        self.status="reset"
+        self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  rm -f %s* "%(self.dev_port))
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
         self.hot_reset()
+        self.status="normal"
         return 0            
 
     def nvme_write_1_block(self, value, block):
@@ -237,7 +250,7 @@ class NVME_VCT(object, NVMECom):
         # value, value to write        
         # block, block to  write  
         oct_val=oct(value)[-3:]
-        if self.dev_alive:
+        if self.dev_alive and self.status=="normal":
             self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null | nvme write %s --start-block=%s --data-size=512 2>&1 > /dev/null) "%(oct_val, self.dev, block))   
         else:
             return False
@@ -276,6 +289,8 @@ class NVME_VCT(object, NVMECom):
             t.start() 
             RetThreads.append(t)     
         return RetThreads
+    
+
            
         
     

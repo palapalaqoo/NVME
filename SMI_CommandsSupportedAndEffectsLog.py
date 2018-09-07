@@ -63,7 +63,7 @@ if len(sys.argv) == 1:
     sys.exit(-1)
     
  
-mNVME = NVME.NVME_VCT(sys.argv[1] )
+mNVME = NVME.NVME(sys.argv[1] )
 if mNVME.dev_alive:
     print "device alive"
 else:    

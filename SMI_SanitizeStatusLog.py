@@ -9,7 +9,7 @@ TestReset=0
 if len(sys.argv) == 3 and sys.argv[2]== "-r" :
     TestReset=1
 
-mNVME = NVME.NVME_VCT(sys.argv[1] )
+mNVME = NVME.NVME(sys.argv[1] )
 if mNVME.dev_alive:
     print "device alive"
 else:    

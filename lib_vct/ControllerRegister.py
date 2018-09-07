@@ -4,73 +4,55 @@ Created on Aug 2, 2018
 @author: sam
 '''
 from lib_vct.NVMECom import NVMECom
-from __builtin__ import str
+from lib_vct.RegDescriptor import RegDescriptor
 
 
 
-
-class CAP_(object,NVMECom):    
-    @property
-    def MQES(self):
-        return self.get_reg( "show-regs", "cap")[0:4]
-    @property
-    def TO(self):
-        return self.get_reg( "show-regs", "cap")[6:8]     
-    def __get__(self, obj, objtype):
-        return self.get_reg("show-regs", "cap")    
-    
-       
-class mDescriptor(object,NVMECom):  
-    def __init__(self, mcmd=None, mreg='var'):
-        self.cmd = mcmd
-        self.reg = mreg     
-    
-    @property
-    def ToStr(self):
-        return self.get_reg(self.cmd, self.reg)    
-    
-    @property
-    def ToInt(self):
-        return int(self.ToStr,16)  
-    
-
-    def Bit(self, *args):
-    #-- return string
-    #-- ex. Bit(7,0), return bit[7:0]
-    #-- return string "00100011"  if self.ToStr = "0123" where byte[0] = 0x23, byte[1] = 0x01 (value = 0x0123), last_bit=7, first_bit=0
-    #-- ex. Bit(7), return bit 7
-        Len = len(args)
-        if Len ==1:
-            last_bit=args[0]
-            first_bit=args[0]
-        elif Len ==2:
-            last_bit=args[0]
-            first_bit=args[1]     
-        else:
-            return "0"      
-
-        binstr = self.str_reverse(bin(self.ToInt).zfill(16))        
-        return self.str_reverse(binstr[first_bit:last_bit+1])
-    
-    def __str__(self, *args, **kwargs):      
-        return self.ToStr
-    
-class CSTS_(object,NVMECom):    
-    RDY=mDescriptor("show-regs", "cap")  
-    
-    def __get__(self, obj, objtype):
-        return self.get_reg("show-regs", "cap")  
     
         
 # controller register class
 class CR_(object,NVMECom):
-    CAP=CAP_()        
+     
+    CAP=RegDescriptor("show-regs", "cap")
+    CAP.MQES=RegDescriptor("show-regs", "cap", 0, 15)
+    CAP.CQR=RegDescriptor("show-regs", "cap", 16, 16)
+    CAP.AMS=RegDescriptor("show-regs", "cap", 17, 18)
+    CAP.TO=RegDescriptor("show-regs", "cap", 24, 31)
+    CAP.DSTRD=RegDescriptor("show-regs", "cap", 32, 35)
+    CAP.NSSRS=RegDescriptor("show-regs", "cap", 36, 36)
+    CAP.CSS=RegDescriptor("show-regs", "cap", 37, 44)
+    CAP.BPS=RegDescriptor("show-regs", "cap", 45, 45)
+    CAP.MPSMIN=RegDescriptor("show-regs", "cap", 48, 51)
+    CAP.MPSMAX=RegDescriptor("show-regs", "cap", 52, 55)
+    
+    VS=RegDescriptor("show-regs", "vs")
+    VS.TER=RegDescriptor("show-regs", "vs", 0, 7)
+    VS.MNR=RegDescriptor("show-regs", "vs", 8, 15)
+    VS.MJR=RegDescriptor("show-regs", "vs", 16, 31)
+    
+    INTMS=RegDescriptor("show-regs", "intms")
+    INTMS.IVMS=RegDescriptor("show-regs", "intms", 0, 31)
+    
+    INTMC=RegDescriptor("show-regs", "intmc")
+    INTMC.IVMS=RegDescriptor("show-regs", "intmc", 0, 31)    
+    
+    CC=RegDescriptor("show-regs", "cc")
+    CC.EN=RegDescriptor("show-regs", "cc", 0, 0)
+    CC.CSS=RegDescriptor("show-regs", "cc", 4, 6)
+    CC.MPS=RegDescriptor("show-regs", "cc", 7, 10)
+    CC.AMS=RegDescriptor("show-regs", "cc", 11, 13)
+    CC.SHN=RegDescriptor("show-regs", "cc", 14, 15)
+    CC.IOSQES=RegDescriptor("show-regs", "cc", 16, 19)
+    CC.IOCQES=RegDescriptor("show-regs", "cc", 20, 23)
+    CC.RO=RegDescriptor("show-regs", "cc", 24, 31)
 
-    CSTS=mDescriptor("show-regs", "csts")
-    AQA=mDescriptor("show-regs", "aqa")  
-    ASQ=mDescriptor("show-regs", "asq")  
-    AQA=mDescriptor("show-regs", "aqa") 
-    ACQ=mDescriptor("show-regs", "acq") 
+    
+    CSTS=RegDescriptor("show-regs", "csts")
+    CSTS.bss=RegDescriptor("show-regs", "csts")
+    AQA=RegDescriptor("show-regs", "aqa")  
+    ASQ=RegDescriptor("show-regs", "asq")  
+    AQA=RegDescriptor("show-regs", "aqa") 
+    ACQ=RegDescriptor("show-regs", "acq") 
 
     
     
