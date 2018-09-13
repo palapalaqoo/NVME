@@ -6,6 +6,7 @@ Created on Aug 3, 2018
 import sys
 import os
 import threading
+import math
 #import smi_comm
 from time import sleep
 from lib_vct.NVMECom import NVMECom
@@ -63,6 +64,8 @@ class NVME(object, NVMECom):
         # the last 1G start block
         self.last_SB=nuse-(1024*1024*2)
         
+        self.MDTSinByte=int(math.pow(2, 12+self.CR.CAP.MPSMIN.int) * math.pow(2, self.IdCtrl.MDTS.int))
+        self.MDTSinBlock=self.MDTSinByte/512
         
 
 

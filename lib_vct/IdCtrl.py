@@ -5,7 +5,7 @@ Created on Aug 3, 2018
 '''
 from lib_vct.NVMECom import NVMECom
 from lib_vct.RegDescriptor import RegDescriptor
- 
+from lib_vct.RegDescriptor import RegType
 # register class
 class IdCtrl_(object, NVMECom):
     
@@ -47,8 +47,8 @@ class IdCtrl_(object, NVMECom):
     FWUG=RegDescriptor("id-ctrl", "fwug")
     KAS=RegDescriptor("id-ctrl", "kas")
     HCTMA=RegDescriptor("id-ctrl", "hctma")
-    MNTMT=RegDescriptor("id-ctrl", "mntmt")
-    MXTMT=RegDescriptor("id-ctrl", "mxtmt")
+    MNTMT=RegDescriptor("id-ctrl", "mntmt",0 , 65535, RegType.int)
+    MXTMT=RegDescriptor("id-ctrl", "mxtmt",0 , 65535, RegType.int)
     SANICAP=RegDescriptor("id-ctrl", "sanicap")
     SQES=RegDescriptor("id-ctrl", "sqes")
     CQES=RegDescriptor("id-ctrl", "cqes")
