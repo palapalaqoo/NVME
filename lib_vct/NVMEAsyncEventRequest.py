@@ -20,15 +20,18 @@ class AsyncEvent(NVME):
         # return thread        
         t = threading.Thread(target = self.asynchronous_event_request_cmd)
         t.start()   
+       
         return t     
 
     def trigger_error_event(self): 
         self.shell_cmd("  buf=$( nvme write-uncor %s -s 0 -n 1 -c 127 2>&1 >/dev/null )"%(self.dev))
-
+ 
         self.shell_cmd("  buf=$( nvme get-log %s --log-id=1 --log-len=64 2>&1 >/dev/null )"%(self.dev))
         self.shell_cmd("  buf=$( hexdump %s -n 512 2>&1 >/dev/null )"%(self.dev))
         self.shell_cmd("  buf=$( nvme get-log %s --log-id=1 --log-len=64 2>&1 >/dev/null )"%(self.dev))
         self.shell_cmd("  buf=$( hexdump %s -n 512 2>&1 >/dev/null )"%(self.dev))
+        # clear write-uncor 
+        self.shell_cmd("  buf=$(nvme write-zeroes %s -s 0 -c 127 2>&1 > /dev/null) "%(self.dev)) 
         
     def trigger_SMARTHealthStatus_event(self):              
         # get log page and set 'Retain Asynchronous Event(RAE) = 0' 

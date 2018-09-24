@@ -20,6 +20,7 @@ else:
 ## paramter #####################################
 ret_code=0
 AsyncEventCmdFail=0
+AsyncEventCmdTimeout=0
 ## function #####################################
 def testBlockAreas(ID):
     ret=0
@@ -195,14 +196,14 @@ async_result.join(60)
 # if time out
 if async_result.is_alive():
     print "async_result.is_alive=true"
-    AsyncEventCmdFail=1
+    AsyncEventCmdTimeout=1
 else:        
     # get return code from Asynchronous Event Request command        
     try:
         mThreadStr=AsyncNVME.que.get(timeout=1)
     except Exception as error:
         AsyncNVME.Print("Can't get return code from Asynchronous Event Request command", "f")
-        AsyncEventCmdFail=1
+        AsyncEventCmdTimeout=1
     AsyncNVME.Print("return string from request command : %s" %(mThreadStr), "t")   
     
     mstr="0" 
@@ -219,15 +220,15 @@ else:
     except ValueError:
         #when return 'passthru: Interrupted system call'
         print "return string from request command : %s" %(mThreadStr)
-        AsyncEventCmdFail=1
+        AsyncEventCmdTimeout=1
     #clear Asynchronous Event Request command
     mNVME.nvme_reset()
-        
-if AsyncEventCmdFail==1:
+
+# if can't receive async event         
+if AsyncEventCmdTimeout==1:
     print ""
     AsyncNVME.Print("Can't receive the return code of Asynchronous Event Request command", "w")
-    AsyncNVME.Print("exit async test and controller-initiated telemetry test", "w")   
-    ret_code=1     
+    AsyncNVME.Print("exit async test and controller-initiated telemetry test", "w")
 else:
     print ""
     print "Check if Telemetry Controller-Initiated Data Available in log 0x7 = 1"

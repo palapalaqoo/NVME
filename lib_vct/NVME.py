@@ -7,6 +7,7 @@ import sys
 import os
 import threading
 import math
+import re
 #import smi_comm
 from time import sleep
 from lib_vct.NVMECom import NVMECom
@@ -67,7 +68,22 @@ class NVME(object, NVMECom):
         self.MDTSinByte=int(math.pow(2, 12+self.CR.CAP.MPSMIN.int) * math.pow(2, self.IdCtrl.MDTS.int))
         self.MDTSinBlock=self.MDTSinByte/512
         
-
+        # get System Bus (PCI Express) Registers, int format
+        self.PMCAP, self.MSICAP, self.PXCAP, self.MSIXCAP, self.AERCAP=self.GetPCIERegBase()
+        # Initiate Function Level Reset value        
+        self.IFLRV= self.read_pcie(self.PXCAP, 0x9) + (1<<7)
+        
+    
+    def read_pcie(self, base, offset):    
+        # read pcie register, return byte data in int format       
+        hex_str_addr=hex(base + offset)[2:]
+        return int(self.shell_cmd("setpci -s %s %s.b " %(self.pcie_port, hex_str_addr)),16)
+    def write_pcie(self, base, offset, value):    
+        # write pcie register, ex. setpci -s 0000:02:00.0 79.b=A0    
+        hex_str_addr=hex(base + offset)[2:]
+        hex_str_value=hex(value)[2:]
+        self.shell_cmd("setpci -s %s %s.b=%s " %(self.pcie_port, hex_str_addr, hex_str_value))
+    
 
     def dev_exist(self):
     #-- return boolean
@@ -245,18 +261,61 @@ class NVME(object, NVMECom):
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
         self.hot_reset()
         self.status="normal"
+        return 0  
+    def FunctionLevel_reset(self):
+        self.status="reset"        
+        self.write_pcie(self.PXCAP, 0x9, self.IFLRV)
+        sleep(0.2)
+        self.shell_cmd("  rm -f %s* "%(self.dev_port))
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port))  
+        self.hot_reset() 
+        self.status="normal"
+        return 0      
+        
+    def por_reset(self):
+        self.status="reset"
+        self.shell_cmd("/usr/local/sbin/PWOnOff %s por off 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        self.shell_cmd("/usr/local/sbin/PWOnOff %s por on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        self.status="normal"
         return 0            
-
+    
+    def spor_reset(self):
+        self.status="reset"
+        self.shell_cmd("/usr/local/sbin/PWOnOff %s spor off 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        self.status="normal"
+        return 0  
+    
     def nvme_write_1_block(self, value, block):
         # write 1 block data, ex, nvme_write_1_block(0x32,0)
         # if csts.rdy=0, return false
         # value, value to write        
         # block, block to  write  
+        '''
         oct_val=oct(value)[-3:]
         if self.dev_alive and self.status=="normal":
             self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null | nvme write %s --start-block=%s --data-size=512 2>&1 > /dev/null) "%(oct_val, self.dev, block))   
         else:
             return False
+        '''
+        
+        oct_val=oct(value)[-3:]
+        #if self.dev_alive and self.status=="normal":  
+        if self.dev_alive :                    
+            slba=block
+            cdw10=slba&0xFFFFFFFF
+            cdw11=slba>>32    
+            mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(oct_val, self.dev, cdw10, cdw11))
+            #retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
+            '''
+            retCommandSueess=bool(re.search("ABORT_REQ", mStr))          
+            if retCommandSueess==True:
+                print "%s, abort at block %s" %(mStr,block)
+            '''
+        else:
+            return False            
+            
+        
         return True   
     def nvme_write_blocks(self, value, sb, nob):
         # value, value to write        

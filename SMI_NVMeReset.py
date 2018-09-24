@@ -11,7 +11,7 @@ import threading
 import random
  
 def GetRDY():
-    return mNVME.CR.CSTS.Bit(0)
+    return mNVME.CR.CSTS.bit(0)
 
 def GetDST_per():
     #ret int , GetDST[1]
@@ -35,8 +35,9 @@ def F_reset(rsttype):
     elif rsttype==2:
         mNVME.hot_reset()        
     elif rsttype==3:
-        mNVME.link_reset()        
-
+        mNVME.link_reset()    
+    elif rsttype==4:
+        mNVME.FunctionLevel_reset()
     
 
 ret_code=0
@@ -59,9 +60,9 @@ else:
     print "\033[32mCheck CSTS.RDY before reset: PASS! (CSTS.RDY=%s)\033[0m" %(RDY)
     
     
-AQA = mNVME.CR.AQA.ToStr    
-ASQ = mNVME.CR.ASQ.ToStr   
-ACQ = mNVME.CR.ACQ.ToStr    
+AQA = mNVME.CR.AQA.str    
+ASQ = mNVME.CR.ASQ.str   
+ACQ = mNVME.CR.ACQ.str    
 
 
 
@@ -86,11 +87,11 @@ print "compare AQA, ASQ, ACQ after reset"
 print "before reset: AQA = %s" %(AQA)
 print "before reset: ASQ = %s" %(ASQ)
 print "before reset: ACQ = %s" %(ACQ)
-print "after reset: AQA = %s" %(mNVME.CR.AQA.ToStr)
-print "after reset: ASQ = %s" %(mNVME.CR.ASQ.ToStr)
-print "after reset: ACQ = %s" %(mNVME.CR.ACQ.ToStr)
+print "after reset: AQA = %s" %(mNVME.CR.AQA.str)
+print "after reset: ASQ = %s" %(mNVME.CR.ASQ.str)
+print "after reset: ACQ = %s" %(mNVME.CR.ACQ.str)
 
-if AQA!=mNVME.CR.AQA.ToStr or ASQ!=mNVME.CR.ASQ.ToStr or ACQ!=mNVME.CR.ACQ.ToStr:
+if AQA!=mNVME.CR.AQA.str or ASQ!=mNVME.CR.ASQ.str or ACQ!=mNVME.CR.ACQ.str:
     print  "\033[31m FAIL! \033[0m"   
     ret_code=1
 else:
@@ -98,10 +99,23 @@ else:
     
     
 for loop in range(50):
-    reset_type=random.randint(0,3)
-    #reset_type =3
-    
-    print "===== reset_type = %s  ========== loop = %s ============================" %(reset_type,loop)
+    #reset_type=random.randint(0,4)
+    reset_type=loop%5   
+    #reset_type =4
+
+    if reset_type==0:
+        reset_type_name="Controller Reset"
+    elif reset_type==1:
+        reset_type_name="NVM Subsystem Reset"
+    elif reset_type==2:
+        reset_type_name="PCI Express Hot reset"
+    elif reset_type==3:
+        reset_type_name="Data Link Down status"
+    elif reset_type==4:        
+        reset_type_name="Function Level Reset"
+
+                    
+    print "===== reset_type = %s (%s)  ========== loop = %s ============================" %(reset_type, reset_type_name, loop)
     sleep(0.1)
     print""
     print "-- start testing for Pending Admin Commands after reset --"
@@ -134,7 +148,7 @@ for loop in range(50):
     print "-- start testing for Pending IO Commands after reset(data integrity) --"
    
     patten=0x5A
-    thread_w=1
+    thread_w=5
     block_w=1024 
     total_byte_w=block_w*thread_w *512
     
@@ -157,7 +171,7 @@ for loop in range(50):
         if allfinished==1:        
             break
         else:
-            #F_reset(reset_type)
+            F_reset(reset_type)
             reset_cnt=reset_cnt+1
             sleep(0.5)
 
@@ -181,7 +195,7 @@ for loop in range(50):
     print "-- start testing for NVM idle state(power state)  --"
           
     pst_fail=0       
-    NPSS=mNVME.IdCtrl.NPSS
+    NPSS=mNVME.IdCtrl.NPSS.int
     
     for i in range(NPSS+1):
         mNVME.set_feature(2, i)
@@ -212,6 +226,7 @@ for loop in range(50):
 
 
 print""    
+print "ret_code:%s"%ret_code
 print "finished" 
 
 sys.exit(ret_code)

@@ -138,9 +138,36 @@ class NVMECom():
         
         return mDev, mTestModeOn
         
+    def GetPCIERegBase(self):
+        # System Bus (PCI Express) Registers base offset in int format
+        PMCAP=0
+        MSICAP=0
+        MSIXCAP=0
+        PXCAP=0
+        AERCAP=0
+        buf=self.shell_cmd("lspci -v -s %s" %(self.pcie_port))
+        
+        mStr="Capabilities: \[(.+?)\] Power Management"
+        if re.search(mStr, buf):
+            PMCAP=int(re.search(mStr, buf).group(1),16)
             
+        mStr="Capabilities: \[(.+?)\] MSI"
+        if re.search(mStr, buf):
+            MSICAP=int(re.search(mStr, buf).group(1),16)
+            
+        mStr="Capabilities: \[(.+?)\] Express Endpoint"
+        if re.search(mStr, buf):
+            PXCAP=int(re.search(mStr, buf).group(1),16)
+            
+        mStr="Capabilities: \[(.+?)\] MSI-X"
+        if re.search(mStr, buf):
+            MSIXCAP=int(re.search(mStr, buf).group(1),16)
+            
+        mStr="Capabilities: \[(.+?)\] Advanced Error Reporting"
+        if re.search(mStr, buf):
+            AERCAP=int(re.search(mStr, buf).group(1),16)        
 
-
+        return PMCAP, MSICAP, PXCAP, MSIXCAP, AERCAP
 
 
 
