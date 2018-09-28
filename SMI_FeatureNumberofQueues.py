@@ -19,9 +19,9 @@ print "-------------------------------------------------------------------------
 print ""
 print "Test if NCQR specified is 65,535, the controller should return an error of Invalid Field in Command or not" 
 print "set NCQR=0xFFFF, NSQR=0x0"
-print "Check returned status code"
 mStr=mNVME.shell_cmd(" nvme set-feature %s -f 7 -v 0xFFFF0000 2>&1"%(mNVME.dev))
-print mStr
+print "returned status code: %s" %mStr
+print "Check returned status code"
 retCommandSueess=bool(re.search("INVALID_FIELD", mStr))
 if (retCommandSueess ==  True) :
     mNVME.Print("PASS", "p")     
@@ -33,9 +33,9 @@ else:
 print ""
 print "Test if NSQR specified is 65,535, the controller should return an error of Invalid Field in Command or not" 
 print "set NCQR=0x0, NSQR=0xFFFF"
-print "Check returned status code"
 mStr=mNVME.shell_cmd(" nvme set-feature %s -f 7 -v 0x0000FFFF 2>&1"%(mNVME.dev))
-print mStr
+print "returned status code: %s" %mStr
+print "Check returned status code"
 retCommandSueess=bool(re.search("INVALID_FIELD", mStr))
 if (retCommandSueess ==  True) :
     mNVME.Print("PASS", "p")     

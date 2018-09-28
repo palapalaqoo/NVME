@@ -29,31 +29,25 @@ buf=mNVME.shell_cmd("lspci -v -s %s" %(mNVME.pcie_port))
 print buf
 print ""
 
-print mNVME.PMCAP
-print mNVME.MSICAP
-print mNVME.MSIXCAP
-print mNVME.PXCAP
-print mNVME.AERCAP
-
-aa= mNVME.read_pcie(mNVME.PXCAP, 0x9)
-print aa
-
-aa=aa+ (1<<7)
-print aa
 
 
-print mNVME.IdCtrl.OACS.str
-#mNVME.por_reset()
+print mNVME.IdNs.NLBAF.str
+print mNVME.IdNs.FLBAS.str
+print mNVME.IdNs.FPI.str
+print mNVME.IdCtrl.FNA.int
+    
+SubItemCnt=0    
 
-mNVME.shell_cmd("  buf=$( nvme write-uncor %s -s 0 -n 1 -c 127 2>&1 >/dev/null )"%(mNVME.dev))
-mNVME.shell_cmd("  buf=$( hexdump %s -n 512 2>&1 >/dev/null )"%(mNVME.dev))
-
-    
-    
-    
-    
-    
-    
+def SubItemCntPlus1():
+    SubItemCnt=SubItemCnt+1
+    return SubItemCnt
+     
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 
 
 

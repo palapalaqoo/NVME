@@ -81,6 +81,7 @@ print "Wait for CSTS.RDY = 1"
 while GetRDY()==0:
     pass
 
+t.join()
 print "\033[32mCSTS.RDY = 1 \033[0m"
 
 print "compare AQA, ASQ, ACQ after reset"

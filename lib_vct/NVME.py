@@ -351,9 +351,34 @@ class NVME(object, NVMECom):
             t.start() 
             RetThreads.append(t)     
         return RetThreads
-    
-
-           
+        
+    def GetAllLbaf(self):
+    # return LBAF[[0, MS, LBADS, RP], [1, MS, LBADS, RP].. ,[15, MS, LBADS, RP]] , all value is interger
+        buf=self.shell_cmd(" nvme id-ns %s 2>&1"%(self.dev))
+        LBAFs=[]
+        for i in range(16):
+            #LBA Format Data Structure
+            # LFDS = [LBA Format, MS, LBADS, RP]
+            LFDS=[]
+            MS=0
+            LBADS=0
+            RP=0      
+            
+            # get LFDS
+            try:
+                mStr="lbaf\s+%s\s.+ms:(\d+).+lbads:(\d+).+rp:(\d+)"%i
+                if re.search(mStr, buf):
+                    MS=int(re.search(mStr, buf).group(1))
+                    LBADS=int(re.search(mStr, buf).group(2))
+                    RP=int(re.search(mStr, buf).group(3))           
+            except Exception as error:        
+                print "Got exception at LBAF%s"%i   
+             
+            LFDS.extend([i, MS, LBADS, RP])
+            LBAFs.append(LFDS)
+        
+        return LBAFs
+               
         
     
     

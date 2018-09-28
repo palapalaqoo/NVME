@@ -8,6 +8,11 @@ import re
 class NVMECom():   
     device="null"
     mTestModeOn=False
+    SubItemNumValue=0
+    
+    def SubItemNum(self):
+        self.SubItemNumValue+=1
+        return self.SubItemNumValue
 
     def set_NVMECom_par(self, son):
         # set NVMECom parameters from subclass
@@ -104,6 +109,14 @@ class NVMECom():
         CYAN    = '\033[36m'
         WHITE   = '\033[37m'
         RESET = '\033[0m'
+    class lbafds:
+    # LBA Format Data Structure    
+        ID   = 0
+        MS     = 1
+        LBADS   = 2
+        RP  = 3
+        
+        
     def Print(self, msg, mtype):
         # mtype
         # p/P: pass, print msg with green color
