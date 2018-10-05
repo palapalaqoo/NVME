@@ -15,6 +15,7 @@ from lib_vct import ControllerRegister
 from lib_vct import IdCtrl
 from lib_vct import IdNs
 from lib_vct.GetLog import GetLog
+from lib_vct.Flow import Flow
 
 def foo1():
     print "foo!"
@@ -52,6 +53,7 @@ class NVME(object, NVMECom):
         self.IdCtrl = IdCtrl.IdCtrl_()
         self.IdNs = IdNs.IdNs_()
         self.GetLog = GetLog.GetLog_()
+        self.Flow=Flow.Flow_(self)
         
         self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev))         
         self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port)) 

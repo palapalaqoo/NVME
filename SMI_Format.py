@@ -28,7 +28,7 @@ def Format(nsid, lbaf, ses, pil=0, pi=0, ms=0):
 
 def Format100():
     print Format(1, 0, 0)
-    
+
 def GetFPIPercentage():
     
     #return int(mNVME.IdNs.FPI.bit(6,0), 2)
@@ -52,7 +52,7 @@ def CheckResult(Result, ExpectedResult):
         ret_code=1  
         return 1
 
-
+'''
 ## end #####################################
 
 print ""
@@ -313,15 +313,10 @@ for i in range(16):
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "Check Command Specific Status Values"
-print ""
-print "specifying an invalid LBA Format number, send command with LBAF=16"
-print "Check return code, expected returned status code: Invalid Format"
-mStr=Format(1, 16, 0);
-CheckResult(mStr, False)
 
     
 print ""
-print "enabling protection information when there is no sufficient metadata per LBA"
+print "if enabling protection information when there is no sufficient metadata per LBA, then return fail"
 print "Check return code, expected returned status code: Invalid Format"    
 
 if not Type1Supported:
@@ -337,7 +332,7 @@ else:
     mNVME.Print("All Protection Information type is support, quite this test item!", "w")
 
 print ""
-print "the specified format is not available in the current configuration"
+print "If the specified format is not available in the current configuration, then return fail"
 print "Check return code, expected returned status code: Invalid Format"
 if LBAF15_LBADS < 9:
     mStr=Format(1, 15, 0);
@@ -345,8 +340,71 @@ if LBAF15_LBADS < 9:
 else:
     mNVME.Print("All lbaf is available, quite this test item!", "w")
 
+
+
+
     
-    
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Check After the Format NVM command successfully completes"
+print "the controller shall not return any user data that was previously contained in an affected namespace"
+print "write data at block %s, %s and %s, size=1M"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
+mNVME.write_SML_data(0xab)
+print "send format command"
+mStr=Format(1, 0, 0)
+print "Check if data at block %s, %s and %s is 0x0 or not"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
+if mNVME.isequal_SML_data(0x0):
+    mNVME.Print("PASS", "p")
+else:
+    mNVME.Print("FAIL", "f")
+    ret_code = 1
+  
+
+'''     
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Test DST(device self test) operation was aborted due to the processing of a Format NVM command"
+
+# set Short device self-test operation, value=0x1
+mNVME.Flow.DST.SetDstType(1)
+# set Event
+mNVME.Flow.DST.SetEventTrigger(Format100)
+# start DST flow and get device self test status 
+DSTS=mNVME.Flow.DST.Start()
+# get bit 3:0
+DSTSbit3to0 = DSTS & 0b00001111
+
+print "Check if Device Self-test Status = 0x4(Operation was aborted due to the processing of a Format NVM command) or not"
+if DSTSbit3to0==4:
+    mNVME.Print("PASS", "p")
+else:
+    mNVME.Print("FAIL", "f")
+    ret_code = 1
+
+'''
+patten=0x5A
+thread_w=1
+block_w=1024 
+total_byte_w=block_w*thread_w *512
+# write data using multy thread
+mThreads = mNVME.nvme_write_multi_thread(thread_w, 0, block_w, patten)
+# check if all process finished 
+reset_cnt=0
+while True:        
+    allfinished=1
+    for process in mThreads:
+        if process.is_alive():
+            allfinished=0
+            mStr=Format(1, 0, 0)
+            print "T_ %s"%mStr
+
+    # if all process finished then, quit while loop, else  send reset command
+    if allfinished==1:        
+        break
+    else:
+        sleep(0.5)
+'''
+
 
 print ""    
 print "ret_code:%s"%ret_code

@@ -57,10 +57,11 @@ class NVMECom():
         n=2
         return [line[i:i+n] for i in range(0, len(line), n)]       
     
-    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0):
-    #-- return list [ byte[0], byte[1], byte[2], ... ]
+    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0):
+    #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0
+    #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1   
     #-- size, size in bytes
-    #-- usage: mStr=get_log2byte(7, 512)=[01, 23, 45, 67, 89]
+    #-- usage: mStr=get_log_passthru(7, 512, rae, lsp, lpo)=[01, 23, 45, 67, 89]
     #-- mStr[0]='01' , mStr[1]='23'  
     #--RAE: Retain Asynchronous Event
     #--LSP: Log Specific Field
@@ -83,9 +84,18 @@ class NVMECom():
             patten1= ''.join(patten)
             line=patten1.replace(" ", "")
     
-        # put patten in to list type
-        n=2
-        return [line[i:i+n] for i in range(0, len(line), n)]    
+        if ReturnType==0:
+            # return list
+            # put patten in to list type
+            n=2
+            return [line[i:i+n] for i in range(0, len(line), n)]    
+        elif ReturnType==1:
+            # return string
+            return line
+        else:
+            return 0
+            
+        
     
      
     def str2int(self, strin):

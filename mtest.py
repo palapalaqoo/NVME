@@ -48,6 +48,11 @@ print "-- %s -------------------------------------------------------------------
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print mNVME.GetLog.SanitizeStatus.SPROG
 
-
-
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.PowerOnHours
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_2th.DeviceSelfTestStatus
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_2th.PowerOnHours
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_3th.DeviceSelfTestStatus
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_3th.PowerOnHours

@@ -3,9 +3,9 @@ Created on Aug 10, 2018
 
 @author: root
 '''
-from lib_vct.NVMECom import NVMECom
-from SanitizeStatus import SanitizeStatus_
 
+from SanitizeStatus import SanitizeStatus_
+from DeviceSelfTest import DeviceSelfTest_
 
 
 
@@ -14,6 +14,8 @@ from SanitizeStatus import SanitizeStatus_
 
  
 # register class
-class GetLog_(object, NVMECom):
+class GetLog_():
     SanitizeStatus=SanitizeStatus_()  
+    DeviceSelfTest=DeviceSelfTest_()
+    
     
