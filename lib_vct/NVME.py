@@ -52,7 +52,7 @@ class NVME(object, NVMECom):
         self.CR = ControllerRegister.CR_()
         self.IdCtrl = IdCtrl.IdCtrl_()
         self.IdNs = IdNs.IdNs_()
-        self.GetLog = GetLog.GetLog_()
+        self.GetLog = GetLog.GetLog_(self)
         self.Flow=Flow.Flow_(self)
         
         self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev))         

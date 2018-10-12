@@ -15,7 +15,8 @@ from DeviceSelfTest import DeviceSelfTest_
  
 # register class
 class GetLog_():
-    SanitizeStatus=SanitizeStatus_()  
-    DeviceSelfTest=DeviceSelfTest_()
+    def __init__(self, obj):        
+        self.SanitizeStatus=SanitizeStatus_()  
+        self.DeviceSelfTest=DeviceSelfTest_(obj)
     
     

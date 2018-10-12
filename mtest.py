@@ -103,10 +103,13 @@ print "    if nsid<= NN or nsid=0xffffffff and SecureEraseSupported, expected st
 print "    if nsid<= NN or nsid=0xffffffff and not SecureEraseSupported, expected status code=INVALID_FORMAT"
 print "    if nsid> NN and SecureEraseSupported, expected status code=INVALID_NS"
 print "    if nsid> NN and not SecureEraseSupported, expected status code=INVALID_NS"
+print mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
 
-#print Format(1, 0, 2);
-
-
+print mNVME.str2int("")
+print mNVME.str2int("1")
+print mNVME.str2int("2")
+print mNVME.str2int("12")
+print mNVME.str2int("123")
 
 print ""    
 print "ret_code:%s"%ret_code

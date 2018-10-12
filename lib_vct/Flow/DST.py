@@ -20,7 +20,7 @@ class DST_():
         # _args: function parameters
         self._EventTrigger = None        
         self._args=None
-        self.EventTriggeredMessage="Event was triggered while DST execution exceed 40% "
+        self.EventTriggeredMessage="Event was triggered while DST execution exceed 2% "
         
         self.ShowProgress=True
          
@@ -45,6 +45,11 @@ class DST_():
         if self._mNVME.IdCtrl.OACS.bit(4)=="0":
             print "Controller does not support the DST operation, quit DST test!"
             return -1
+        # if DST is running before this test, then send abort DST command with cd10=0xf
+        if self._mNVME.GetLog.DeviceSelfTest.CDSTO!=0:
+            self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=0xF -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID))
+            
+            
         print "Starting DST .."  
         event_trigged=0
         error=0
@@ -58,13 +63,15 @@ class DST_():
             DST_per=self._mNVME.GetLog.DeviceSelfTest.CDSTC
             if DST_per_old!=DST_per:
                 if self.ShowProgress:
-                    print "percentage = %s"%DST_per
+                    #print "percentage = %s"%DST_per
+                    self._mNVME.PrintProgressBar(DST_per, 100, prefix = 'Progress:', length = 50)
             else:
                 sleep (0.1)
             DST_per_old=DST_per
-            # if percent > 40% and  _EventTrigger!=None, then trigger event
-            if DST_per>40 and event_trigged==0 and self._EventTrigger!=None:            
-                print "Sending format command while DST execution exceed 40% "     
+            # if percent > 2% and  _EventTrigger!=None, then trigger event
+            if DST_per>2 and event_trigged==0 and self._EventTrigger!=None:   
+                print ""         
+                print self.EventTriggeredMessage    
                 # excute event  
                 try:  
                     self._EventTrigger(self._args)

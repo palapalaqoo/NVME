@@ -4,6 +4,7 @@ import os
 from time import sleep
 from argparse import ArgumentParser
 import re
+import sys
 
 class NVMECom():   
     device="null"
@@ -102,9 +103,9 @@ class NVMECom():
     #-- return integer form string
     #-- ex. return intger 8976 if string = "0123" where byte[0] = 0x01, byte[1] = 0x23 (value = 0x2310)
         #check if string is legal or not
-        if strin=="":
-            mstr="0"
-            self.Print("Error: input string for function str2int() is null", "f")
+        if strin=="" or len(strin)%2!=0:
+            mstr="00"
+            self.Print("Error: input string for function str2int() is not legal where string = %s"%strin, "f")
         else:
             mstr=strin
         mstr0="".join(map(str.__add__, mstr[-2::-2] ,mstr[-1::-2]))
@@ -192,6 +193,30 @@ class NVMECom():
 
         return PMCAP, MSICAP, PXCAP, MSIXCAP, AERCAP
 
+    
+    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '#'):
+    # Print iterations progress
+    # Usage:  mNVME.PrintProgressBar(i + 1, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        """
+        Call in a loop to create terminal progress bar
+        @params:
+            iteration   - Required  : current iteration (Int)
+            total       - Required  : total iterations (Int)
+            prefix      - Optional  : prefix string (Str)
+            suffix      - Optional  : suffix string (Str)
+            decimals    - Optional  : positive number of decimals in percent complete (Int)
+            length      - Optional  : character length of bar (Int)
+            fill        - Optional  : bar fill character (Str)
+        """
+        percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+        filledLength = int(length * iteration // total)
+        bar = fill * filledLength + '-' * (length - filledLength)
+        mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        sys.stdout.write(u"\033[1000D" + mstr)
+        sys.stdout.flush()    
+        # Print New Line on Complete
+        if iteration == total: 
+            print()
 
 
 

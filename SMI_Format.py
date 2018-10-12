@@ -86,8 +86,8 @@ print "Number of Namespaces (NN): %s"%NN
 
 print "%s" %"Cryptographic erase is supported" if SecureEraseSupported else "Cryptographic erase is not supported"
 
-'''
 
+ 
 
 
 print ""
@@ -360,30 +360,14 @@ else:
 
 
 
-    
-print ""
-print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
-print "Check After the Format NVM command successfully completes"
-print "the controller shall not return any user data that was previously contained in an affected namespace"
-print "write data at block %s, %s and %s, size=1M"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
-mNVME.write_SML_data(0xab)
-print "send format command"
-mStr=Format(1, 0, 0)
-print "Check if data at block %s, %s and %s is 0x0 or not"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
-if mNVME.isequal_SML_data(0x0):
-    mNVME.Print("PASS", "p")
-else:
-    mNVME.Print("FAIL", "f")
-    ret_code = 1
-  
 
 
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "Test if device self-test operation was aborted due to the processing of a Format NVM command"
 
-mNVME.Flow.DST.EventTriggeredMessage="Sending format command while DST execution exceed 40% "
-mNVME.Flow.DST.ShowProgress=False
+mNVME.Flow.DST.EventTriggeredMessage="Sending format command while DST execution exceed 2% "
+mNVME.Flow.DST.ShowProgress=True
 
 print "Set nsid from 0x1 to %s and 0xffffffff in the format and DST command, then test if DST was aborted or not"%hex(NN)
 
@@ -416,6 +400,7 @@ for i in range(1, NN+1)+[0xFFFFFFFF]:
                 ret_code = 1
         else:
             print "Controller does not support the DST operation"
+          
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "Test if device self-test operation was aborted due to the processing of a Format NVM command when"
@@ -473,7 +458,7 @@ for mDstType in [0x1, 0x2]:
     else:
         print "Controller does not support the DST operation"
     
-'''
+
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "Test Format Scope and Secure Erase Scope"
@@ -517,7 +502,81 @@ if subret==0:
 else:
     mNVME.Print("Fail", "f")
 
+ 
 
+
+    
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Check data After the Format NVM command successfully completes with SES=0x0 (No secure erase operation requested)"
+print "The controller shall not return any user data that was previously contained in an affected namespace"
+print "write data at block %s, %s and %s, size=1M, patten=%s"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB, "0xab")
+mNVME.write_SML_data(0xab)
+print "send format command"
+mStr=Format(1, 0, 0)
+print "Check if data at block %s, %s and %s is 0x0 or not"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
+if mNVME.isequal_SML_data(0x0):
+    mNVME.Print("PASS", "p")
+else:
+    mNVME.Print("FAIL", "f")
+    ret_code = 1
+  
+
+
+ 
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Check data After the Format NVM command successfully completes with SES=0x1 (User Data Erase)"
+if not SecureEraseSupported:
+    print "Secure Erase is not Supported, quite this test"
+else:
+    print "write data at block %s, %s and %s, size=1M, patten=%s"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB, "0xab")
+    mNVME.write_SML_data(0xab)
+    print "send format command with SES=0x1(User Data Erase)"
+    print Format(1, 0, 1)
+    print "Check data at block %s, %s and %s, if data is 0x0 or 0xff, then pass the test"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
+    if mNVME.isequal_SML_data(0x0):
+        mNVME.Print("PASS", "p")
+    elif mNVME.isequal_SML_data(0xff):
+        mNVME.Print("PASS", "p")        
+    else:
+        mNVME.Print("FAIL", "f")
+        ret_code = 1
+ 
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Check data After the Format NVM command successfully completes with SES=0x2 (Cryptographic Erase )"
+if not SecureEraseSupported:
+    print "Secure Erase is not Supported, quite this test"
+else:
+    print "write data at block %s, %s and %s, size=1M, patten=%s"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB, "0xab")
+    mNVME.write_SML_data(0xab)
+    print "send format command with SES=0x2(Cryptographic Erase)"
+    print Format(1, 0, 2)
+    print "Check data at block %s, %s and %s, if data is 0x0 or 0xff or 0xab, then fail the test"%(mNVME.start_SB, mNVME.middle_SB, mNVME.last_SB)
+    if mNVME.isequal_SML_data(0x0):
+        mNVME.Print("FAIL", "f")
+        ret_code = 1
+    elif mNVME.isequal_SML_data(0xff):
+        mNVME.Print("FAIL", "f")
+        ret_code = 1
+    elif mNVME.isequal_SML_data(0xab):
+        mNVME.Print("FAIL", "f")
+        ret_code = 1
+    else:
+        mNVME.Print("PASS", "p")        
+
+
+
+
+
+
+
+
+
+            
+            
+            
 print ""    
 print "ret_code:%s"%ret_code
 print "Finish"
