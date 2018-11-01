@@ -55,17 +55,18 @@ class NVME(object, NVMECom):
         self.GetLog = GetLog.GetLog_(self)
         self.Flow=Flow.Flow_(self)
         
-        self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev))         
-        self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port)) 
+        self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev_port))         
+        self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port))
+        self.CNTLID=self.IdCtrl.CNTLID.int 
 
         # get valume of ssd
-        nuse=self.IdNs.NUSE.int
+        ncap=self.IdNs.NCAP.int
         # the start 1G start block
         self.start_SB=0
         # the middle 1G start block
-        self.middle_SB=nuse/2-(1024*1024*2)
+        self.middle_SB=ncap/2-(1024*1024*2)
         # the last 1G start block
-        self.last_SB=nuse-(1024*1024*2)
+        self.last_SB=ncap-(1024*1024*2)
         
         self.MDTSinByte=int(math.pow(2, 12+self.CR.CAP.MPSMIN.int) * math.pow(2, self.IdCtrl.MDTS.int))
         self.MDTSinBlock=self.MDTSinByte/512
@@ -87,36 +88,71 @@ class NVME(object, NVMECom):
         self.shell_cmd("setpci -s %s %s.b=%s " %(self.pcie_port, hex_str_addr, hex_str_value))
     
 
-    def dev_exist(self):
+    def dev_exist(self, nsid=-1):
     #-- return boolean
-        buf=self.shell_cmd("find %s 2> /dev/null |grep %s " %(self.dev,self.dev))
+    #-- default device=self.dev, ex. "/dev/nvme0n1
+        DEV=self.dev_port+"n%s"%nsid
+        if nsid==-1:
+            DEV=self.dev
+        buf=self.shell_cmd("find %s 2> /dev/null |grep %s " %(DEV,DEV))
         if not buf:
             return False
         else:
             return True
+        
 
                 
-
+    def ns_exist(self, nsid):
+    #-- check if name space exist or not 
+    #-- return boolean
+        buf=self.shell_cmd("nvme id-ns %s -n %s 2>&1 |grep INVALID_NS" %(self.dev_port,nsid))
+        if buf:
+            return False
+        else:
+            return True
+        
    
+    def DeleteNs(self, nsid):
+    #-- Delete name space exist or not 
+        self.shell_cmd("nvme delete-ns %s -n %s 2>&1 >/dev/null " %(self.dev_port,nsid))
+        
+    def CreateNs(self, SizeInBlock=2097152):
+    #-- Create name space, default size = 1G
+    #-- return created nsid
+        SIB=SizeInBlock
+        buf=self.shell_cmd("nvme create-ns %s -s %s -c %s -f 0 -d 0 -m 0 2>&1" %(self.dev_port, SIB, SIB))
+        # create-ns: Success, created nsid:5
+        mStr="created nsid:(\d+)"
+        nsid=-1
+        if re.search(mStr, buf):
+            nsid=int(re.search(mStr, buf).group(1),16)    
+        return nsid
 
-
-
+        
+        
+    def AttachNs(self, nsid):
+    #-- 
+        self.shell_cmd("nvme attach-ns %s -n %s -c %s 2>&1 >/dev/null " %(self.dev_port,nsid, self.CNTLID))
     
-
+    def DetachNs(self, nsid):
+    #-- 
+        self.shell_cmd("nvme detach-ns %s -n %s -c %s 2>&1 >/dev/null " %(self.dev_port,nsid, self.CNTLID))
     
     
     def get_CSAEL(self):
     #-- Get Log Page - Commands Supported and Effects Log
         return self.get_log(5,2048)
     
-    def fio_write(self, offset, size, pattern):
+    def fio_write(self, offset, size, pattern, nsid=1):
+        DEV=self.dev_port+"n%s"%nsid 
         return self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=0 --verify=pattern --verify_pattern=%s" %(self.dev, offset, size, pattern))
+        --do_verify=0 --verify=pattern --verify_pattern=%s" %(DEV, offset, size, pattern))
     
-    def fio_isequal(self, offset, size, pattern):
+    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k"):
     #-- return boolean
-        msg =  self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' " %(self.dev, offset, size, pattern))
+        DEV=self.dev_port+"n%s"%nsid 
+        msg =  self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
+        --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' " %(fio_bs, DEV, offset, size, pattern))
 
         ret=False
         if msg:
@@ -164,11 +200,11 @@ class NVME(object, NVMECom):
 
     def set_feature(self, fid, value): 
     # feature id, value
-        return self.shell_cmd(" nvme set-feature %s -f %s -v %s" %(self.dev, fid, value))
+        return self.shell_cmd(" nvme set-feature %s -f %s -v %s 2>&1" %(self.dev, fid, value))
      
     def get_feature(self, fid, cdw11=0): 
     # feature id, cdw11(If applicable)
-        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s"%(self.dev, fid, cdw11))
+        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s 2>&1"%(self.dev, fid, cdw11))
 
         
     def asynchronous_event_request(self): 
@@ -288,7 +324,7 @@ class NVME(object, NVMECom):
         self.status="normal"
         return 0  
     
-    def nvme_write_1_block(self, value, block):
+    def nvme_write_1_block(self, value, block, nsid=1):
         # write 1 block data, ex, nvme_write_1_block(0x32,0)
         # if csts.rdy=0, return false
         # value, value to write        
@@ -307,7 +343,7 @@ class NVME(object, NVMECom):
             slba=block
             cdw10=slba&0xFFFFFFFF
             cdw11=slba>>32    
-            mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(oct_val, self.dev, cdw10, cdw11))
+            mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n %s -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(oct_val, self.dev, nsid, cdw10, cdw11))
             #retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
             '''
             retCommandSueess=bool(re.search("ABORT_REQ", mStr))          
@@ -380,9 +416,69 @@ class NVME(object, NVMECom):
             LBAFs.append(LFDS)
         
         return LBAFs
-               
-        
     
+    def ResetNS(self):
+    # Reset all namespaces to namespace 1 and kill other namespaces"
+        nn=self.IdCtrl.NN.int
+        TNVMCAP=self.IdCtrl.TNVMCAP.int
+        TotalBlocks=TNVMCAP/512
+        
+        for i in range(1, nn+1):        
+            # delete NS
+            #if self.ns_exist(i):
+            self.DeleteNs(i)    
+        self.shell_cmd("nvme reset %s"%self.dev_port)      
+        # Create namespaces=1, and attach it
+        i=1    
+        sleep(0.2)
+        CreatedNSID=self.CreateNs(TotalBlocks)        
+        if CreatedNSID != i:
+            print "create namespace error!"    
+            return False  
+        else:
+            sleep(0.2)
+            self.AttachNs(i)
+            sleep(0.2)
+            self.shell_cmd("  nvme reset %s " % (self.dev_port))
+            return True     
+               
+    def CreateMultiNs(self):        
+        # Create namespcaes form nsid 1 to nsid %MaxNs, size 1G, and attach to the controller
+        # return MaxNs, ex, MaxNs=8, indicate the NS from 1 to 8
+        # check if controller supports the Namespace Management and Namespace Attachment commands or not
+        NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
+        NN=self.IdCtrl.NN.int
+        if NsSupported:
+            #print "controller supports the Namespace Management and Namespace Attachment commands"            
+            # set max test namespace <=8
+            MaxNs=8 if NN>8 else NN
+            print  "create namespcaes form nsid 1 to nsid %s, size 1G, and attach to the controller"%MaxNs       
+            error=0            
+            for i in range(1, NN+1):        
+                # delete NS
+                self.DeleteNs(i)    
+            self.shell_cmd("nvme reset %s"%self.dev_port)           
+            # Create namespaces, and attach it
+            for i in range(1, MaxNs+1):
+                sleep(0.2)
+                CreatedNSID=self.CreateNs()        
+                if CreatedNSID != i:
+                    print "create namespace error!"    
+                    error=1
+                    break
+                else:
+                    sleep(0.2)
+                    self.AttachNs(i)
+                    sleep(0.2)            
+                    self.shell_cmd("  nvme reset %s " % (self.dev_port))     
+                    
+            # if creat ns error          
+            if error==1:
+                self.Print(  "create namespcaes Fail, reset to namespaces 1" ,"w")
+                self.ResetNS()
+                MaxNs=1
+ 
+            return MaxNs
     
     
     

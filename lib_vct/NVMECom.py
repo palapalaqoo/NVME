@@ -5,9 +5,28 @@ from time import sleep
 from argparse import ArgumentParser
 import re
 import sys
+import signal
+class TimedOutExc(Exception):
+    pass
+
+def deadline(timeout, *args):
+    def decorate(f):
+        def handler(signum, frame):
+            raise TimedOutExc()
+
+        def new_f(*args):
+            signal.signal(signal.SIGALRM, handler)
+            signal.alarm(timeout)
+            return f(*args)
+            signal.alarm(0)
+
+        new_f.__name__ = f.__name__
+        return new_f
+    return decorate    
 
 class NVMECom():   
     device="null"
+    device_port="null"
     mTestModeOn=False
     SubItemNumValue=0
     
@@ -18,6 +37,7 @@ class NVMECom():
     def set_NVMECom_par(self, son):
         # set NVMECom parameters from subclass
         NVMECom.device=son.dev
+        NVMECom.device_port=son.dev[0:son.dev.find("nvme")+5]
         NVMECom.mTestModeOn=son.TestModeOn
 
     def shell_cmd(self, cmd, sleep_time=0):
@@ -34,20 +54,27 @@ class NVMECom():
     #--     0:    string, ex. cc: 460001, return "100064"
     #--     1:    string, ex. cc: 460001, return "460001"
     #--     16:     int,  ex. lpa: 0xf,return 15
+        DEV=NVMECom.device
+        #DEV=NVMECom.device if cmd=="id-ns" else NVMECom.device_port
         if gettype==0:
-            return self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, NVMECom.device, reg))[::-1]
+            return self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg))[::-1]
         if gettype==1:
-            return self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, NVMECom.device, reg))
+            return self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg))
         elif gettype==16:
-            return int(self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, NVMECom.device, reg)), 16)
+            return int(self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)), 16)
 
     def str_reverse(self, mstr):
         return mstr[::-1]
-    def get_log(self, log_id, size):
+    def get_log(self, log_id, size, StartByte=-1, StopByte=-1):
     #-- return string byte[0]+byte[1]+byte[2]+ ...
     #-- ex. return string "0123" where byte[0] = 0x01, byte[1] = 0x23
     #-- size, size in bytes
-        return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b |xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+        if (StartByte==-1 and StopByte==-1):
+            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b |xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+        else:
+            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b |xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+            return mStr[StartByte*2:(StopByte+1)*2]
+
 
     def get_log2byte(self, log_id, size):
     #-- return list [ byte[0], byte[1], byte[2], ... ]
@@ -194,7 +221,7 @@ class NVMECom():
         return PMCAP, MSICAP, PXCAP, MSIXCAP, AERCAP
 
     
-    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '#'):
+    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = 'x'):
     # Print iterations progress
     # Usage:  mNVME.PrintProgressBar(i + 1, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
         """
@@ -218,9 +245,23 @@ class NVMECom():
         if iteration == total: 
             print()
 
-
-
-
+    def KMGT(self, size):
+    # ex. KMGT(1024), return "1K"
+        Size=float(size)
+        SizeF=""
+        if Size>=1024*1024*1024*1024:
+            SizeF="%sT"%(Size/(1024*1024*1024*1024))
+        elif Size>=1024*1024*1024:
+            SizeF="%sG"%(Size/(1024*1024*1024))
+        elif Size>=1024*1024:
+            SizeF="%sM"%(Size/(1024*1024))
+        elif Size>=1024:
+            SizeF="%sK"%(Size/(1024))            
+        return SizeF
+    def KelvinToC(self, K):
+        return (K-273)
+    def CToKelvin(self, C):
+        return (C+273)
 
 
 

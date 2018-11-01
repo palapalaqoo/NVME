@@ -41,6 +41,7 @@ def F_reset(rsttype):
     
 
 ret_code=0
+print "Ver: 20181015_0930"
 mNVME = NVME.NVME(sys.argv[1] )
 if mNVME.dev_alive:
     print "device alive"

@@ -13,6 +13,7 @@ class DST_():
         self._mNVME = obj
         self._DstType=1
         self._NSID=1
+        self._Threshold=2
         # function to be triggered as DST in pregress
         # ex. 'def FormatNSID(nsid)' where _EventTrigger=FormatNSID, _args=nsid
         # ex. mNVME.Flow.DST.SetEventTrigger(FormatNSID, 0xffffffff) where _args=nsid=0xffffffff
@@ -28,6 +29,9 @@ class DST_():
         self._EventTrigger = EventTrigger
         self._args=args
         
+    def SetEventTriggerThreshold(self, Threshold=2):    
+        self._Threshold = Threshold
+                
     def SetDstType(self, DstType=1):  
     # DstType = 1, Short device self-test operation
     # DstType = 2, Extended device self-test operation 
@@ -51,27 +55,27 @@ class DST_():
             
             
         print "Starting DST .."  
+        print self.EventTriggeredMessage 
         event_trigged=0
         error=0
         DST_per_old=0
         # self test command
         self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=%s -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID, self._DstType))
-        
+        # print Progress with 0% 
+        self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
         while True:            
             sleep (0.1)
             # if DST_per value changed, then print DST_per
             DST_per=self._mNVME.GetLog.DeviceSelfTest.CDSTC
             if DST_per_old!=DST_per:
-                if self.ShowProgress:
+                if self.ShowProgress and DST_per!=0:
                     #print "percentage = %s"%DST_per
                     self._mNVME.PrintProgressBar(DST_per, 100, prefix = 'Progress:', length = 50)
             else:
                 sleep (0.1)
             DST_per_old=DST_per
             # if percent > 2% and  _EventTrigger!=None, then trigger event
-            if DST_per>2 and event_trigged==0 and self._EventTrigger!=None:   
-                print ""         
-                print self.EventTriggeredMessage    
+            if DST_per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
                 # excute event  
                 try:  
                     self._EventTrigger(self._args)
@@ -83,12 +87,17 @@ class DST_():
          
             #if if self test fininshed (Current Device Self-Test Operation==0)
             if self._mNVME.GetLog.DeviceSelfTest.CDSTO==0:
+                # if DST Operation completed without error, then set progress bar to 100%
+                DSTS=self._mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
+                DSTSbit3to0 = DSTS & 0b00001111
+                if DSTSbit3to0==0:
+                    self._mNVME.PrintProgressBar(100, 100, prefix = 'Progress:', length = 50)
+                else:                
+                    print ""                 
                 break
-            
-            
-        
+
         print "DST finished" 
-        if error==0:
+        if error==0:           
             return self._mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
         else:
             return -1
