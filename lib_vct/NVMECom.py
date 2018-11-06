@@ -243,7 +243,7 @@ class NVMECom():
         sys.stdout.flush()    
         # Print New Line on Complete
         if iteration == total: 
-            print()
+            print ""
 
     def KMGT(self, size):
     # ex. KMGT(1024), return "1K"

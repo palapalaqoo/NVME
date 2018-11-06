@@ -45,7 +45,10 @@ class NVME(object, NVMECom):
         if self.dev_alive:
             self.init_parameters()
             self.status="normal"
-        
+        else:
+            self.Print("Error! Can't find device of %s"%self.dev, "f")
+            self.Print( "Quit all the test items!", "f")
+            sys.exit(1)            
 
     def init_parameters(self):
         self.set_NVMECom_par(self)
@@ -296,7 +299,7 @@ class NVME(object, NVMECom):
         self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.bridge_port), 0.5) 
         self.shell_cmd("  rm -f %s* "%(self.dev_port))
-        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
+        #self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
         self.hot_reset()
         self.status="normal"
         return 0  
@@ -389,6 +392,7 @@ class NVME(object, NVMECom):
             t.start() 
             RetThreads.append(t)     
         return RetThreads
+    
         
     def GetAllLbaf(self):
     # return LBAF[[0, MS, LBADS, RP], [1, MS, LBADS, RP].. ,[15, MS, LBADS, RP]] , all value is interger
@@ -481,11 +485,41 @@ class NVME(object, NVMECom):
             return MaxNs
     
     
-    
-    
-    
-    
-    
+# ==============================================================    
+class DevWakeUpAllTheTime():
+# make device wake up all the time
+# issue compare command to make it wake up
+# Usage:
+#    DWUATT=DevWakeUpAllTheTime(mNVME)
+#    DWUATT.Start()  
+#    DWUATT.Stop()  
+
+    def __init__(self, nvme):
+        self._NVME = nvme
+        self._Start = 0
+        
+    def _Compare(self):
+        while self._Start == 1:
+            self._NVME.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 51200 -c 99 2>&1 > /dev/null) "%(self._NVME.dev)) 
+        
+    def Start(self):
+        self._Start = 1
+        self._Thread = threading.Thread(target = self._Compare)  
+        self._Thread.start() 
+            
+    def Stop(self):    
+        self._Start = 0
+        sleep(0.2)
+
+
+
+
+
+
+
+
+
+
     
     
     

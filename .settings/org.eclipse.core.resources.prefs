@@ -1,2 +1,6 @@
 eclipse.preferences.version=1
+encoding//lib_vct/NVMECom.py=utf-8
 encoding/SMI_DSM.py=utf-8
+encoding/SMI_FeatureHCTM.py=utf-8
+encoding/SMI_FeatureTimestamp.py=utf-8
+encoding/SMI_Sanitize.py=utf-8

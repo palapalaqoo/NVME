@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 from lib_vct import NVME
 from lib_vct import NVMECom
 import sys
@@ -18,6 +19,8 @@ mNVME = NVME.NVME(sys.argv )
 ret_code = 0
 
 ## function #####################################
+def GetPS():
+    return int(mNVME.get_feature(2)[-1:])
 
 def GetTMT1_TMT1():
     buf = mNVME.get_feature(0x10)
@@ -49,9 +52,9 @@ def CheckisINVALID_FIELD(strin):
 def ResetHCTM():
     print ""
     print "Set TMT1=MXTMT-1, TMT2=MXTMT to exit the HCTM status if the HCTM is acting "
-    mTMT1=MNTMT-1
+    mTMT1=MXTMT-1
     mTMT2=MXTMT
-    print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+    print "Set TMT1= %s, TMT2= %s"%(mNVME.KelvinToC(mTMT1), mNVME.KelvinToC(mTMT2))
     SetTMT1_TMT2(mTMT1, mTMT2)
     sleep(1)
        
@@ -63,14 +66,49 @@ def CheckisSuccess(strin):
     else:
         mNVME.Print("Fail", "f")
         ret_code = 1       
-       
+
+def RaisingTempture(TargetTemp, TimeOut):
+# TimeOut = time limit in secend
+# TargetTemp =temp in Kelvin degree
+# Return last tempture read from controller
+    TimeCnt=0
+    aa=time.time()
+    TempNow=0
+    while True:                     
+        # writing
+        mThreads=mNVME.nvme_write_multi_thread(thread=4, sbk=0, bkperthr=512, value=0x5A)
+        for process in mThreads:   
+            process.join()
+        
+        TimeCnt= int(time.time()-aa) 
+        PS = GetPS()    
+        TempNow = mNVME.GetLog.SMART.CompositeTemperature
+        mSuffix="Temperature: %s C, Power State: %s"%(mNVME.KelvinToC(TempNow), PS)
+        
+        # progressbar
+        if TimeCnt<TimeOut:
+            mNVME.PrintProgressBar(TimeCnt, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
+        else:
+            mNVME.PrintProgressBar(TimeOut, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
+            print "After %s s, time out !,  stop to increase temperature !"%TimeOut
+            break
+                
+        if TempNow>=TargetTemp: 
+            print ""
+            print "After %s s, temperature is large then target temperature now, stop to increase temperature !"%TimeCnt
+            break
+
+    return TempNow
+
 ## end function #####################################
 
 HCTMA = mNVME.IdCtrl.HCTMA.int
 MNTMT = mNVME.IdCtrl.MNTMT.int
 MXTMT = mNVME.IdCtrl.MXTMT.int
 TMT1bk, TMT2bk = GetTMT1_TMT1()
-'''
+print "TMT1: %s"%TMT1bk
+print "TMT2: %s"%TMT2bk
+
 print ""
 print "-- NVME Host Controlled Thermal Management(Feature Identifier 10h) test" 
 print "-----------------------------------------------------------------------------------"
@@ -79,8 +117,8 @@ print ""
 print "Check if controll support host controlled thermal management or not"
 if HCTMA==1:
     mNVME.Print("Supported", "p")
-    print "Minimum Thermal Management Temperature(MNTMT): %s"%(MNTMT)
-    print "Maximum Thermal Management Temperature(MXTMT): %s"%(MXTMT)
+    print "Minimum Thermal Management Temperature(MNTMT): %s"%mNVME.KelvinToC(MNTMT)
+    print "Maximum Thermal Management Temperature(MXTMT): %s"%mNVME.KelvinToC(MXTMT)
     
 else:
     mNVME.Print("Not supported", "p")
@@ -169,19 +207,24 @@ mStr =  SetTMT1_TMT2(mTMT1, mTMT2)
 CheckisINVALID_FIELD(mStr)
 
 
-'''
+
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "Test HCTM functionality"
-
-# reset HCTM if last HCTM not finished
-ResetHCTM()
+print ""
+mNVME.Print("Warning! If the Composite Temperature is above 35 °C now, it may fail this test  ", "w")
+mNVME.Print("Please cool down the controller and try it later, expected temperature < 35 °C", "w")
+print ""
+print "NVMe reset controller to reset HCTM function"
+mNVME.nvme_reset()
 
 LiveT = mNVME.GetLog.SMART.CompositeTemperature
 
-print "Minimum Thermal Management Temperature(MNTMT): %s"%(MNTMT)
-print "Maximum Thermal Management Temperature(MXTMT): %s"%(MXTMT)
-print "CompositeTemperature now: %s"%mNVME.KelvinToC(LiveT)
+print "Minimum Thermal Management Temperature(MNTMT): %s °C"%mNVME.KelvinToC(MNTMT)
+print "Maximum Thermal Management Temperature(MXTMT): %s °C"%mNVME.KelvinToC(MXTMT)
+print "CompositeTemperature now: %s °C"%mNVME.KelvinToC(LiveT)
+
+
 
 # get value from smart log 
 TMT1TC = mNVME.GetLog.SMART.ThermalManagementTemperature1TransitionCount
@@ -189,48 +232,24 @@ TMT2TC = mNVME.GetLog.SMART.ThermalManagementTemperature2TransitionCount
 TTTMT1 = mNVME.GetLog.SMART.TotalTimeForThermalManagementTemperature1
 TTTMT2 = mNVME.GetLog.SMART.TotalTimeForThermalManagementTemperature2
 
+
 # TMT min number must large then MNTMT
 if LiveT<MNTMT:
     BaseT=MNTMT
 else:
     BaseT=LiveT
 
-
-
 print ""
 mTMT1=BaseT+1
 mTMT2=BaseT+2
-print "Set TMT1= %s, TMT2= %s"%(mNVME.KelvinToC(mTMT1), mNVME.KelvinToC(mTMT2))
-mStr =  SetTMT1_TMT2(mTMT1, mTMT2)
+print "Set TMT1= %s °C, TMT2= %s °C"%(mNVME.KelvinToC(mTMT1), mNVME.KelvinToC(mTMT2))
+SetTMT1_TMT2(mTMT1, mTMT2)
 
-TargetTemp = mTMT2
-print "Writing data to increase temperature to make it large then TMT2( %s C)"%mNVME.KelvinToC(TargetTemp)
-print "time limit is 180 s "
-
-TimeCnt=0
-aa=time.time()
-
-
-
-LiveT_n=0
-TimeOut=180
-while TimeCnt<=TimeOut:    
-    
-    # writing
-    mThreads=mNVME.nvme_write_multi_thread(thread=4, sbk=0, bkperthr=512, value=0x5A)
-    for process in mThreads:   
-        process.join()
-
-    LiveT_n = mNVME.GetLog.SMART.CompositeTemperature
-    mSuffix="Temperature: %s C"%mNVME.KelvinToC(LiveT_n)
-    # progressbar
-    mNVME.PrintProgressBar(TimeCnt, TimeOut, prefix = 'Time:', suffix = mSuffix, length = 50)
-    
-    if LiveT_n>=TargetTemp:        
-        break
-
-    TimeCnt= int(time.time()-aa)
-print ""
+TargetTemp = mTMT2 + 1
+TimeLimit = 180
+print "Writing data to increase temperature to make it large then TMT2(Let's set target temperature = %s °C)"%mNVME.KelvinToC(TargetTemp)
+print "Time limit is %s s "%TimeLimit
+LiveT_n = RaisingTempture(TargetTemp, TimeLimit)
 
 # get value from smart log 
 TMT1TC_n = mNVME.GetLog.SMART.ThermalManagementTemperature1TransitionCount
@@ -240,17 +259,17 @@ TTTMT2_n = mNVME.GetLog.SMART.TotalTimeForThermalManagementTemperature2
 
 print ""
 print "-- befor test --"
-print "Composite Temperature: %s"%LiveT
+print "Composite Temperature: %s °C"%mNVME.KelvinToC(LiveT)
 print "TMT1TC: %s"%TMT1TC
 print "TMT2TC: %s"%TMT2TC
 print "TTTMT1: %s"%TTTMT1
 print "TTTMT2: %s"%TTTMT2
 print "-- after test --"
-print "Composite Temperature: %s"%LiveT_n
+print "Composite Temperature: %s °C"%mNVME.KelvinToC(LiveT_n)
 print "TMT1TC: %s"%TMT1TC_n
 print "TMT2TC: %s"%TMT2TC_n
 print "TTTMT1: %s"%TTTMT1_n
-print "TTTMT2: %s"%TTTMT1_n
+print "TTTMT2: %s"%TTTMT2_n
 
 print ""
 if LiveT_n>=mTMT1:
@@ -268,8 +287,9 @@ if LiveT_n>=mTMT1:
         mNVME.Print("Fail", "f")   
         ret_code = 1
 else:
-    mNVME.Print("Fail! The temperature has never great then TMT1 in %s s"%TimeOut, "w")
-        
+    mNVME.Print("Warning! The temperature has never great then TMT1 in %s s"%TimeLimit, "w")
+
+print ""
 if LiveT_n>=mTMT2:
     print "HCTM enter heavy throttle ststus, Composite Temperature > TMT2"
     print "Check if after the test, TMT2TC += 1"
@@ -285,15 +305,15 @@ if LiveT_n>=mTMT2:
         mNVME.Print("Fail", "f")   
         ret_code = 1
 else:
-    mNVME.Print("Fail! The temperature has never great then TMT2 in %s s"%TimeOut, "w")    
+    mNVME.Print("Warning! The temperature has never great then TMT2 in %s s"%TimeLimit, "w")    
     
-    
-print "Check if after the test, Composite Temperature"
+print ""   
+print "Check if after the test, Composite Temperature has been changed or not"
 if LiveT_n!=LiveT:
     mNVME.Print("Pass", "p")
 else:
-    mNVME.Print("Fail", "f")   
-    ret_code = 1
+    mNVME.Print("Warning! never changed", "w")   
+    
 
 
 
@@ -301,8 +321,8 @@ else:
 
 
 print ""
-print "restore TMT1, TMT2"
-SetTMT1_TMT2(TMT1bk, TMT2bk )
+print "NVMe reset controller"
+mNVME.nvme_reset()
 
 print ""    
 print "ret_code:%s"%ret_code
