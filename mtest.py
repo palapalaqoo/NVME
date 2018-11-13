@@ -7,14 +7,15 @@ import threading
 import re
 import random
 import time
-from unittest.result import TestResult
-from scipy.constants.constants import minute
-import signal
 
+
+import signal
+import subprocess
 from lib_vct.NVMECom import deadline
 from lib_vct.NVMECom import TimedOutExc
 from gtk.keysyms import seconds
-
+from lib_vct import NVMEAsyncEventRequest
+import os.path
 def GetPS():
     return int(mNVME.get_feature(2)[-1:])
 
@@ -22,18 +23,7 @@ print "Ver: 20181022_0930"
 mNVME = NVME.NVME(sys.argv )
 
 
-
-mNVME.link_reset()
-mNVME.subsystem_reset()
-mNVME.nvme_reset()
-
-integer = 16
-hex_string = '{:02x}'.format(integer)
-print hex_string
-
-
-
-
+print mNVME.GetLog.SanitizeStatus.SPROG
 '''
 EDSTT=mNVME.IdCtrl.EDSTT.int
 print "123456"

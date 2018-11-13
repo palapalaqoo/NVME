@@ -261,8 +261,8 @@ class NVME(object, NVMECom):
     def read(self):
         self.fio_isequal(0, "1M", "0x19")
         return 0     
-    def write_unc(self):
-        self.shell_cmd("  buf=$(nvme write-uncor %s -s 0 -n 1 -c 127 2>&1 > /dev/null) "%(self.dev)) 
+    def write_unc(self, SLB=0, BlockCnt=127):
+        self.shell_cmd("  buf=$(nvme write-uncor %s -s %s -n %s -c %s 2>&1 > /dev/null) "%(self.dev, SLB, self.dev_port, BlockCnt)) 
         return 0      
     def compare(self):
         self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 51200 -c 99 2>&1 > /dev/null) "%(self.dev)) 

@@ -9,7 +9,8 @@ class SanitizeStatus_(object, NVMECom):
     @property
     def SPROG(self):
         # ret int form 0 - 25535           
-        return self.str2int(self.get_log(0x81, 20)[0:4])
+        #return self.str2int(self.get_log(0x81, 20)[0:4])
+        return self.str2int(self.get_log_passthru(LID=0x81, size=20, RAE=1,ReturnType=1 )[0:4])
     
     @property
     def SSTAT(self):

@@ -62,7 +62,8 @@ class DST_():
         # self test command
         self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=%s -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID, self._DstType))
         # print Progress with 0% 
-        self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
+        if self.ShowProgress:
+            self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
         while True:            
             sleep (0.1)
             # if DST_per value changed, then print DST_per
@@ -78,7 +79,10 @@ class DST_():
             if DST_per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
                 # excute event  
                 try:  
-                    self._EventTrigger(self._args)
+                    if self._args==None:
+                        self._EventTrigger()
+                    else:
+                        self._EventTrigger(self._args)
                 except Exception as e:
                     self._mNVME.Print(e, "f")
                     error=1
