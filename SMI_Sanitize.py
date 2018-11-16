@@ -23,16 +23,7 @@ CMD_Result="0"
 SANACT=0
 ErrorLog=[]
 ## function #####################################
-def Sanitize():
-    mNVME.shell_cmd("  nvme sanitize %s -a 0x02 2>&1 > /dev/null"%(mNVME.dev))    
-    sleep(0.1)
-    # wait for sanitize command complate
-    while mNVME.GetLog.SanitizeStatus.SPROG != 65535 :
-        sleep(0.5)
-    return 0
-
-
-          
+      
      
 def asynchronous_event_request_cmd(): 
     global CMD_Result
@@ -152,13 +143,13 @@ def SendTestCommand(*args):
     CMD_Result = mNVME.shell_cmd(CMD)
 
 
-def TestCommandAllowed(CMDType, Opcode, ExpectedResult, LogPageID):  
+def TestCommandAllowed(CMDType, Opcode, ExpectedResult, LogPageID=0):  
 # CMDType:  admin or io
 # ExpectedResult: Deny or Allow
     global ret_code
     mNVME.Flow.Sanitize.ShowProgress=False   
     mNVME.Flow.Sanitize.SetEventTrigger(SendTestCommand, CMDType, Opcode, LogPageID)
-    mNVME.Flow.Sanitize.SetOptions("-a 0x02")
+    mNVME.Flow.Sanitize.SetOptions("-a %s"%SANACT)
     # 0< Threshold <65535
     mNVME.Flow.Sanitize.SetEventTriggerThreshold(100)
     mNVME.Flow.Sanitize.Start()
@@ -181,7 +172,7 @@ def GetErrorLog():
 def GetErrorInfoWhileSanitizeInProgress():    
     mNVME.Flow.Sanitize.ShowProgress=False   
     mNVME.Flow.Sanitize.SetEventTrigger(GetErrorLog)
-    mNVME.Flow.Sanitize.SetOptions("-a 0x02")
+    mNVME.Flow.Sanitize.SetOptions("-a %s"%SANACT)
     # 0< Threshold <65535
     mNVME.Flow.Sanitize.SetEventTriggerThreshold(100)
     mNVME.Flow.Sanitize.Start()
@@ -230,7 +221,7 @@ print ""
 print "+ Asynchronous Event Request"
 mNVME.Flow.Sanitize.ShowProgress=True   
 mNVME.Flow.Sanitize.SetEventTrigger(CMD_Asynchronous)
-mNVME.Flow.Sanitize.SetOptions("-a 0x02")
+mNVME.Flow.Sanitize.SetOptions("-a %s"%SANACT)
 mNVME.Flow.Sanitize.SetEventTriggerThreshold(100)
 mNVME.Flow.Sanitize.Start()
 if re.search("00020101", CMD_Result):
@@ -243,7 +234,7 @@ print ""
 print "+ Asynchronous Event Request"
 mNVME.Flow.Sanitize.ShowProgress=True   
 mNVME.Flow.Sanitize.SetEventTrigger(CMD_CreateCQ)
-mNVME.Flow.Sanitize.SetOptions("-a 0x02")
+mNVME.Flow.Sanitize.SetOptions("-a %s"%SANACT)
 mNVME.Flow.Sanitize.SetEventTriggerThreshold(100)
 mNVME.Flow.Sanitize.Start()
 if re.search("00020101", CMD_Result):
@@ -259,7 +250,7 @@ CMD_Abort()
 
 print "Admin commands"
 print "--------------------------------------------------------"
-'''
+
 print "Delete I/O Submission Queue"
 TestCommandAllowed("admin", 0x0, "Allow")
 
@@ -370,7 +361,7 @@ TestCommandAllowed("admin", 0x82, "Deny")
 print "Sanitize"
 TestCommandAllowed("admin", 0x84, "Deny")  
 
-'''
+
     
 
 

@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 import re
 import sys
 import signal
+
 class TimedOutExc(Exception):
     pass
 
@@ -39,6 +40,8 @@ class NVMECom():
         NVMECom.device=son.dev
         NVMECom.device_port=son.dev[0:son.dev.find("nvme")+5]
         NVMECom.mTestModeOn=son.TestModeOn
+
+        self.LBARangeDataStructure=LBARangeDataStructure_(self)
 
     def shell_cmd(self, cmd, sleep_time=0):
         fd = os.popen(cmd)
@@ -265,5 +268,68 @@ class NVMECom():
 
 
 
+    def int2bytes(self,value,NthByte):
+        target = value
+        n = NthByte # N th byte
+        goal = 0xFF << (8 * n)
+        return int((target & goal) >> (8 * n))       
 
 
+
+
+#== end NVMECom =================================================
+
+class LBARangeDataStructure_():
+# usage
+# mNVME.LBARangeDataStructure.Type=0x2
+# mNVME.LBARangeDataStructure.Attributes=0x1
+# mNVME.LBARangeDataStructure.SLBA=0x5432
+# mNVME.LBARangeDataStructure.NLB=7
+# mNVME.LBARangeDataStructure.CreatePattern()
+# print mNVME.LBARangeDataStructure.Pattern
+    def __init__(self, obj):
+        self._mNVME=obj
+        self.Type = 0
+        self.Attributes = 0
+        self.SLBA = 0
+        self.NLB = 0
+        self.GUID = 0
+        self.Pattern = ""
+
+    
+    def _CreateZeroPattern(self, cnt):
+        mStr=""
+        for i in range(cnt):
+            mStr = mStr + self._FormatByte(0)
+        return mStr
+    
+    def _FormatByte(self, value):
+        #return "\\\\" + str(value).zfill(3)
+        return "\\\\" +"x" + str(hex(value)[2:])
+
+    def CreatePattern(self):
+        # byte 0, Type
+        Pat = self._FormatByte(self.Type)
+        
+        # byte 1,Attributes
+        Pat = Pat + self._FormatByte(self.Attributes)
+        
+        # byte 2~15,Reserved
+        Pat = Pat + self._CreateZeroPattern(14)
+        
+        # byte 16~23,SLBA
+        for i in range(8):
+            Pat = Pat +self._FormatByte(self._mNVME.int2bytes(self.SLBA,i))
+
+        # byte 24~31,NLB
+        for i in range(8):
+            Pat = Pat +self._FormatByte(self._mNVME.int2bytes(self.NLB,i))   
+
+        # byte 32~47,GUID
+        for i in range(16):
+            Pat = Pat + self._FormatByte(self._mNVME.int2bytes(self.GUID,i))     
+              
+        # byte 48~63,Reserved
+        Pat = Pat + self._CreateZeroPattern(16)
+        
+        self.Pattern=Pat

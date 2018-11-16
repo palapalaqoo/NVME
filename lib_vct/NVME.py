@@ -16,6 +16,7 @@ from lib_vct import IdCtrl
 from lib_vct import IdNs
 from lib_vct.GetLog import GetLog
 from lib_vct.Flow import Flow
+import re
 
 def foo1():
     print "foo!"
@@ -31,8 +32,12 @@ class NVME(object, NVMECom):
     
     def __init__(self, argv):
         
+        # self.dev = /dev/nvme0n1
         self.dev, self.TestModeOn =  self.ParserArgv(argv)
+        # self.dev_port = /dev/nvme0
         self.dev_port=self.dev[0:self.dev.find("nvme")+5]
+        # self.dev_ns = 1
+        self.dev_ns=self.dev[-1:]
         
              
        
@@ -201,13 +206,28 @@ class NVME(object, NVMECom):
             return ret 
         return ret
 
-    def set_feature(self, fid, value): 
+    def set_feature(self, fid, value, SV=0, Data=None): 
     # feature id, value
-        return self.shell_cmd(" nvme set-feature %s -f %s -v %s 2>&1" %(self.dev, fid, value))
+    # if sv=1 and have data in
+    # CMD = echo "\\255\\255\\255\\255\\255\\255" |nvme set-feature %s -f %s -n %s -v %s -s 2>&1
+        
+        CMD=""
+        if Data!=None:
+            CMD="echo -n -e \""+ Data + "\" | "
+        
+        CMD = CMD + "nvme set-feature %s -f %s -n %s -v %s " %(self.dev, fid, self.dev_ns, value)
+        if SV!=0:
+            CMD = CMD + "-s "
+            
+        CMD = CMD +"2>&1 "
+
+        return self.shell_cmd(CMD)
+    
+        
      
-    def get_feature(self, fid, cdw11=0): 
+    def get_feature(self, fid, cdw11=0, sel=0): 
     # feature id, cdw11(If applicable)
-        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s 2>&1"%(self.dev, fid, cdw11))
+        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s -s %s 2>&1"%(self.dev, fid, cdw11, sel))
 
         
     def asynchronous_event_request(self): 
@@ -262,7 +282,7 @@ class NVME(object, NVMECom):
         self.fio_isequal(0, "1M", "0x19")
         return 0     
     def write_unc(self, SLB=0, BlockCnt=127):
-        self.shell_cmd("  buf=$(nvme write-uncor %s -s %s -n %s -c %s 2>&1 > /dev/null) "%(self.dev, SLB, self.dev_port, BlockCnt)) 
+        self.shell_cmd("  buf=$(nvme write-uncor %s -s %s -n %s -c %s 2>&1 > /dev/null) "%(self.dev, SLB, self.dev_ns, BlockCnt)) 
         return 0      
     def compare(self):
         self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 51200 -c 99 2>&1 > /dev/null) "%(self.dev)) 
