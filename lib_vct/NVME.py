@@ -215,10 +215,14 @@ class NVME(object, NVMECom):
         if Data!=None:
             CMD="echo -n -e \""+ Data + "\" | "
         
-        CMD = CMD + "nvme set-feature %s -f %s -n %s -v %s " %(self.dev, fid, self.dev_ns, value)
+        CMD = CMD + "nvme set-feature %s -f %s -v %s " %(self.dev, fid, value)
+        
+        # feature is not namespace specific
+        if fid!=0x10 and fid!=0x80 :
+            CMD = CMD + "-n %s "%self.dev_ns
+        
         if SV!=0:
-            CMD = CMD + "-s "
-            
+            CMD = CMD + "-s "            
         CMD = CMD +"2>&1 "
 
         return self.shell_cmd(CMD)

@@ -7,7 +7,7 @@ Created on Aug 30, 2018
 from lib_vct.NVMECom import NVMECom
 class RegType(object):
     hex=0x0   # hex
-    int=0x1     # integer
+    decimal=0x1     # decimal
 
 class RegDescriptor(object,NVMECom):  
     
@@ -16,6 +16,10 @@ class RegDescriptor(object,NVMECom):
         self.reg = mreg     
         self.bitstart = bitStart
         self.bitstop = bitStop+1
+        # read value type, hex or dec, 
+        # ex. MNTMT is decimal value in nvme command, so set regtype = decimal
+        # if MNTMT = 12, and regtype = dec, then NVME.IdCtrl.MNTMT.int = 0x12, bingo!
+        # if MNTMT = 12, and regtype = hex, then NVME.IdCtrl.MNTMT.int = 0xC, wrong value
         self.regtype=regType
     
     @property
@@ -29,7 +33,7 @@ class RegDescriptor(object,NVMECom):
         mstr=self.get_reg(self.cmd, self.reg, 1)        
         if self.regtype==RegType.hex:         
             mstrint=int(mstr, 16)
-        elif self.regtype==RegType.int:
+        elif self.regtype==RegType.decimal:
             mstrint=int(mstr)
         totalbits=len(mstr)*4     
         bitstart_rev=totalbits-self.bitstop

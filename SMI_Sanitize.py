@@ -207,6 +207,21 @@ if SANACT==0:
     print "Finish"
     sys.exit(ret_code)   
 
+print ""
+print "Check if there is any sanitize operation in progress or not"
+per = mNVME.GetLog.SanitizeStatus.SPROG
+if per != 65535:
+    mNVME.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 10s)", "w")
+    WaitCnt=0
+    while per != 65535:
+        print ("Sanitize Progress: %s"%per)
+        per = mNVME.GetLog.SanitizeStatus.SPROG
+        WaitCnt = WaitCnt +1
+        if WaitCnt ==10:
+            break
+        sleep(1)
+else:
+    print "All sanitize operation was completed"
 
   
 print ""

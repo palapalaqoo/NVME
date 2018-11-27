@@ -37,12 +37,28 @@ print mNVME.LBARangeDataStructure.Pattern
 print hex(16)[1:]
 
 
-
-
+start = time.time()
+  
+print int(time.time())
+sleep(1)
+print time.time()
 
 '''
 for i in range(1,0x12):
     print mNVME.get_feature(fid = i, sel = 0)
+    
+    
+def stopwatch(seconds):
+    start = time.time()
+    time.clock()    
+    elapsed = 0
+    while elapsed < seconds:
+        elapsed = time.time() - start
+        print "loop cycle time: %f, seconds count: %02d" % (time.clock() , elapsed) 
+        time.sleep(1)  
+
+stopwatch(20)
+    
 '''
 
 

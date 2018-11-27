@@ -10,7 +10,7 @@ from unittest.result import TestResult
 from lib_vct.NVMECom import deadline
 from lib_vct.NVMECom import TimedOutExc
 
-print "Ver: 20181030_0930"
+print "Ver: 20181127_0930"
 mNVME = NVME.NVME(sys.argv )
 
 ## paramter #####################################
@@ -581,8 +581,15 @@ def flow3():
                     if DSTSbit3to0==4:
                         mNVME.Print("PASS", "p")
                     else:
-                        mNVME.Print("FAIL", "f")
-                        ret_code = 1
+                        if IdDST==IdFormat:
+                            mNVME.Print("FAIL", "f")
+                            ret_code = 1
+                        else:
+                            mNVME.Print("FAIL", "w")
+                            mNVME.Print("Warnning! according to NVME Spec 1.3c, page 269, 8.11.1 and 8.11.2", "w")
+                            mNVME.Print("shall be aborted by a Format NVM, if the Namespace Identifier field specified in the Format NVM command is the same as- ", "w")
+                            mNVME.Print("the Device Self-test command that invoked the device self-test operation ", "w")
+                             
                 else:
                     print "Controller does not support the DST operation"
               

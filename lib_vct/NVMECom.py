@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 import re
 import sys
 import signal
+import time
 
 class TimedOutExc(Exception):
     pass
@@ -42,6 +43,10 @@ class NVMECom():
         NVMECom.mTestModeOn=son.TestModeOn
 
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
+
+    @property
+    def Second(self):
+        return int(time.time())       
 
     def shell_cmd(self, cmd, sleep_time=0):
         fd = os.popen(cmd)

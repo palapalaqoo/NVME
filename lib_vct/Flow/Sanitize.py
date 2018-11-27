@@ -4,9 +4,10 @@ Created on Oct 5, 2018
 @author: root
 '''
 import re
-
+import time
 
 from time import sleep
+
 
 class Sanitize_():
     def __init__(self, obj):
@@ -19,9 +20,9 @@ class Sanitize_():
         # _args: function parameters, ex, ("123", "456")
         self._EventTrigger = None        
         self._args=None
-        self.EventTriggeredMessage="Event was triggered while execution exceed 2% "
-        
+        self.EventTriggeredMessage="Event was triggered while execution exceed 2% "        
         self.ShowProgress=True
+        self.TimeOut=60
          
     def SetEventTrigger(self, EventTrigger=None, *args):    
         self._EventTrigger = EventTrigger
@@ -34,6 +35,22 @@ class Sanitize_():
     def SetOptions(self, Opt):
     # refer to NVME Cli, nvme-sanitize
         self._Options=Opt
+        
+    def WaitRecentSanitizeFinish(self):
+    # time out 10s
+        per = self._mNVME.GetLog.SanitizeStatus.SPROG
+        if per != 65535:
+            WaitCnt=0
+            while per != 65535:
+                #print ("Sanitize Progress: %s"%per)
+                per = self._mNVME.GetLog.SanitizeStatus.SPROG
+                WaitCnt = WaitCnt +1
+                if WaitCnt ==10:
+                    return False
+                sleep(1)
+        else:
+            return True
+
             
     def Start(self): 
     # start Sanitize and return interger -1 if Exception occured
@@ -44,12 +61,16 @@ class Sanitize_():
         event_trigged=0
         error=0
         per_old=0
+        TimeStart=self._mNVME.Second
+        if not self.WaitRecentSanitizeFinish():
+            self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Recent Sanitize can't finish in 10 s", "f")
+            return -1            
         # Sanitize command
         CMD="nvme sanitize %s %s 2>&1"%(self._mNVME.dev_port, self._Options)
         mStr=self._mNVME.shell_cmd(CMD)
         if not re.search("SUCCESS", mStr):
-            self._mNVME.Print("Sanitize command error!, command: %s"%CMD, "f")
-            self._mNVME.Print("Command return status: %s"%mStr, "f")
+            self._mNVME.Print("lib_vct/Flow/Sanitize: Sanitize command error!, command: %s"%CMD, "f")
+            self._mNVME.Print("lib_vct/Flow/Sanitize: Command return status: %s"%mStr, "f")
             return -1
             
         # print Progress with 0% 
@@ -76,13 +97,21 @@ class Sanitize_():
                         self._EventTrigger(*self._args)
                 except Exception as e:
                     print ""
-                    self._mNVME.Print(e, "f")
+                    self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
                     error=1
                     
                 event_trigged=1        
          
             #if fininshed 
             if per == 65535:                
+                break
+            
+            # if timeout
+            TimeElapsed= TimeStart-self._mNVME.Second
+            if TimeElapsed > self.TimeOut:
+                print ""
+                self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
+                error=1                
                 break
 
         if error==0:           
