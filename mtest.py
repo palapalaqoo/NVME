@@ -22,8 +22,8 @@ def GetPS():
 print "Ver: 20181022_0930"
 mNVME = NVME.NVME(sys.argv )
 
-
-
+NsSupported=True if mNVME.IdCtrl.OACS.bit(3)=="1" else False
+print "support" if NsSupported else "not support"
 '''
 
 mNVME.LBARangeDataStructure.Type=0x2
@@ -33,7 +33,7 @@ mNVME.LBARangeDataStructure.NLB=7
 mNVME.LBARangeDataStructure.CreatePattern()
 print mNVME.LBARangeDataStructure.Pattern
 
-'''
+
 print hex(16)[1:]
 
 
@@ -43,7 +43,7 @@ print int(time.time())
 sleep(1)
 print time.time()
 
-'''
+
 for i in range(1,0x12):
     print mNVME.get_feature(fid = i, sel = 0)
     

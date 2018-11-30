@@ -206,7 +206,7 @@ class NVME(object, NVMECom):
             return ret 
         return ret
 
-    def set_feature(self, fid, value, SV=0, Data=None): 
+    def set_feature(self, fid, value, SV=0, Data=None, nsid=1): 
     # feature id, value
     # if sv=1 and have data in
     # CMD = echo "\\255\\255\\255\\255\\255\\255" |nvme set-feature %s -f %s -n %s -v %s -s 2>&1
@@ -223,15 +223,15 @@ class NVME(object, NVMECom):
         
         if SV!=0:
             CMD = CMD + "-s "            
-        CMD = CMD +"2>&1 "
+        CMD = CMD +"-n %s 2>&1 "%nsid
 
         return self.shell_cmd(CMD)
     
         
      
-    def get_feature(self, fid, cdw11=0, sel=0): 
+    def get_feature(self, fid, cdw11=0, sel=0, nsid=1): 
     # feature id, cdw11(If applicable)
-        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s -s %s 2>&1"%(self.dev, fid, cdw11, sel))
+        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s -s %s -n %s 2>&1"%(self.dev, fid, cdw11, sel, nsid))
 
         
     def asynchronous_event_request(self): 
@@ -470,16 +470,16 @@ class NVME(object, NVMECom):
             self.shell_cmd("  nvme reset %s " % (self.dev_port))
             return True     
                
-    def CreateMultiNs(self):        
-        # Create namespcaes form nsid 1 to nsid %MaxNs, size 1G, and attach to the controller
+    def CreateMultiNs(self, NumOfNS=8, SizeInBlock=2097152):        
+        # Create namespcaes form nsid 1 to nsid 8(default), size 1G(default), and attach to the controller
         # return MaxNs, ex, MaxNs=8, indicate the NS from 1 to 8
         # check if controller supports the Namespace Management and Namespace Attachment commands or not
         NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
         NN=self.IdCtrl.NN.int
         if NsSupported:
             #print "controller supports the Namespace Management and Namespace Attachment commands"            
-            # set max test namespace <=8
-            MaxNs=8 if NN>8 else NN
+            # set max test namespace <=8(default)
+            MaxNs=NumOfNS if NN>NumOfNS else NN
             print  "create namespcaes form nsid 1 to nsid %s, size 1G, and attach to the controller"%MaxNs       
             error=0            
             for i in range(1, NN+1):        
@@ -489,7 +489,7 @@ class NVME(object, NVMECom):
             # Create namespaces, and attach it
             for i in range(1, MaxNs+1):
                 sleep(0.2)
-                CreatedNSID=self.CreateNs()        
+                CreatedNSID=self.CreateNs(SizeInBlock)        
                 if CreatedNSID != i:
                     print "create namespace error!"    
                     error=1

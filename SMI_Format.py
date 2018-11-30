@@ -39,7 +39,30 @@ class Result:
     INVALID_NS="INVALID_NS"
     
 ## function #####################################
-
+def GetHealthLog():
+    Value=[]
+    #Value.append(["CompositeTemperature", mNVME.GetLog.SMART.CompositeTemperature])
+    Value.append(["CriticalWarning", mNVME.GetLog.SMART.CriticalWarning])
+    Value.append(["AvailableSpare", mNVME.GetLog.SMART.AvailableSpare])
+    Value.append(["AvailableSpareThreshold", mNVME.GetLog.SMART.AvailableSpareThreshold])
+    Value.append(["PercentageUsed", mNVME.GetLog.SMART.PercentageUsed])
+    Value.append(["DataUnitsRead", mNVME.GetLog.SMART.DataUnitsRead])
+    Value.append(["DataUnitsWritten", mNVME.GetLog.SMART.DataUnitsWritten])
+    Value.append(["HostReadCommands", mNVME.GetLog.SMART.HostReadCommands])
+    Value.append(["HostWriteCommands", mNVME.GetLog.SMART.HostWriteCommands])
+    Value.append(["ControllerBusyTime", mNVME.GetLog.SMART.ControllerBusyTime])
+    Value.append(["PowerCycles", mNVME.GetLog.SMART.PowerCycles])
+    Value.append(["PowerOnHours", mNVME.GetLog.SMART.PowerOnHours])
+    Value.append(["UnsafeShutdowns", mNVME.GetLog.SMART.UnsafeShutdowns])
+    Value.append(["MediaandDataIntegrityErrors", mNVME.GetLog.SMART.MediaandDataIntegrityErrors])
+    Value.append(["NumberofErrorInformationLogEntries", mNVME.GetLog.SMART.NumberofErrorInformationLogEntries])
+    Value.append(["WarningCompositeTemperatureTime", mNVME.GetLog.SMART.WarningCompositeTemperatureTime])
+    Value.append(["CriticalCompositeTemperatureTime", mNVME.GetLog.SMART.CriticalCompositeTemperatureTime])
+    Value.append(["ThermalManagementTemperature1TransitionCount", mNVME.GetLog.SMART.ThermalManagementTemperature1TransitionCount])
+    Value.append(["ThermalManagementTemperature2TransitionCount", mNVME.GetLog.SMART.ThermalManagementTemperature2TransitionCount])
+    Value.append(["TotalTimeForThermalManagementTemperature1", mNVME.GetLog.SMART.TotalTimeForThermalManagementTemperature1])
+    Value.append(["TotalTimeForThermalManagementTemperature2", mNVME.GetLog.SMART.TotalTimeForThermalManagementTemperature2])
+    return Value
 
 def Format(nsid, lbaf, ses, pil=0, pi=0, ms=0):
     # namespace-id, 
@@ -715,7 +738,63 @@ def flow5():
         else:
             mNVME.Print("PASS", "p")        
 
+
+@deadline(60)
+def flow6():    
+    global ret_code
+    print ""
+    print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+    print "Keyword: SMART / Health Information, The information provided is over the life of the controller and is retained across power cycles"
+    print "Check if SMART / Health Log is retained after the Format NVM command successfully completes"
+    print ""
+    
+    
+    print "Store SMART / Health Log "
+    OriginalValue=GetHealthLog()
+    
+    print ""
+    print "Send format command with SES=000b (No secure erase operation requested)"
+    mStr=Format(1, 0, 0);
+    print "Check return code, expected returned status code: Success"
+    CmdSuccess = CheckResult(mStr, Result.Success)
+    
+    if not CmdSuccess:
+        print "Becouse format command fail, quit this test item!"
+    else:
+        print ""
+        print "Get current SMART / Health Log "
+        CurrentValue=GetHealthLog()
+        
+        print "Check if SMART / Health Log is retained after the Format command"
+        print ""        
+        ValueRetained=True
+        print "============================================"
+        for i in range(len(OriginalValue)):
+            # if Original Value = Current Value, pass
+            original=OriginalValue[i][1] 
+            current=CurrentValue[i][1]
+            # print field name
+            print OriginalValue[i][0]
+            mStr = "{:<25}".format("Original: %s"%original) + "Current: %s"%current
+            if (original == current):                
+                mNVME.Print(mStr, "p")
+            else:
+                mNVME.Print(mStr, "f")
+                ValueRetained=False
+            print "---------------------"
+            
+        print "============================================"
+        if ValueRetained:                
+            mNVME.Print("PASS", "p")
+        else:
+            mNVME.Print("FAIL", "f")
+            ret_code=1 
+      
+ 
+
+
 # ============= Flow start =======================
+
 try:
     flow0()
 except TimedOutExc as e:
@@ -748,7 +827,15 @@ except TimedOutExc as e:
 try:
     flow5()
 except TimedOutExc as e:
-    mNVME.Print("Timeout 60s", "f")         
+    mNVME.Print("Timeout 60s", "f")        
+    
+try:
+    flow6()
+except TimedOutExc as e:
+    mNVME.Print("Timeout 60s", "f")        
+    
+    
+     
 print ""    
 
 
