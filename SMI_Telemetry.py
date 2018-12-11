@@ -5,7 +5,11 @@ from time import sleep
 import threading
 import re
 
-print "Ver: 20180911_1632"
+print "SMI_Telemetry.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
+
 mNVME = NVME.NVME(sys.argv )
 
 
@@ -246,7 +250,9 @@ for Item in ResetItem:
         mNVME.Print("Fail", "f")
         ret_code=1        
 
+
 print ""
+print "ret_code:%s"%ret_code
 print "Finish"
 sys.exit(ret_code)
 

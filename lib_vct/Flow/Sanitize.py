@@ -8,6 +8,9 @@ import time
 
 from time import sleep
 
+class FlowSanitizeMode:
+    Normal = "Normal"
+    KeepSanitizeInProgress = "KeepSanitizeInProgress"
 
 class Sanitize_():
     def __init__(self, obj):
@@ -23,6 +26,7 @@ class Sanitize_():
         self.EventTriggeredMessage="Event was triggered while execution exceed 2% "        
         self.ShowProgress=True
         self.TimeOut=60
+        self.Mode=FlowSanitizeMode.Normal
          
     def SetEventTrigger(self, EventTrigger=None, *args):    
         self._EventTrigger = EventTrigger
@@ -33,7 +37,7 @@ class Sanitize_():
         self._Threshold = Threshold
         
     def SetOptions(self, Opt):
-    # refer to NVME Cli, nvme-sanitize
+    # refer to NVME Cli, nvme-sanitize, ex. '-a 2'
         self._Options=Opt
         
     def WaitRecentSanitizeFinish(self):
@@ -51,7 +55,17 @@ class Sanitize_():
         else:
             return True
 
-            
+    def _IssueCommand(self):
+        # Sanitize command 
+        CMD="nvme sanitize %s %s 2>&1"%(self._mNVME.dev_port, self._Options)                
+        mStr=self._mNVME.shell_cmd(CMD)
+        if not re.search("SUCCESS", mStr):
+            self._mNVME.Print("lib_vct/Flow/Sanitize: Sanitize command error!, command: %s"%CMD, "f")
+            self._mNVME.Print("lib_vct/Flow/Sanitize: Command return status: %s"%mStr, "f")
+            return False   
+        else:
+            return True
+                
     def Start(self): 
     # start Sanitize and return interger -1 if Exception occured
     # or return 0
@@ -62,62 +76,127 @@ class Sanitize_():
         error=0
         per_old=0
         TimeStart=self._mNVME.Second
-        if not self.WaitRecentSanitizeFinish():
-            self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Recent Sanitize can't finish in 10 s", "f")
-            return -1            
-        # Sanitize command
-        CMD="nvme sanitize %s %s 2>&1"%(self._mNVME.dev_port, self._Options)
-        mStr=self._mNVME.shell_cmd(CMD)
-        if not re.search("SUCCESS", mStr):
-            self._mNVME.Print("lib_vct/Flow/Sanitize: Sanitize command error!, command: %s"%CMD, "f")
-            self._mNVME.Print("lib_vct/Flow/Sanitize: Command return status: %s"%mStr, "f")
-            return -1
-            
-        # print Progress with 0% 
-        if self.ShowProgress:
-            self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
-        while True:            
-            sleep (0.1)
-            # if per value changed, then print per
-            per=self._mNVME.GetLog.SanitizeStatus.SPROG
-            if per_old!=per:
-                if self.ShowProgress and per!=0:
-                    #print "percentage = %s"%per
-                    self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:', length = 50)
-            else:
+        
+        # start for self.Mode= FlowSanitizeMode.Normal ===================================================
+        if self.Mode==FlowSanitizeMode.Normal:
+            # wait for last Sanitize command Finish
+            if not self.WaitRecentSanitizeFinish():
+                self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Recent Sanitize can't finish in 10 s", "f")
+                return -1            
+            # Sanitize command
+            CMD="nvme sanitize %s %s 2>&1"%(self._mNVME.dev_port, self._Options)
+            mStr=self._mNVME.shell_cmd(CMD)
+            if not re.search("SUCCESS", mStr):
+                self._mNVME.Print("lib_vct/Flow/Sanitize: Sanitize command error!, command: %s"%CMD, "f")
+                self._mNVME.Print("lib_vct/Flow/Sanitize: Command return status: %s"%mStr, "f")
+                return -1
+                
+            # print Progress with 0% 
+            if self.ShowProgress:
+                self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
+            while True:            
                 sleep (0.1)
-            per_old=per
-            # if percent > 2% and  _EventTrigger!=None, then trigger event
-            if per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
-                # excute event  
-                try:
-                    if len(self._args)==0:
-                        self._EventTrigger()
-                    else:                    
-                        self._EventTrigger(*self._args)
-                except Exception as e:
+                # if per value changed, then print per
+                per=self._mNVME.GetLog.SanitizeStatus.SPROG
+                if per_old!=per:
+                    if self.ShowProgress and per!=0:
+                        #print "percentage = %s"%per
+                        self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:', length = 50)
+                else:
+                    sleep (0.1)
+                per_old=per
+                # if percent > 2% and  _EventTrigger!=None, then trigger event
+                if per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
+                    # excute event  
+                    try:
+                        if len(self._args)==0:
+                            self._EventTrigger()
+                        else:                    
+                            self._EventTrigger(*self._args)
+                    except Exception as e:
+                        print ""
+                        self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
+                        error=1
+                        
+                    event_trigged=1        
+             
+                #if fininshed 
+                if per == 65535:                
+                    break
+                
+                # if timeout
+                TimeElapsed= TimeStart-self._mNVME.Second
+                if TimeElapsed > self.TimeOut:
                     print ""
-                    self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
-                    error=1
-                    
-                event_trigged=1        
-         
-            #if fininshed 
-            if per == 65535:                
-                break
-            
-            # if timeout
-            TimeElapsed= TimeStart-self._mNVME.Second
-            if TimeElapsed > self.TimeOut:
-                print ""
-                self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
-                error=1                
-                break
+                    self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
+                    error=1                
+                    break
+    
+        # == end for if self.Mode==FlowSanitizeMode.Normal ===================================================
+        
+        # == start for if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress ========================================
+        if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress:
+            initper=0
+            # If Sanitize command Finish, then issue it again
+            per=self._mNVME.GetLog.SanitizeStatus.SPROG
+            initper=per
+            if per == 65535:                   
+                # Sanitize command 
+                if not self._IssueCommand():
+                    return -1
+                
+            # print Progress with 0% 
+            if self.ShowProgress:
+                self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
+            while True:            
+                sleep (0.1)
+                # if per value changed, then print per
+                per=self._mNVME.GetLog.SanitizeStatus.SPROG
+                if per_old!=per:
+                    if self.ShowProgress and per!=0:
+                        #print "percentage = %s"%per
+                        self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:', length = 50)
+                else:
+                    sleep (0.1)
+                per_old=per
+                
+                # if percent changed and  _EventTrigger!=None, then trigger event
+                if per!=initper and per!=0 and per!=65535 and  self._EventTrigger!=None:                              
+                    # excute event  
+                    try:
+                        if len(self._args)==0:
+                            self._EventTrigger()
+                            
+                            # if sanitize still in progress, then end flow
+                            if self._mNVME.GetLog.SanitizeStatus.SPROG != 65535:                
+                                break
+                                    
+                        else:                    
+                            self._EventTrigger(*self._args)
+                            
+                            # if sanitize still in progress, then end flow
+                            if self._mNVME.GetLog.SanitizeStatus.SPROG != 65535:                
+                                break
+                                
+                    except Exception as e:
+                        print ""
+                        self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
+                        error=1
 
+                # if sanitize still in progress, then end flow
+                if per==65535:                
+                    if not self._IssueCommand():
+                        return -1
+                
+                # if timeout
+                TimeElapsed= TimeStart-self._mNVME.Second
+                if TimeElapsed > self.TimeOut:
+                    print ""
+                    self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
+                    error=1                
+                    break
+        # == end for if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress ========================================    
         if error==0:           
             return 0
         else:
-            return -1
-
-        
-    
+            return -1    

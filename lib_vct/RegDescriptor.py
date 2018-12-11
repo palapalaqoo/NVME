@@ -11,7 +11,7 @@ class RegType(object):
 
 class RegDescriptor(object,NVMECom):  
     
-    def __init__(self, mcmd=None, mreg='var', bitStart=0, bitStop=65535,regType=RegType.hex):
+    def __init__(self, mcmd=None, mreg='var', bitStart=0, bitStop=65535,regType=RegType.hex, nsSpec=True):
         self.cmd = mcmd
         self.reg = mreg     
         self.bitstart = bitStart
@@ -21,6 +21,7 @@ class RegDescriptor(object,NVMECom):
         # if MNTMT = 12, and regtype = dec, then NVME.IdCtrl.MNTMT.int = 0x12, bingo!
         # if MNTMT = 12, and regtype = hex, then NVME.IdCtrl.MNTMT.int = 0xC, wrong value
         self.regtype=regType
+        self.nsspec=nsSpec
     
     @property
     def str(self):
@@ -30,7 +31,7 @@ class RegDescriptor(object,NVMECom):
     
     @property
     def int(self):
-        mstr=self.get_reg(self.cmd, self.reg, 1)        
+        mstr=self.get_reg(cmd=self.cmd, reg=self.reg, gettype=1, nsSpec=self.nsspec)        
         if self.regtype==RegType.hex:         
             mstrint=int(mstr, 16)
         elif self.regtype==RegType.decimal:

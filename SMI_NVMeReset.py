@@ -9,49 +9,50 @@ import sys
 from time import sleep
 import threading
 import random
- 
+
+print "SMI_NVMeReset.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+
+## paramter #####################################
+mNVME = NVME.NVME(sys.argv[1] )
+ret_code=0
+NSSRSupport=True if mNVME.CR.CAP.NSSRS.int==1 else False
+TestItems=[]
+
+## function ##################################### 
 def GetRDY():
     return mNVME.CR.CSTS.bit(0)
 
-def GetDST_per():
-    #ret int , GetDST[1]
-    return int(mNVME.get_log(6, 12)[2:4],16)
-def GetDST_CDSTO():
-    # ret int :Current Device Self-Test Operation
-    return int(mNVME.get_log(6, 12)[0:2],16)
-def GetDSTS():    
-    return int(mNVME.get_log(6, 12)[9],16)
-def GetPS():
-    return int(mNVME.get_feature(2)[-1:])
-
-
-
+def init():
+    global TestItems
+    # TestItems=[[description, function],[description, function],..]
     
-def F_reset(rsttype):
-    if rsttype==0:
-        mNVME.nvme_reset()
-    elif rsttype==1:
-        mNVME.subsystem_reset()
-    elif rsttype==2:
-        mNVME.hot_reset()        
-    elif rsttype==3:
-        mNVME.link_reset()    
-    elif rsttype==4:
-        mNVME.FunctionLevel_reset()
+    TestItems.append(["Controller Reset", mNVME.nvme_reset])
     
+    if NSSRSupport:
+        TestItems.append(["NVM Subsystem Reset", mNVME.subsystem_reset])
+        
+    TestItems.append(["PCI Express Hot reset", mNVME.hot_reset])    
+    
+    TestItems.append(["Data Link Down status", mNVME.link_reset]) 
+    
+    TestItems.append(["Function Level Reset", mNVME.FunctionLevel_reset])
+    
+## end function #####################################
 
-ret_code=0
-print "Ver: 20181015_0930"
-mNVME = NVME.NVME(sys.argv[1] )
-if mNVME.dev_alive:
-    print "device alive"
-else:    
-    print "device missing"
-    sys.exit(-1)
-    
-print "SMI_NVMeReset.py"    
-print "--------------------------------------------------------------------------------"
-print "nvme controller reset test"
+
+
+
+
+
+
+init()
+
+
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Keyword: The Admin Queue registers (AQA, ASQ, or ACQ) are not reset as part of a controller reset"
+print "" 
     
 RDY = GetRDY()
 
@@ -98,131 +99,124 @@ if AQA!=mNVME.CR.AQA.str or ASQ!=mNVME.CR.ASQ.str or ACQ!=mNVME.CR.ACQ.str:
     ret_code=1
 else:
     "\033[32mPASS! \033[0m"        
-    
-    
-for loop in range(50):
-    #reset_type=random.randint(0,4)
-    reset_type=loop%5   
-    #reset_type =4
+sleep(0.1)
 
-    if reset_type==0:
-        reset_type_name="Controller Reset"
-    elif reset_type==1:
-        reset_type_name="NVM Subsystem Reset"
-    elif reset_type==2:
-        reset_type_name="PCI Express Hot reset"
-    elif reset_type==3:
-        reset_type_name="Data Link Down status"
-    elif reset_type==4:        
-        reset_type_name="Function Level Reset"
 
-                    
-    print "===== reset_type = %s (%s)  ========== loop = %s ============================" %(reset_type, reset_type_name, loop)
-    sleep(0.1)
-    print""
-    print "-- start testing for Pending Admin Commands after reset --"
-      
-    do_cmd=0
-    # self test command
-    mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=0xffffffff --data-len=0 --cdw10=0x1 -r -s 2>&1 > /dev/null)"%(mNVME.dev_port))
-    
-    
-    while True:
-        # if self test percentage > 40%, send reset command
-        if GetDST_per()>40 and do_cmd==0:            
-            print "reset controller while admin command execution exceed 40% "
-            F_reset(reset_type)
-            do_cmd=1        
-     
-        #if if self test fininshed (Current Device Self-Test Operation==0)
-        if GetDST_CDSTO()==0:
-            break
-        
-        #print GetDST_per()
-        
-    if GetDSTS()==2 or GetDSTS()==7:
-        print "\033[32mCheck pending admin commands after reset: PASS! \033[0m"
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Check if all supported reset is working"
+print ""
+for mItem in TestItems:        
+    reset_type_name=mItem[0]
+    reset_func=mItem[1] 
+    print "issue " + reset_type_name
+    print "Check if controll is alive after reset"
+    reset_func()
+    if mNVME.dev_alive:
+        mNVME.Print("PASS", "p")
     else:
-        print  "\033[31mCheck pending admin commands after reset: FAIL! \033[0m"
-        ret_code=1
-        
-    print""
-    print "-- start testing for Pending IO Commands after reset(data integrity) --"
-   
-    patten=0x5A
-    thread_w=5
-    block_w=1024 
-    total_byte_w=block_w*thread_w *512
-    
-    # clear SSD data to 0x0
-    mNVME.fio_write(0, total_byte_w, 0x0)
+        mNVME.Print("FAIL, exit", "f")
+        ret_code = 1
+    print  ""    
     
     
-    # write data using multy thread
-    mThreads = mNVME.nvme_write_multi_thread(thread_w, 0, block_w, patten)
+# max loopcnt = len(TestItems)* loop
+loopcnt=0    
+for loop in range(10):
     
-    # check if all process finished 
-    reset_cnt=0
-    while True:        
-        allfinished=1
-        for process in mThreads:
-            if process.is_alive():
-                allfinished=0
-    
-        # if all process finished then, quit while loop, else  send reset command
-        if allfinished==1:        
-            break
-        else:
-            F_reset(reset_type)
-            reset_cnt=reset_cnt+1
-            sleep(0.5)
+    for mItem in TestItems:        
+        loopcnt=loopcnt+1
+        mItem=TestItems[3]
+        reset_type_name=mItem[0]
+        reset_func=mItem[1] 
 
-        
-        
-    print  "send reset command %s times while writing data is in progress"%(reset_cnt)
-     
-    # if have 00 and 5a in flash, then pass the test(f_write pattern=0x5a)
-    find_00 = mNVME.shell_cmd("hexdump %s -n %s |grep '0000 0000' 2>/dev/null"%(mNVME.dev, total_byte_w))
-    find_patten = mNVME.shell_cmd("hexdump %s -n %s |grep '5a5a 5a5a' 2>/dev/null"%(mNVME.dev, total_byte_w))
-    
-    
-    # controller reset can't verify data integrity, so let data integrity test = pass
-    if (find_00 and find_patten) or reset_type==0:
-        print "\033[32mCheck data integrity: PASS! \033[0m"
-    else:
-        print  "\033[31mCheck data integrity: FAIL! \033[0m"
-        ret_code=1
-        
-    print""
-    print "-- start testing for NVM idle state(power state)  --"
+        print "===== reset_type = %s  ========== loop = %s ============================" %( reset_type_name, loopcnt)        
+        print "-- start testing for Pending Admin Commands after reset --"
+        print "Keyword: The controller stops processing any outstanding Admin or I/O commands."  
+        print "Test if device self-test operation was aborted due to the reset commands"     
           
-    pst_fail=0       
-    NPSS=mNVME.IdCtrl.NPSS.int
-    
-    for i in range(NPSS+1):
-        mNVME.set_feature(2, i)
-        PS=GetPS()
-        # verify set_feature successfull
-        if PS!=i:
-            print "\033[31mSet power state error! \033[0m"
-            pst_fail=1
+        if mNVME.IdCtrl.OACS.bit(4)=="0":
+            print "Controller does not support the DST operation, quit this test item!"
+        else:
+            mNVME.Flow.DST.EventTriggeredMessage="Send format command as DST execution >= 1% "
+            mNVME.Flow.DST.ShowProgress=True     
+            # set DST command nsid
+            mNVME.Flow.DST.SetNSID(0x1)
+            # set Event
+            mNVME.Flow.DST.SetEventTrigger(reset_func)                     
+            # set DST type = Short device self-test operation
+            mNVME.Flow.DST.SetDstType(1)    
+            # set Threshold = 1 to raise event
+            mNVME.Flow.DST.SetEventTriggerThreshold(1)
+                
+            # start DST flow and get device self test status 
+            DSTS=mNVME.Flow.DST.Start()        
+            if DSTS!=-1:        
+                # get bit 3:0        
+                DSTSbit3to0 = DSTS & 0b00001111
+                print "result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0)
+                print "Check the result of the device self-test operation , expected result:  0x2(Operation was aborted by a Controller Level Reset)"
+                if DSTSbit3to0==2:
+                    mNVME.Print("PASS", "p")
+                else:
+                    mNVME.Print("FAIL", "f")
+                    ret_code = 1                         
+            else:
+                print "Controller does not support the DST operation"          
+        
+        
+        print""
+               
+        print "-- start testing for Pending IO Commands after reset(data integrity) --"
+        print "Keyword: The controller stops processing any outstanding Admin or I/O commands."  
+        print "Test if write command was aborted due to the reset commands"
+       
+        patten=0x5A
+        thread_w=5
+        block_w=1024 
+        total_byte_w=block_w*thread_w *512
+        
+        # clear SSD data to 0x0
+        mNVME.fio_write(0, total_byte_w, 0x0)        
+        
+        # write data using multy thread
+        mThreads = mNVME.nvme_write_multi_thread(thread_w, 0, block_w, patten)
+        
+        # check if all process finished 
+        reset_cnt=0
+        while True:        
+            allfinished=1
+            for process in mThreads:
+                if process.is_alive():
+                    allfinished=0
+        
+            # if all process finished then, quit while loop, else  send reset command
+            if allfinished==1:        
+                break
+            else:
+                reset_func()
+                reset_cnt=reset_cnt+1
+                sleep(0.5)
+                        
+        print  "send reset command %s times while writing data is in progress"%(reset_cnt)
+        if not mNVME.dev_alive:
+            ret_code=1
+            mNVME.Print("Error! after reset, device is missing, quit test", "f")
             break
+         
+        # if have 00 and 5a in flash, then pass the test(f_write pattern=0x5a)
+        find_00 = mNVME.shell_cmd("hexdump %s -n %s |grep '0000 0000' 2>/dev/null"%(mNVME.dev, total_byte_w))
+        find_patten = mNVME.shell_cmd("hexdump %s -n %s |grep '5a5a 5a5a' 2>/dev/null"%(mNVME.dev, total_byte_w))        
         
-        F_reset(reset_type)
-        
-        PS=GetPS()
-    
-        # nvme spec: ps=0 after reset
-        if PS!=0:
-            pst_fail=1
-            break        
-    
-    if pst_fail==0:
-        print "\033[32mCheck power state: PASS!\033[0m"
-    else:
-        print "\033[31mCheck power state: FAIL!\033[0m"    
-        ret_code=1
-
+        # controller reset can't verify data integrity, so let data integrity test = pass
+        if (find_00 and find_patten) or reset_type_name=="Controller Reset":
+            print "\033[32mCheck data integrity: PASS! \033[0m"
+        else:
+            print  "\033[31mCheck data integrity: FAIL! \033[0m"
+            ret_code=1
+            
+        print ""
+ 
 
 
 

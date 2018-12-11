@@ -7,6 +7,9 @@ import re
 import sys
 import signal
 import time
+from scipy.weave.converters import default
+import shutil
+
 
 class TimedOutExc(Exception):
     pass
@@ -14,6 +17,7 @@ class TimedOutExc(Exception):
 def deadline(timeout, *args):
     def decorate(f):
         def handler(signum, frame):
+            print "Timeout!: %ss, quit sub case test!"%timeout
             raise TimedOutExc()
 
         def new_f(*args):
@@ -35,13 +39,28 @@ class NVMECom():
     def SubItemNum(self):
         self.SubItemNumValue+=1
         return self.SubItemNumValue
+    
+    def InitLogFile(self):
+        
+        # remove all dir
+        if os.path.exists("Log"):
+            shutil.rmtree('Log') 
+        # Create dir
+        if not os.path.exists("Log"):
+            os.makedirs("Log")
+        #create log
+        self.LogName =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        f = open(self.LogName, "w")
+        f.close()
 
     def set_NVMECom_par(self, son):
         # set NVMECom parameters from subclass
         NVMECom.device=son.dev
         NVMECom.device_port=son.dev[0:son.dev.find("nvme")+5]
         NVMECom.mTestModeOn=son.TestModeOn
-
+        
+        self.InitLogFile()
+        
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
 
     @property
@@ -55,21 +74,25 @@ class NVMECom():
         sleep(sleep_time)
         return msg 
     
-    def get_reg(self, cmd, reg, gettype=0):
+    def get_reg(self, cmd, reg, gettype=0, nsSpec=True):
     #-- cmd = nvme command, show-regs, id-ctrl, id-ns
     #-- reg = register keyword in nvme command
     #-- gettype:
     #--     0:    string, ex. cc: 460001, return "100064"
     #--     1:    string, ex. cc: 460001, return "460001"
     #--     16:     int,  ex. lpa: 0xf,return 15
-        DEV=NVMECom.device
+        if nsSpec:
+            DEV=NVMECom.device
+        else:
+            DEV=NVMECom.device_port
         #DEV=NVMECom.device if cmd=="id-ns" else NVMECom.device_port
+        mStr="nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
         if gettype==0:
-            return self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg))[::-1]
+            return self.shell_cmd(mStr)[::-1]
         if gettype==1:
-            return self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg))
+            return self.shell_cmd(mStr)
         elif gettype==16:
-            return int(self.shell_cmd("nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)), 16)
+            return int(self.shell_cmd(mStr), 16)
 
     def str_reverse(self, mstr):
         return mstr[::-1]
@@ -162,40 +185,76 @@ class NVMECom():
         LBADS   = 2
         RP  = 3
         
-        
-    def Print(self, msg, mtype):
-        # mtype
+    def WriteLogFile(self, mStr):
+    # append new lines
+        f = open(self.LogName, "a")
+        f.write(mStr)
+        f.write("\n")        
+        f.close()
+    
+    def Print(self, msg, Ctype="d"):
+        # Ctype, consol type
         # p/P: pass, print msg with green color
         # f/F: false, print msg with red color
         # w/W: warnning, print msg with yellow color
+        # d/D: Default mode, print msg without color
         # t/T: test mode, will not print anything
         
-        if mtype=="p" or mtype=="P":    
+        # consol
+        if Ctype=="p" or Ctype=="P":    
             print  self.color.GREEN +"%s" %(msg)  +self.color.RESET
-        elif mtype=="f" or mtype=="F":  
+        elif Ctype=="f" or Ctype=="F":  
             print  self.color.RED +"%s" %(msg)  +self.color.RESET
-        elif mtype=="w" or mtype=="W":  
+        elif Ctype=="w" or Ctype=="W":  
             print  self.color.YELLOW +"%s" %(msg)  +self.color.RESET            
-        elif mtype=="t" or mtype=="T":  
+        elif Ctype=="t" or Ctype=="T":  
             if NVMECom.mTestModeOn:
                 print  self.color.CYAN +"%s" %(msg)  +self.color.RESET
-        else:
-            print "%s" %(msg)
+        elif Ctype=="d" or Ctype=="D":  
+            print "%s" %(msg)            
             
-
-    def ParserArgv(self, argv):
-        # argv[1]: device path
-        # argv[2]: script test mode on
+    
+    def Logger(self, msg, Ltype="d"):
+        # Ltype, loger type
+        # p/P: pass, print msg with green color
+        # f/F: false, print msg with red color
+        # w/W: warnning, print msg with yellow color
+        # d/D: Default mode, print msg without color
+        # t/T: test mode, will not print anything
+            
+        # Log file
+        if Ltype=="p" or Ltype=="P":    
+            self.WriteLogFile(  self.color.GREEN +"%s" %(msg)  +self.color.RESET )
+        elif Ltype=="f" or Ltype=="F":  
+            self.WriteLogFile(  self.color.RED +"%s" %(msg)  +self.color.RESET )
+        elif Ltype=="w" or Ltype=="W":  
+            self.WriteLogFile(  self.color.YELLOW +"%s" %(msg)  +self.color.RESET )
+        elif Ltype=="t" or Ltype=="T":  
+            if NVMECom.mTestModeOn:
+                self.WriteLogFile(  self.color.CYAN +"%s" %(msg)  +self.color.RESET )
+        elif Ltype=="d" or Ltype=="D":  
+            self.WriteLogFile ( "%s" %(msg) )
+            
+    def ParserArgv(self):
+        # argv[1]: device path, ex, '/dev/nvme0n1'
+        # argv[2]: subitems, ex, '1,4,5,7'
+        # argv[3]: script test mode on, ex, '-t'
         parser = ArgumentParser()
         parser.add_argument("dev", help="device", type=str)
+        parser.add_argument("subitems", help="sub items that will be tested", type=str, nargs='*')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         
         args = parser.parse_args()
         
         mDev=args.dev
         mTestModeOn=True if args.t else False
+        if len(args.subitems)==0:
+            mSubItems=[]
+        else:
+            # split ',' and return int[]
+            mSubItems = [int(x) for x in args.subitems.split(',')]        
         
-        return mDev, mTestModeOn
+        return mDev, mSubItems, mTestModeOn
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format
@@ -299,7 +358,7 @@ class LBARangeDataStructure_():
         self.SLBA = 0
         self.NLB = 0
         self.GUID = 0
-        self.Pattern = ""
+        self.Pattern = ""        
 
     
     def _CreateZeroPattern(self, cnt):

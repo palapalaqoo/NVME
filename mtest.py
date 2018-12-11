@@ -22,8 +22,20 @@ def GetPS():
 print "Ver: 20181022_0930"
 mNVME = NVME.NVME(sys.argv )
 
-NsSupported=True if mNVME.IdCtrl.OACS.bit(3)=="1" else False
-print "support" if NsSupported else "not support"
+NSSRSupport=True if mNVME.CR.CAP.NSSRS.int==1 else False
+print "support" if NSSRSupport else "not support"
+
+
+f = open("output.txt", "w")
+f.write("abcde")
+f.close()
+
+f = open("output.txt", "a")
+f.write("123456")
+f.close()
+
+f = open("output.txt", "w")
+f.close()
 '''
 
 mNVME.LBARangeDataStructure.Type=0x2

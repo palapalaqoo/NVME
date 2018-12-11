@@ -13,7 +13,10 @@ import subprocess
 from tuned import admin
 
 
-print "Ver: 20181113_0930"
+print "SMI_SetGetFeatureCMD.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 mNVME = NVME.NVME(sys.argv )
 
 ## paramter #####################################
@@ -43,15 +46,15 @@ def initial():
     fid = 1
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=reset_value+(1<<24)
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
     
     description = "Power Management"
     fid = 2
-    supported = True
+    supported = True if mNVME.IdCtrl.NPSS.int!=0 else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=0 if reset_value!=0 else 1
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
     
@@ -59,7 +62,7 @@ def initial():
     fid = 3
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=0 if reset_value!=0 else 1
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
     
@@ -67,7 +70,7 @@ def initial():
     fid = 4
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=reset_value+1
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])    
     
@@ -75,7 +78,7 @@ def initial():
     fid = 5
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=reset_value+1
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])        
     
@@ -83,7 +86,7 @@ def initial():
     fid = 6
     supported = True if mNVME.IdCtrl.VWC.bit(0) == "1" else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])            
     '''    
@@ -91,7 +94,7 @@ def initial():
     fid = 7
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     NCQR=mNVME.int2bytes(reset_value, 2)
     NSQR=mNVME.int2bytes(reset_value, 0)
     valid_value=((NCQR-1)<<16) + (NSQR-1)
@@ -102,7 +105,7 @@ def initial():
     fid = 8
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])              
     
@@ -110,7 +113,7 @@ def initial():
     fid = 9
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid, cdw11=1)
+    reset_value=GetFeature(fid = fid)
     CoalescingDisable=mNVME.int2bytes(reset_value, 4)
     if CoalescingDisable>=1:
         valid_value = reset_value & 0xFFFF
@@ -122,7 +125,7 @@ def initial():
     fid = 0xA
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])   
         
@@ -130,7 +133,7 @@ def initial():
     fid = 0xB
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])   
         
@@ -138,7 +141,7 @@ def initial():
     fid = 0xC
     supported = True if mNVME.IdCtrl.APSTA.bit(0) == "1" else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
     
@@ -146,7 +149,7 @@ def initial():
     fid = 0xD
     supported = True if mNVME.IdCtrl.HMPRE.int != 0 else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)    
+    reset_value=GetFeature(fid = fid)    
     if reset_value &0x1 >=1:
         valid_value = reset_value & 0b0010
     else:
@@ -158,7 +161,7 @@ def initial():
     fid = 0x10
     supported = True if mNVME.IdCtrl.HCTMA.bit(0) == "1" else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)    
+    reset_value=GetFeature(fid = fid)    
     # Note, MNTMT<= valid_value <=MXTMT
     MXTMT = mNVME.IdCtrl.MXTMT.int
     TMT1=MXTMT-1
@@ -174,7 +177,7 @@ def initial():
     fid = 0x80
     supported = True
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])          
     
@@ -182,7 +185,7 @@ def initial():
     fid = 0x81
     supported = True if mNVME.IdCtrl.ONCS.bit(5) == "1" else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
     
@@ -190,7 +193,7 @@ def initial():
     fid = 0x82
     supported = True if mNVME.IdNs.RESCAP.int !=0 else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=2 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
     
@@ -198,7 +201,7 @@ def initial():
     fid = 0x83
     supported = True if mNVME.IdNs.RESCAP.int !=0 else False
     capabilities=GetFeatureSupportedCapabilities(fid)
-    reset_value=GetFeatureValue(fid = fid)
+    reset_value=GetFeature(fid = fid)
     valid_value=1 if reset_value==0 else 0
     TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
                 
@@ -222,9 +225,9 @@ def PrintSupportedFeature():
         print mItem[item.description]
             
 
-def GetFeatureValue(fid, cdw11=0, sel=0, nsid=1):
+def GetFeatureValue(fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
     Value=0 
-    buf = mNVME.get_feature(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid) 
+    buf = mNVME.get_feature(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
     mStr="0"
     if sel==0:
         mStr="Current value:(.+)"
@@ -232,24 +235,23 @@ def GetFeatureValue(fid, cdw11=0, sel=0, nsid=1):
         mStr="Default value:(.+)"
     if sel==2:
         mStr="Saved value:(.+)"
+    if sel==3:
+        mStr="capabilities value:(.+)"                
         
     if re.search(mStr, buf):
         Value=int(re.search(mStr, buf).group(1),16)
+    else:
+        Value= -1
     return Value
+
 
 def GetFeatureSupportedCapabilities(fid):
     if SELSupport:
-        Value=0 
-        buf = mNVME.get_feature(fid = fid, sel = 3)     
-        mStr="capabilities value:(.+)"
-        if re.search(mStr, buf):
-            Value=int(re.search(mStr, buf).group(1),16)
-        return Value
+        return GetFeature(fid=fid, sel=3)
     else:
-        return 0
+        return -1
 
-
-def SetFeature(fid, value, sv, nsid=1):
+def SetFeature(fid, value, sv, nsid=0):
     # if LBA range, create data structure for set feature command
     if fid==3:
         # Number of LBA Ranges is zero based, 0 means there is 1 LBA Range
@@ -258,13 +260,14 @@ def SetFeature(fid, value, sv, nsid=1):
     else:
         mNVME.set_feature(fid = fid, value = value, SV = sv, nsid = nsid)
 
-def GetFeature(fid, sel, nsid=1):
+def GetFeature(fid, sel=0, nsid=1):
     # if Interrupt Vector Configuration, read with cdw11=1
+    if fid==3:
+        return GetFeatureValue(fid=fid, sel=sel, nsid=nsid, nsSpec=True)
     if fid==9:
-        return GetFeatureValue(fid=fid, sel=sel, cdw11=1, nsid=nsid)
+        return GetFeatureValue(fid=fid, sel=sel, cdw11=1, nsid=nsid, nsSpec=False)
     else:
-        return GetFeatureValue(fid=fid, sel=sel, nsid=nsid)
-
+        return GetFeatureValue(fid=fid, sel=sel, nsid=nsid, nsSpec=False)
 def DifferentValueFromCurrent(fid):
     currentValue = GetFeature(fid, sel=0)
     resetValue=0
@@ -279,6 +282,19 @@ def DifferentValueFromCurrent(fid):
         return resetValue
     else:
         return validValue
+
+def CheckResult(OriginValue, CurrentValue, ExpectMatch):
+# if OriginValue = CurrentValue, and ExpectMatch = true,
+# or OriginValue != CurrentValue, and ExpectMatch = false, then pass
+
+    global ret_code
+    print "Send get feature command, returned feature value: %s "%hex(CurrentValue)
+    print "Check get feature value, expected value: %s , %s "%( hex(OriginValue) if ExpectMatch else hex(CurrentValue), "changed" if ExpectMatch else "not changed" )
+    if CurrentValue == OriginValue and ExpectMatch == True:
+        mNVME.Print("PASS", "p")  
+    else:
+        mNVME.Print("Fail", "f")
+        ret_code=1          
     
 ## end function #####################################
 
@@ -305,8 +321,8 @@ mNVME.Print("Test item 'Number of Queues' has not implemented ", "w")
 
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
-print "Keyword: Get Features – Command Dword 10"
-print "Check if Select field in Get Features – Command Dword 10 supported or not"
+print "Keyword: Get Features - Command Dword 10"
+print "Check if Select field in Get Features - Command Dword 10 supported or not"
 print ""
 if SELSupport:
     mNVME.Print("Supported", "p")
@@ -317,7 +333,7 @@ else:
 if SELSupport:
     print ""
     print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
-    print "Keyword: Get Features – Command Dword 10"
+    print "Keyword: Get Features - Command Dword 10"
     print "Select field supported, test all the attributes in Select field"
     print "" 
     '''   
@@ -334,13 +350,23 @@ if SELSupport:
         print mItem[item.description]   
         print "Feature ID: %s"%mItem[item.fid]   
         supported=mItem[item.supported]
+        saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
+        nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
+        changeable=True if mItem[item.capabilities]&0b100 > 0 else False
         if not supported:
             print "Not supported"      
             print ""  
         else:
             print "Supported"              
             print "" 
-            print "-(1)-- Test Get Features with Select=0, Current --"             
+            print "Feature saveable: %s"%("Yes" if saveable else "No")
+            print "Feature namespace specific: %s"%("Yes" if nsSpec else "No")
+            print "Feature changeable: %s"%("Yes" if changeable else "No")
+            print ""
+            
+            print "-(1)-- Test Get Features with Select=0, Current --"    
+            print "        and test Features capabilities bit 2, Feature Identifier is changeable or not"
+            print "        "+ "Feature is changeable, all the fallowing test should change the value" if changeable else "Feature is no changeable, all the fallowing test should not change the value"
             fid=mItem[item.fid]
             rdValue=GetFeature(fid, sel=0)
             value=DifferentValueFromCurrent(fid)
@@ -348,18 +374,13 @@ if SELSupport:
             print "Send set feature command with value = %s"%hex(value)
             
             # Send set feature command    
-            SetFeature(fid, value, sv=0)
+            SetFeature(fid, value, sv=0,nsid=1) if nsSpec else SetFeature(fid, value, sv=0)
             
             # Send get feature command    
             GetValue = GetFeature(fid, sel=0)
             
-            print "Send get feature command, returned feature value: %s "%hex(GetValue)
-            print "Check if get feature value is %s or not "%hex(value)
-            if GetValue == value:
-                mNVME.Print("PASS", "p")  
-            else:
-                mNVME.Print("Fail", "f")
-                ret_code=1        
+            # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
+            CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)    
             print ""
 
             print "-(2)--  Test Get Features with Select=1, Default --"  
@@ -368,7 +389,7 @@ if SELSupport:
             print ""
             
             print "-(3)--  Test Get Features with Select=2, Saved --"            
-            saveable=True if mItem[item.capabilities]&0b001 > 0 else False              
+                       
             if saveable:
                 print "Feature is saveable in capabilities filed"
                 
@@ -385,26 +406,23 @@ if SELSupport:
                 print "Send set feature command with value = %s and SV field =1"%hex(value)
             
                 # Send set feature command    
-                SetFeature(fid, value, sv=1)
+                SetFeature(fid, value, sv=1,nsid=1) if nsSpec else SetFeature(fid, value, sv=1)
                 
                 # Send get feature command    
-                GetValue = GetFeature(fid, sel=2)
+                GetValue = GetFeature(fid, sel=2)              
+                SavedValue =   GetValue            
                 
-                print "Send get feature command, returned feature saved value: %s "%hex(GetValue)
-                print "Check if get feature saved value is %s or not "%hex(value)
-                if GetValue == value:
-                    mNVME.Print("PASS", "p")  
-                else:
-                    mNVME.Print("Fail", "f")
-                    ret_code=1        
-                    
+                # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
+                CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)   
+
+                
                 print "Test Persistent Across Power Cycle and Reset"
                 print "Issue Nvme Reset"
                 mNVME.nvme_reset()
                 # Send get feature command    
                 GetValue = GetFeature(fid, sel=2)                
                 print "After reset, read feature saved value: %s "%hex(GetValue)
-                print "Check if get feature saved value is %s or not "%hex(value)
+                print "Check if get feature saved value is %s or not "%hex(SavedValue)
                 if GetValue == value:
                     mNVME.Print("PASS", "p")  
                 else:
@@ -417,20 +435,23 @@ if SELSupport:
                 print "Feature is not saveable in capabilities filed"
                 print ""
 
-            print "-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"            
-            nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False   
-            if nsSpec:
+            print "-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"        
+            if not nsSpec:
+                print "Feature is not namespace specific in capabilities filed"
+            else:
                 print "Feature is namespace specificin in capabilities filed"
                 print "Test if Feature Identifier is namespace specific or not"
                 print ""
           
                 if not NsSupported:
                     print "Controller don't support mulit namespaces!, quit this test item"
+                elif not changeable:
+                    print "Feature is not changeable!, quit this test item"
                 else:
                     # if only 1 namespace currently, create 2 namespaces
                     if Ns==1:
                         print "Create 2 namespaces, size  1G"
-                        mNVME.CreateMultiNs(NumOfNS=2)
+                        Ns=mNVME.CreateMultiNs(NumOfNS=2)
                         
                     if Ns!=2:
                         mNVME.Print("Fail to create 2 namespaces", "f")
@@ -490,62 +511,6 @@ if SELSupport:
                                 mNVME.Print("Fail", "f")
                                 ret_code=1         
                     
-
-
-
-    print ""
-    print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
-    print "Keyword: Get Features – Command Dword 10"
-    print "Select field supported, test capabilities"
-    print "" 
-
-
-
-                
-'''        
-    print ""   
-    print "Test Get Features with Select=1, Default"      
-    for mItem in TestItems:
-        print mItem[item.description]
-        fid=mItem[item.fid]
-        rdValue=GetFeatureValue(fid=fid, sel=1)
-        print "Read value = %s"%hex(rdValue)
-
-'''
-
-
-
-
-
-'''
-for i in range(1,9):
-    #print mNVME.get_feature(fid = i, sel = 3)
-    print hex(GetFeatureValue(i))
-'''
-
-
-'''
-mNVME.set_feature(2, 2)
-print mNVME.get_feature(2)
-
-print ""
-print "nvme reset"
-mNVME.nvme_reset()
-
-print ""
-print mNVME.get_feature(2)
-print "--  ---------------------------------------------------------------------------------"
-
-
-print mNVME.set_feature(2, 2, 1)
-print mNVME.get_feature(2)
-print ""
-print "nvme reset"
-mNVME.nvme_reset()
-
-print ""
-print mNVME.get_feature(2)
-'''
 
 
 

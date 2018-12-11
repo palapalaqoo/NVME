@@ -7,6 +7,11 @@ import thread
 
 from lib_vct import NVME
 
+print "SMI_CommandsSupportedAndEffectsLog.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
+
 ret_code=0
 def verify(func,args=""):
         
@@ -178,7 +183,9 @@ for i in range(0,0x200): # 0 to 0xC0=admin command in spec
     else:    # abort
         donothing=0  
 
-
+print ""
+print "ret_code:%s"%ret_code
+print "Finish"
 sys.exit(ret_code)
 
 

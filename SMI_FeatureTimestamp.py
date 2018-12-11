@@ -12,7 +12,10 @@ import time
 
 
 
-print "Ver: 20181105_0930"
+print "SMI_FeatureTimeStamp.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 mNVME = NVME.NVME(sys.argv )
 
 ## paramter #####################################

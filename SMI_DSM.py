@@ -7,7 +7,10 @@ import threading
 import re
 import time
 
-
+print "SMI_DSM.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 ## paramter #####################################
 ret_code=0
 sub_ret=0
@@ -60,7 +63,6 @@ print "-- NVME Dataset Management(DSM) command test"
 print "-----------------------------------------------------------------------------------"
 
 
-print "Ver: 20181023_0900"
 mNVME = NVME.NVME(sys.argv )
   
 DLFEAT = mNVME.IdNs.DLFEAT

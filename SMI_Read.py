@@ -5,7 +5,10 @@ from time import sleep
 import threading
 import re
 
-print "Ver: 20180912_1632"
+print "SMI_Read.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 mNVME = NVME.NVME(sys.argv )
 
 
@@ -256,7 +259,7 @@ else:
 
 
 
-
+print ""
 print "ret_code:%s"%ret_code
 print "Finish"
 sys.exit(ret_code)

@@ -6,7 +6,11 @@ import threading
 import re
 from lib_vct import NVMEAsyncEventRequest
 
-print "Ver: 20180911_1632"
+print "SMI_TelemetryExample.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
+
 mNVME = NVME.NVME(sys.argv )
 AsyncNVME = NVMEAsyncEventRequest.AsyncEvent(sys.argv )
 
@@ -208,15 +212,19 @@ else:
     
     mstr="0" 
     try:
-        mstr=re.split("NVMe command result:", mThreadStr)[1]
-        print "Completion Queue Entry Dword 0: %s" %(mstr)    
-        print "Check Dword 0"
-        if mstr=="00030202":
-            AsyncNVME.Print("PASS", "p")
+        print "Return status: %s"%mThreadStr
+        mStr="NVMe command result:(.+)" 
+        if re.search(mStr, mThreadStr):
+            mstrs=re.search(mStr, mThreadStr).group(1)
+            print "Completion Queue Entry Dword 0: %s" %(mstrs)    
+            print "Check Dword 0"
+            if mstrs=="00030202":
+                AsyncNVME.Print("PASS", "p")
+            else:
+                AsyncNVME.Print("Fail", "f")
+                AsyncEventCmdFail=1   
         else:
-            AsyncNVME.Print("Fail", "f")
-            AsyncEventCmdFail=1         
-        
+            AsyncEventCmdTimeout=1          
     except ValueError:
         #when return 'passthru: Interrupted system call'
         print "return string from request command : %s" %(mThreadStr)

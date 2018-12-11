@@ -5,7 +5,9 @@ import sys
 from time import sleep
 import re
 
-print "Ver: 20180919_0930"
+print "SMI_SanitizeStatusLog.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
 #  '-r' for reset test,ex 'python SMI_SanitizeStatusLog /dev/nvme0n1 -r'
 TestReset=0
 if len(sys.argv) == 3 and sys.argv[2]== "-r" :
@@ -35,7 +37,11 @@ def SanitizeCompleted():
 BlockEraseSupport = True if (mNVME.IdCtrl.SANICAP.bit(1) > 0) else False
 if not BlockEraseSupport:
     print "Block Erase sanitize operation not Support! Exit "
-    sys.exit(-1)
+    ret_code =255
+    print ""
+    print "ret_code:%s"%ret_code
+    print "Finish"
+    sys.exit(ret_code)   
 
 PassTest=1
 
@@ -159,6 +165,7 @@ else:
 
 
 ret_code=0 if PassTest==1 else 1
+print ""
 print "ret_code:%s"%ret_code
 print "Finish"
 

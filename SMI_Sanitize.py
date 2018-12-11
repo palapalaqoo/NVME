@@ -11,9 +11,12 @@ import time
 import os.path
 import subprocess
 from tuned import admin
+from lib_vct.Flow.Sanitize import FlowSanitizeMode
 
 
-print "Ver: 20181106_0930"
+print "SMI_Sanitize.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
 mNVME = NVME.NVME(sys.argv )
 
 ## paramter #####################################
@@ -22,9 +25,12 @@ sub_ret=0
 CMD_Result="0"
 SANACT=0
 ErrorLog=[]
+#-- Get Log Page - Commands Supported and Effects Log
+mCSAEL=mNVME.get_CSAEL()
 ## function #####################################
-      
-     
+
+ 
+    
 def asynchronous_event_request_cmd(): 
     global CMD_Result
     CMD_Result = mNVME.shell_cmd("nvme admin-passthru %s --opcode=0xC 2>&1"%(mNVME.dev))
@@ -120,7 +126,7 @@ def CMD_Abort():
 def CMD_Flush(): 
     global CMD_Result
     CMD_Result = mNVME.shell_cmd("nvme flush %s  -n 1 2>&1"%(mNVME.dev))
-    
+
 def SendTestCommand(*args): 
     global CMD_Result
     
@@ -134,36 +140,66 @@ def SendTestCommand(*args):
         
     
     if CMDType == "admin":
-        if Opcode!=0x2:
-            CMD="nvme admin-passthru %s -opcode=%s 2>&1"%(mNVME.dev, Opcode)
-        else:
+        if Opcode==0x2:
             CMD="nvme admin-passthru %s -opcode=%s --cdw10=%s -r -l 16 2>&1 | sed '2,$d' "%(mNVME.dev, Opcode, LogPageID)
+            CMD_Result = mNVME.shell_cmd(CMD)   
+        elif Opcode==0xC:          # Asynchronous              
+            # create thread for asynchronous_event_request_cmd        
+            t = threading.Thread(target = asynchronous_event_request_cmd)
+            t.start()        
+            sleep(0.5)   
+            mNVME.nvme_reset()        
+            t.join(10)
+        else:  
+            CMD="nvme admin-passthru %s -opcode=%s 2>&1"%(mNVME.dev, Opcode)
+            CMD_Result = mNVME.shell_cmd(CMD)
     elif CMDType == "io":
         CMD="nvme io-passthru %s -opcode=%s 2>&1"%(mNVME.dev, Opcode)
-    CMD_Result = mNVME.shell_cmd(CMD)
+        CMD_Result = mNVME.shell_cmd(CMD)
 
+def StartTestFlowSanitize(CMDType, Opcode, ExpectedResult, LogPageID=0):  
+        mNVME.Flow.Sanitize.ShowProgress=False   
+        mNVME.Flow.Sanitize.SetEventTrigger(SendTestCommand, CMDType, Opcode, LogPageID)
+        mNVME.Flow.Sanitize.SetOptions("-a %s"%SANACT)
+        # 0< Threshold <65535
+        mNVME.Flow.Sanitize.Mode=FlowSanitizeMode.KeepSanitizeInProgress
+        mNVME.Flow.Sanitize.Start()
 
 def TestCommandAllowed(CMDType, Opcode, ExpectedResult, LogPageID=0):  
 # CMDType:  admin or io
 # ExpectedResult: Deny or Allow
     global ret_code
-    mNVME.Flow.Sanitize.ShowProgress=False   
-    mNVME.Flow.Sanitize.SetEventTrigger(SendTestCommand, CMDType, Opcode, LogPageID)
-    mNVME.Flow.Sanitize.SetOptions("-a %s"%SANACT)
-    # 0< Threshold <65535
-    mNVME.Flow.Sanitize.SetEventTriggerThreshold(100)
-    mNVME.Flow.Sanitize.Start()
     
-    
-    print "Returned Status: %s"%CMD_Result
-    if re.search("SANITIZE_IN_PROGRESS", CMD_Result) and ExpectedResult=="Deny":
-        mNVME.Print("Expected command Deny: PASS", "p")  
-    elif not re.search("SANITIZE_IN_PROGRESS", CMD_Result) and ExpectedResult=="Allow":
-        mNVME.Print("Expected command Allow: PASS", "p")  
-    else:
-        mNVME.Print("Expected command %s: Fail"%ExpectedResult, "f")
-        ret_code=1    
-    print ""
+    if not mNVME.IsCommandSupported(CMDType, Opcode, LogPageID):
+        mNVME.Print( "Command is not supported, test if controller is working after command!", "w")
+        # start the test
+        StartTestFlowSanitize(CMDType, Opcode, ExpectedResult, LogPageID)
+        # print result
+        print "Returned Status: %s"%CMD_Result
+        if mNVME.dev_alive:
+            mNVME.Print("PASS", "p")  
+        else:
+            mNVME.Print("Fail, device is missing", "f")
+            mNVME.Print("Exist all the test!", "f")
+            print ""    
+            ret_code=1
+            print "ret_code:%s"%ret_code
+            print "Finish"
+            sys.exit(ret_code)                             
+        print ""
+    else:    
+        # start the test
+        StartTestFlowSanitize(CMDType, Opcode, ExpectedResult, LogPageID)        
+        # print result
+        print "Returned Status: %s"%CMD_Result
+        if re.search("SANITIZE_IN_PROGRESS", CMD_Result) and ExpectedResult=="Deny":
+            mNVME.Print("Expected command Deny: PASS", "p")  
+        elif not re.search("SANITIZE_IN_PROGRESS", CMD_Result) and ExpectedResult=="Allow":
+            mNVME.Print("Expected command Allow: PASS", "p")  
+        else:
+            mNVME.Print("Expected command %s: Fail"%ExpectedResult, "f")
+            ret_code=1    
+        print ""    
 
 def GetErrorLog():
     global ErrorLog
@@ -182,10 +218,11 @@ def GetErrorInfoWhileSanitizeInProgress():
 CryptoEraseSupport = True if (mNVME.IdCtrl.SANICAP.bit(0) == "1") else False
 BlockEraseSupport = True if (mNVME.IdCtrl.SANICAP.bit(1) == "1") else False
 OverwriteSupport = True if (mNVME.IdCtrl.SANICAP.bit(2) == "1") else False
-if CryptoEraseSupport:
-    SANACT=4
-elif BlockEraseSupport:
+
+if BlockEraseSupport:
     SANACT=2
+elif CryptoEraseSupport:
+    SANACT=4
 elif OverwriteSupport:
     SANACT=3
 
@@ -211,19 +248,49 @@ print ""
 print "Check if there is any sanitize operation in progress or not"
 per = mNVME.GetLog.SanitizeStatus.SPROG
 if per != 65535:
-    mNVME.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 10s)", "w")
+    mNVME.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 60s)", "w")
     WaitCnt=0
     while per != 65535:
         print ("Sanitize Progress: %s"%per)
         per = mNVME.GetLog.SanitizeStatus.SPROG
         WaitCnt = WaitCnt +1
-        if WaitCnt ==10:
-            break
+        if WaitCnt ==60:
+            print ""
+            mNVME.Print("Time out!, exit all test ", "f")  
+            ret_code =1
+            print "ret_code:%s"%ret_code
+            print "Finish"
+            sys.exit(ret_code) 
         sleep(1)
+    print "Recent sanitize operation was completed"
 else:
     print "All sanitize operation was completed"
+    
 
-  
+
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Keyword: Command Completion"
+print "When the command is complete, the controller shall post a completion queue entry to the "
+print "Admin Completion Queue indicating the status for the command."
+print ""
+
+# Sanitize command 
+CMD="nvme sanitize %s %s 2>&1"%(mNVME.dev_port, "-a %s"%SANACT)  
+print "Issue sanitize command: %s"%CMD
+             
+mStr=mNVME.shell_cmd(CMD)
+print "Get return code: %s"%mStr
+print "Check return code is success or not, expected SUCCESS"
+if re.search("SUCCESS", mStr):
+    mNVME.Print("PASS", "p")  
+else:
+    mNVME.Print("Fail", "f")
+    ret_code=1 
+    
+    
+    
+
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
 print "Keyword: When a sanitize operation starts on any controller"
@@ -302,11 +369,7 @@ TestCommandAllowed("admin", 0x2, "Allow", 0x80)
 
 print "Get Log Page - Sanitize Status"
 TestCommandAllowed("admin", 0x2, "Allow", 0x81)  
-'''
 
-
-
-'''
 print "Delete I/O Completion Queue"
 TestCommandAllowed("admin", 0x4, "Allow")   
 
@@ -379,9 +442,48 @@ TestCommandAllowed("admin", 0x84, "Deny")
 
     
 
+    
+print ""
+print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+print "Keyword: When a sanitize operation starts on any controller"
+print "Shall abort any command (submitted or in progress) not allowed during a sanitize operation with a status of Sanitize In Progress"
+print ""
+print "Test While a sanitize operation is in progress"
+print "All I/O Commands shall be aborted with a status of Sanitize In Progress"
+print ""
 
+print "Flush"
+TestCommandAllowed("io", 0x0, "Deny")
 
+print "Write"
+TestCommandAllowed("io", 0x1, "Deny")
 
+print "Read"
+TestCommandAllowed("io", 0x2, "Deny")
+
+print "Write Uncorrectable"
+TestCommandAllowed("io", 0x4, "Deny")
+
+print "Compare"
+TestCommandAllowed("io", 0x5, "Deny")
+
+print "Write Zeroes"
+TestCommandAllowed("io", 0x8, "Deny")
+
+print "Dataset Management"
+TestCommandAllowed("io", 0x9, "Deny")
+
+print "Reservation Register"
+TestCommandAllowed("io", 0xD, "Deny")
+
+print "Reservation Report"
+TestCommandAllowed("io", 0xE, "Deny")
+
+print "Reservation Acquire"
+TestCommandAllowed("io", 0x11, "Deny")
+
+print "Reservation Release"
+TestCommandAllowed("io", 0x15, "Deny")
 
 
   

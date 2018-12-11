@@ -10,7 +10,10 @@ from unittest.result import TestResult
 from lib_vct.NVMECom import deadline
 from lib_vct.NVMECom import TimedOutExc
 
-print "Ver: 20181127_0930"
+print "SMI_Format.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 mNVME = NVME.NVME(sys.argv )
 
 ## paramter #####################################
@@ -837,8 +840,6 @@ except TimedOutExc as e:
     
      
 print ""    
-
-
 print "ret_code:%s"%ret_code
 print "Finish"
 sys.exit(ret_code)    

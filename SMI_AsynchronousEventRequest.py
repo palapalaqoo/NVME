@@ -4,8 +4,10 @@ import re
 import threading
 from time import sleep
 from lib_vct import NVMEAsyncEventRequest
-
-print "Ver: 20180911_1532"
+print "SMI_AsynchronousEventRequest.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 mNVME = NVMEAsyncEventRequest.AsyncEvent(sys.argv )
 
 
@@ -213,8 +215,9 @@ else:
         ret_code=1    
 
 
-
-
+print ""
+print "ret_code:%s"%ret_code
+print "Finish"
 
 
 sys.exit(ret_code)

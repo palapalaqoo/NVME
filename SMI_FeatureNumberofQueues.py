@@ -5,7 +5,10 @@ from time import sleep
 import threading
 import re
 
-print "Ver: 20180924_1632"
+print "SMI_FeatureNumberofQueues.py"
+print "Author: Sam Chan"
+print "Ver: 20181203"
+print ""
 mNVME = NVME.NVME(sys.argv )
   
 ## paramter #####################################
@@ -55,7 +58,7 @@ else:
     mNVME.Print("Fail", "f")
     ret_code=1        
     
-
+print ""
 print "ret_code:%s"%ret_code
 print "Finish"
 sys.exit(ret_code)

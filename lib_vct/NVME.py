@@ -16,7 +16,9 @@ from lib_vct import IdCtrl
 from lib_vct import IdNs
 from lib_vct.GetLog import GetLog
 from lib_vct.Flow import Flow
+from lib_vct.NVMECom import TimedOutExc
 import re
+import time
 
 def foo1():
     print "foo!"
@@ -25,47 +27,62 @@ def foo1():
 class NVME(object, NVMECom):
     
     
-    @property
-    def dev_alive(self):
-        return self.dev_exist()    
-    
+   
     
     def __init__(self, argv):
         
         # self.dev = /dev/nvme0n1
-        self.dev, self.TestModeOn =  self.ParserArgv(argv)
+        self.dev, self.UserSubItems, self.TestModeOn =  self.ParserArgv()
         # self.dev_port = /dev/nvme0
         self.dev_port=self.dev[0:self.dev.find("nvme")+5]
         # self.dev_ns = 1
         self.dev_ns=self.dev[-1:]
         
-             
-       
+        # [ self.ScriptCnt, ScriptFunc, Description ]
+        # where ScriptCnt start from 1
+        self.Scripts = []
+        self.ScriptCnt = 1
+        
+        
         
         # the start 1G start block, middle and last, 
         self.start_SB=0
         self.middle_SB=0
         self.last_SB=0
         
+        if self.ctrl_alive:  
+            self.set_NVMECom_par(self)
+            self.IdCtrl = IdCtrl.IdCtrl_()
+            self.CNTLID=self.IdCtrl.CNTLID.int 
+        else:
+            self.Print("Error! Can't find device of %s"%self.dev_port, "f")
+            self.Print( "Quit all the test items!", "f")
+            sys.exit(1)       
+        
         if self.dev_alive:
             self.init_parameters()
             self.status="normal"
-        else:
-            self.Print("Error! Can't find device of %s"%self.dev, "f")
-            self.Print( "Quit all the test items!", "f")
-            sys.exit(1)            
+        else:        
+            self.Print("Device missing! try to reset namespace for %s"%self.dev, "f")
+            self.ResetNS()
+            if not self.dev_alive:
+                self.Print( "Can't Reset Namespace, Exit!", "f")
+                sys.exit(1)
+            else:
+                print "Reset namespace success"
+                print ""
+                self.init_parameters()
+                self.status="normal"     
+     
 
-    def init_parameters(self):
-        self.set_NVMECom_par(self)
-        self.CR = ControllerRegister.CR_()
-        self.IdCtrl = IdCtrl.IdCtrl_()
+    def init_parameters(self):        
+        self.CR = ControllerRegister.CR_()        
         self.IdNs = IdNs.IdNs_()
         self.GetLog = GetLog.GetLog_(self)
         self.Flow=Flow.Flow_(self)
         
         self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev_port))         
         self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port))
-        self.CNTLID=self.IdCtrl.CNTLID.int 
 
         # get valume of ssd
         ncap=self.IdNs.NCAP.int
@@ -83,7 +100,83 @@ class NVME(object, NVMECom):
         self.PMCAP, self.MSICAP, self.PXCAP, self.MSIXCAP, self.AERCAP=self.GetPCIERegBase()
         # Initiate Function Level Reset value        
         self.IFLRV= self.read_pcie(self.PXCAP, 0x9) + (1<<7)
+        # Initial Commands Supported and Effects Log
+        self._StrCSAEL=self.get_CSAEL() 
+
+    
+    def AddScript(self, ScriptFunc, Description="No description"):
+    # ScriptFunc: function for sub item
+    # Description: sub item description that will be written to log file 
+        self.Scripts.append([ self.ScriptCnt, ScriptFunc, Description])
+        self.ScriptCnt = self.ScriptCnt + 1
+    
+    def RunScript(self):
+        # if user issue command without subitem option, then test all items
+        if len(self.UserSubItems)==0:
+            for i in range(1, self.ScriptCnt):
+                self.UserSubItems.append(i)
         
+        # from first script, excute ScriptFunc if ScriptCnt in self.UserSubItems
+        for item in self.Scripts:
+            ScriptCnt=item[0]
+            ScriptFunc=item[1]
+            Description=item[2]
+            # if find subitem, then run it with time out=  timeOut
+            if ScriptCnt in self.UserSubItems:
+                try:
+                    # run script
+                    rtCode=ScriptFunc()
+                    
+                    if rtCode==0:
+                        rtMsg="Pass"
+                    elif rtCode==1:
+                        rtMsg="Fail"
+                    elif rtCode==255:
+                        rtMsg="Skip"
+                    else:
+                        rtMsg="Unknow"
+                        
+                    mStr = "CASE %s : %s : %s"%(ScriptCnt, Description, rtMsg)
+                    self.Logger(mStr)
+                except TimedOutExc as e:
+                    #self.Print("Timeout 60s", "f")
+                    pass        
+
+
+
+    def CSAEL(self, CMDType, Opcode, Field):
+        # return int
+        # CMDType = "admin", "io"
+        # Field = CSUPP, LBCC, NCC, NIC, CCC, CSE
+                
+        if len(self._StrCSAEL)==2048:
+            # from 0 to 255 is admin command, io command start from 256
+            if CMDType=="admin":
+                offset=Opcode
+            else:
+                offset=Opcode+0x100 
+            mCSAEL=self._StrCSAEL    
+            # every command have data structure which is 4 byte   
+            mstruct=mCSAEL[offset*4:(offset+1)*4]
+            
+            if Field=="CSUPP":
+                value = 1 if (int(mstruct[0],16) & 0b00000001)>=1 else 0
+            elif Field=="LBCC":
+                value = 1 if (int(mstruct[0],16) & 0b00000010)>=1 else 0    
+            elif Field=="NCC":
+                value = 1 if (int(mstruct[0],16) & 0b00000100)>=1 else 0
+            elif Field=="NIC":
+                value = 1 if (int(mstruct[0],16) & 0b00001000)>=1 else 0                            
+            elif Field=="CCC":
+                value = 1 if (int(mstruct[0],16) & 0b00010000)>=1 else 0
+            elif Field=="CSE":
+                value = 1 if (int(mstruct[2],16) & 0b00000111)>=1 else 0   
+            else:
+                value = 0             
+                            
+            return value
+        else:
+            return 0
     
     def read_pcie(self, base, offset):    
         # read pcie register, return byte data in int format       
@@ -96,12 +189,25 @@ class NVME(object, NVMECom):
         self.shell_cmd("setpci -s %s %s.b=%s " %(self.pcie_port, hex_str_addr, hex_str_value))
     
 
+    @property
+    def dev_alive(self):
+        return self.dev_exist()    
+    
+    @property
+    def ctrl_alive(self):
+        return self.dev_exist(nsid=0)  
+
+
     def dev_exist(self, nsid=-1):
     #-- return boolean
-    #-- default device=self.dev, ex. "/dev/nvme0n1
-        DEV=self.dev_port+"n%s"%nsid
-        if nsid==-1:
+    #-- default device=self.dev, ex. "/dev/nvme0n1        
+        if nsid==-1:    # /dev/nvme0n1 exist?
             DEV=self.dev
+        elif nsid==0:   # /dev/nvme0 exist?
+            DEV=self.dev_port
+        else:               # /dev/nvme0nX exist?
+            DEV=self.dev_port+"n%s"%nsid
+            
         buf=self.shell_cmd("find %s 2> /dev/null |grep %s " %(DEV,DEV))
         if not buf:
             return False
@@ -149,7 +255,10 @@ class NVME(object, NVMECom):
     
     def get_CSAEL(self):
     #-- Get Log Page - Commands Supported and Effects Log
-        return self.get_log(5,2048)
+        if self.IdCtrl.LPA.bit(1)=="1":
+            return self.get_log2byte(5,2048)
+        else:
+            return "0"
     
     def fio_write(self, offset, size, pattern, nsid=1):
         DEV=self.dev_port+"n%s"%nsid 
@@ -206,7 +315,7 @@ class NVME(object, NVMECom):
             return ret 
         return ret
 
-    def set_feature(self, fid, value, SV=0, Data=None, nsid=1): 
+    def set_feature(self, fid, value, SV=0, Data=None, nsid=0): 
     # feature id, value
     # if sv=1 and have data in
     # CMD = echo "\\255\\255\\255\\255\\255\\255" |nvme set-feature %s -f %s -n %s -v %s -s 2>&1
@@ -216,21 +325,33 @@ class NVME(object, NVMECom):
             CMD="echo -n -e \""+ Data + "\" | "
         
         CMD = CMD + "nvme set-feature %s -f %s -v %s " %(self.dev, fid, value)
-        
-        # feature is not namespace specific
-        if fid!=0x10 and fid!=0x80 :
-            CMD = CMD + "-n %s "%self.dev_ns
-        
+                
         if SV!=0:
-            CMD = CMD + "-s "            
-        CMD = CMD +"-n %s 2>&1 "%nsid
+            CMD = CMD + "-s "         
+        
+        if nsid!=0:
+            CMD = CMD +"-n %s "%nsid
+        
+        CMD = CMD +"2>&1 "
 
         return self.shell_cmd(CMD)
     
         
      
-    def get_feature(self, fid, cdw11=0, sel=0, nsid=1): 
+    def get_feature(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False): 
     # feature id, cdw11(If applicable)
+        CMD=""
+        
+        if nsSpec:
+            CMD = CMD + " nvme get-feature %s -f %s --cdw11=%s -s %s "%(self.dev_port, fid, cdw11, sel)
+        else:
+            CMD = CMD + " nvme get-feature %s -f %s --cdw11=%s -s %s "%(self.dev, fid, cdw11, sel)
+        
+        
+        if nsSpec and nsid!=0:
+            CMD = CMD +"-n %s "%nsid
+        
+        CMD = CMD +"2>&1 "
         return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s -s %s -n %s 2>&1"%(self.dev, fid, cdw11, sel, nsid))
 
         
@@ -323,7 +444,7 @@ class NVME(object, NVMECom):
         self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.bridge_port), 0.5) 
         self.shell_cmd("  rm -f %s* "%(self.dev_port))
-        #self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
         self.hot_reset()
         self.status="normal"
         return 0  
@@ -507,7 +628,47 @@ class NVME(object, NVMECom):
                 MaxNs=1
  
             return MaxNs
-    
+
+    def IsOpcodeSupported(self, CMDType, opcode):
+        if self.IdCtrl.LPA.bit(1)=="1":
+            return True if self.CSAEL(CMDType, opcode, "CSUPP")>=1 else False
+        else:
+            return True
+        
+    def IsCommandSupported(self, CMDType, opcode, LogPageID=0):
+        # CMDType = "admin", "io"
+        
+        # get log command-Changed Namespace List
+        if CMDType=="admin" and opcode==2 and (LogPageID==0x04):
+            return True if self.IdCtrl.OAES.bit(8)=="1" else False   
+
+        # get log command-Commands Supported and Effects
+        elif CMDType=="admin" and opcode==2 and LogPageID==0x05:
+            return True if self.IdCtrl.LPA.bit(1) == "1" else False
+     
+        # get log command-Device Self-test
+        elif CMDType=="admin" and opcode==2 and LogPageID==0x06:
+            return True if self.IdCtrl.OACS.bit(4) == "1" else False       
+            
+        # get log command-Telemetry Host-Initiated
+        elif CMDType=="admin" and opcode==2 and LogPageID==0x7:
+            return True if self.IdCtrl.LPA.bit(3)=="1" else False
+        
+        # get log command-Telemetry Controller-Initiated
+        elif CMDType=="admin" and opcode==2 and LogPageID==0x8:
+            return True if self.IdCtrl.LPA.bit(3)=="1" else False
+        
+        # get log command-reservation notification
+        elif CMDType=="admin" and opcode==2 and LogPageID==0x80:
+            return True if self.IdCtrl.ONCS.bit(5)=="1" else False
+            
+        # get log command-Sanitize Status
+        elif CMDType=="admin" and opcode==2 and LogPageID==0x81:
+            return True if int(self.IdCtrl.SANICAP.bit(2,0))>0 else False
+        
+        # others 
+        else:
+            return self.IsOpcodeSupported(CMDType, opcode)       
     
 # ==============================================================    
 class DevWakeUpAllTheTime():
