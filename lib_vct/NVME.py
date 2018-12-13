@@ -26,8 +26,7 @@ def foo1():
     
 class NVME(object, NVMECom):
     
-    
-   
+
     
     def __init__(self, argv):
         
@@ -38,12 +37,12 @@ class NVME(object, NVMECom):
         # self.dev_ns = 1
         self.dev_ns=self.dev[-1:]
         
-        # [ self.ScriptCnt, ScriptFunc, Description ]
-        # where ScriptCnt start from 1
-        self.Scripts = []
-        self.ScriptCnt = 1
+
         
+        # final return code
+        self.rtCode=0
         
+        self.Info="No description for this script"
         
         # the start 1G start block, middle and last, 
         self.start_SB=0
@@ -74,8 +73,46 @@ class NVME(object, NVMECom):
                 self.init_parameters()
                 self.status="normal"     
      
+    # function for CreateAbstractFuncAndVariablesForSonClassToOverride
+    def _function(self):
+        pass
+        
+    def CreateAbstractFuncAndVariablesForSonClassToOverride(self): 
+        #=======================================================================
+        # abstract  function
+        #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        # abstract  variables
+        #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
+        #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
+        #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
+        #=======================================================================            
+        
+        # generate dynamic function for SubCase1() to SubCase32() for sun class to override
+        # e.g. 
+        # |    def SubCase1(self):
+        # |       pass
+        self.SubCaseMaxNum=32        
+        for x in range(1, self.SubCaseMaxNum+1): 
+            exec("NVME.SubCase%s=self._function"%x)
 
+        # generate dynamic variables 
+        for x in range(1, self.SubCaseMaxNum+1): 
+            setattr(NVME, "SubCase%sDesc"%x, "")
+            
+        # generate dynamic variables 
+        for x in range(1, self.SubCaseMaxNum+1): 
+            setattr(NVME, "SubCase%sKeyword"%x, "")        
+        # print (dir(NVME))
+        #  print (dir(self))       
+        
+        self.ScriptName="Null"
+        self.Author="Null"
+        self.Version="Null"
+                 
     def init_parameters(self):        
+        
+        self.CreateAbstractFuncAndVariablesForSonClassToOverride()        
+        self.CreateScriptInfo()
         self.CR = ControllerRegister.CR_()        
         self.IdNs = IdNs.IdNs_()
         self.GetLog = GetLog.GetLog_(self)
@@ -103,47 +140,89 @@ class NVME(object, NVMECom):
         # Initial Commands Supported and Effects Log
         self._StrCSAEL=self.get_CSAEL() 
 
+
+
+    def IsMethodOverride (self, mtehodName):
+    # check if mtehod is override by sun class
+        method=mtehodName
+        this_method = getattr(self, method)
+        base_method = getattr(NVME, method)
+        if this_method.__func__ is not base_method.__func__:
+            return True
+        else:
+            return False
     
-    def AddScript(self, ScriptFunc, Description="No description"):
-    # ScriptFunc: function for sub item
+    def AddScript(self, SubCaseFunc, Description="No description", SpecKeyWord=""):
+    # SubCaseFunc: function for sub item
     # Description: sub item description that will be written to log file 
-        self.Scripts.append([ self.ScriptCnt, ScriptFunc, Description])
-        self.ScriptCnt = self.ScriptCnt + 1
+        self.SubCase.append([ self.SubCaseCnt, SubCaseFunc, Description, SpecKeyWord])
+        self.SubCaseCnt = self.SubCaseCnt + 1
     
     def RunScript(self):
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
-            for i in range(1, self.ScriptCnt):
+            for i in range(1, self.SubCaseMaxNum+1):
                 self.UserSubItems.append(i)
         
-        # from first script, excute ScriptFunc if ScriptCnt in self.UserSubItems
-        for item in self.Scripts:
-            ScriptCnt=item[0]
-            ScriptFunc=item[1]
-            Description=item[2]
-            # if find subitem, then run it with time out=  timeOut
-            if ScriptCnt in self.UserSubItems:
-                try:
-                    # run script
-                    rtCode=ScriptFunc()
+        # check function is override or not, from SubCase1() to SubCase32()
+        for SubCaseNum in range(1, self.SubCaseMaxNum+1):
+            if self.IsMethodOverride("SubCase%s"%SubCaseNum):
+                
+                SubCaseFunc = getattr(self, "SubCase%s"%SubCaseNum)
+                Description=getattr(self, "SubCase%sDesc"%SubCaseNum)
+                SpecKeyWord=getattr(self, "SubCase%sKeyword"%SubCaseNum)
+                # if find subitem, e.g. user assign it to run, then run it with time out=  timeOut
+                if SubCaseNum in self.UserSubItems:
+                    # print sub case titles
+                    print ""
+                    print "-- Case %s ---------------------------------------------------------------------------------"%SubCaseNum
+                    print "-- %s"%Description
+                    print "-- Keyword: %s"%SpecKeyWord
                     
-                    if rtCode==0:
-                        rtMsg="Pass"
-                    elif rtCode==1:
-                        rtMsg="Fail"
-                    elif rtCode==255:
-                        rtMsg="Skip"
-                    else:
-                        rtMsg="Unknow"
+                    try:
+                        # run script
+                        Code=SubCaseFunc()    
                         
-                    mStr = "CASE %s : %s : %s"%(ScriptCnt, Description, rtMsg)
-                    self.Logger(mStr)
-                except TimedOutExc as e:
-                    #self.Print("Timeout 60s", "f")
-                    pass        
-
-
-
+                    except TimedOutExc as e:              
+                        print ""
+                        self.Print( "Timeout!: %ss, quit Case %s test!"%(e, SubCaseNum), "f" )
+                        self.Print( "Fail", "f" )
+                        Code = 1
+                        pass                                   
+                    
+                    # get return code and print to log file
+                    if Code==0:
+                        rtMsg="Pass"
+                        color = self.color.GREEN
+                    elif Code==1:
+                        rtMsg="Fail"
+                        color = self.color.RED
+                        # set rtCode = 1
+                        self.rtCode=1
+                    elif Code==255:
+                        rtMsg="Skip"
+                        color = self.color.YELLOW
+                        # if rtCode = 0, then set rtCode = 255
+                        self.rtCode = 255 if self.rtCode==0 else self.rtCode
+                    else:
+                        rtMsg="Unknow"                    
+                    
+                    mStr = "CASE %s : %s : %s"%(SubCaseNum, Description, rtMsg)
+                    #print to default log
+                    self.Logger(mStr, mfile="default")
+                    
+                    #print to color log
+                    self.Logger(mStr, mfile="color", color=color )                          
+        
+    def PrintColorBriefReport(self):
+        print ""
+        print "== Brief report ================================"
+        print self.ReadLogFile(mfile="color")
+        print "---------------------------------------------------------------------"
+        print "Overall return code: %s" %self.rtCode
+        print "Finish.."
+        print "========================================="
+        
     def CSAEL(self, CMDType, Opcode, Field):
         # return int
         # CMDType = "admin", "io"
@@ -665,10 +744,18 @@ class NVME(object, NVMECom):
         # get log command-Sanitize Status
         elif CMDType=="admin" and opcode==2 and LogPageID==0x81:
             return True if int(self.IdCtrl.SANICAP.bit(2,0))>0 else False
-        
+            
         # others 
         else:
             return self.IsOpcodeSupported(CMDType, opcode)       
+    
+    def PrintInfo(self):
+        print self.Info
+
+    def CreateScriptInfo(self):
+        self.Info = "ScriptName : %s\n"%self.ScriptName
+        self.Info = self.Info +  "Author : %s\n"%self.Author
+        self.Info = self.Info +  "Version : %s\n"%self.Version        
     
 # ==============================================================    
 class DevWakeUpAllTheTime():

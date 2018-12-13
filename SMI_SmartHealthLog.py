@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 # Import python built-ins
 import sys
@@ -15,29 +16,30 @@ class SMI_SmartHealthLog(NVME):
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
     Version = "20181211"
-    
+    SubCase1Desc="123456"
     # <Attributes>
     # </Attributes>
-    
+    aaabbb=123456
     def __init__(self, argv):
         # initial parent class
         super(SMI_SmartHealthLog, self).__init__(argv)
         
         # add all sub items to test script list
-        self.AddScript(self.Script0)
-        self.AddScript(self.Script1)
+        #self.AddScript(self.Script0)
+        #self.AddScript(self.Script1)
         
     # <sub item scripts>
-    @deadline(3)
-    def Script0(self):
+    @deadline(2)
+    def SubCase1(self):
         sleep(1)
         print "123456"
         sleep(5)
         print "123"
     
     @deadline(60)
-    def Script1(self):
+    def SubCase2(self):
         print "abcde"    
+
         
     # </sub item scripts>
     
@@ -47,7 +49,7 @@ class SMI_SmartHealthLog(NVME):
 if __name__ == "__main__":
     DUT = SMI_SmartHealthLog(sys.argv ) 
     DUT.RunScript()
-    
+
     
     
     

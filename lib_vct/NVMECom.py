@@ -17,8 +17,8 @@ class TimedOutExc(Exception):
 def deadline(timeout, *args):
     def decorate(f):
         def handler(signum, frame):
-            print "Timeout!: %ss, quit sub case test!"%timeout
-            raise TimedOutExc()
+            #print "Timeout!: %ss, quit sub case test!"%timeout
+            raise TimedOutExc(timeout)
 
         def new_f(*args):
             signal.signal(signal.SIGALRM, handler)
@@ -52,6 +52,10 @@ class NVMECom():
         self.LogName =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
         f = open(self.LogName, "w")
         f.close()
+        #create color log
+        self.LogNameColor =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".logcolor"
+        f = open(self.LogNameColor, "w")
+        f.close()        
 
     def set_NVMECom_par(self, son):
         # set NVMECom parameters from subclass
@@ -185,12 +189,30 @@ class NVMECom():
         LBADS   = 2
         RP  = 3
         
-    def WriteLogFile(self, mStr):
+    def WriteLogFile(self, mStr, mfile="default"):
     # append new lines
-        f = open(self.LogName, "a")
+    # mfile: "default"= default log file, "color"= color log 
+        if mfile=="color":
+            f = open(self.LogNameColor, "a")
+        else:
+            f = open(self.LogName, "a")       
+        
         f.write(mStr)
         f.write("\n")        
         f.close()
+        
+    def ReadLogFile(self, mfile="default"):
+    # append new lines
+    # mfile: "default"= default log file, "color"= color log 
+        if mfile=="color":
+            f = open(self.LogNameColor, "r")
+        else:
+            f = open(self.LogName, "r")       
+        
+        mStr = f.read()    
+        f.close()   
+        return mStr     
+        
     
     def Print(self, msg, Ctype="d"):
         # Ctype, consol type
@@ -214,26 +236,18 @@ class NVMECom():
             print "%s" %(msg)            
             
     
-    def Logger(self, msg, Ltype="d"):
-        # Ltype, loger type
-        # p/P: pass, print msg with green color
-        # f/F: false, print msg with red color
-        # w/W: warnning, print msg with yellow color
-        # d/D: Default mode, print msg without color
-        # t/T: test mode, will not print anything
-            
-        # Log file
-        if Ltype=="p" or Ltype=="P":    
-            self.WriteLogFile(  self.color.GREEN +"%s" %(msg)  +self.color.RESET )
-        elif Ltype=="f" or Ltype=="F":  
-            self.WriteLogFile(  self.color.RED +"%s" %(msg)  +self.color.RESET )
-        elif Ltype=="w" or Ltype=="W":  
-            self.WriteLogFile(  self.color.YELLOW +"%s" %(msg)  +self.color.RESET )
-        elif Ltype=="t" or Ltype=="T":  
-            if NVMECom.mTestModeOn:
-                self.WriteLogFile(  self.color.CYAN +"%s" %(msg)  +self.color.RESET )
-        elif Ltype=="d" or Ltype=="D":  
-            self.WriteLogFile ( "%s" %(msg) )
+    def Logger(self, msg, mfile="default", color="No"):
+        # color: define at self.color or no color       
+        # mfile: select default log or color log file( default/color )
+        
+        if color=="No":
+            mStr = msg
+        else:
+            mStr = color + msg  +self.color.RESET
+
+        # writ to Log file    
+        self.WriteLogFile(  mStr, mfile=mfile )
+        
             
     def ParserArgv(self):
         # argv[1]: device path, ex, '/dev/nvme0n1'
@@ -241,14 +255,14 @@ class NVMECom():
         # argv[3]: script test mode on, ex, '-t'
         parser = ArgumentParser()
         parser.add_argument("dev", help="device", type=str)
-        parser.add_argument("subitems", help="sub items that will be tested", type=str, nargs='*')
+        parser.add_argument("subitems", help="sub items that will be tested", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         
         args = parser.parse_args()
         
         mDev=args.dev
         mTestModeOn=True if args.t else False
-        if len(args.subitems)==0:
+        if args.subitems==None:
             mSubItems=[]
         else:
             # split ',' and return int[]

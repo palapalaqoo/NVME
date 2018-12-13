@@ -24,6 +24,7 @@ class DST_():
         self.EventTriggeredMessage="Event was triggered while DST execution exceed 2% "
         
         self.ShowProgress=True
+        self.ShowMessage=True
          
     def SetEventTrigger(self, EventTrigger=None, args=None):    
         self._EventTrigger = EventTrigger
@@ -53,9 +54,9 @@ class DST_():
         if self._mNVME.GetLog.DeviceSelfTest.CDSTO!=0:
             self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=0xF -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID))
             
-            
-        print "Starting DST .."  
-        print self.EventTriggeredMessage 
+        if self.ShowMessage:    
+            print "Starting DST .."  
+            print self.EventTriggeredMessage 
         event_trigged=0
         error=0
         DST_per_old=0
@@ -89,8 +90,8 @@ class DST_():
                     
                 event_trigged=1        
          
-            #if if self test fininshed (Current Device Self-Test Operation==0)
-            if self._mNVME.GetLog.DeviceSelfTest.CDSTO==0:
+            #if if self test fininshed (Current Device Self-Test Operation==0) and ShowProgress
+            if self._mNVME.GetLog.DeviceSelfTest.CDSTO==0 and self.ShowProgress:
                 # if DST Operation completed without error, then set progress bar to 100%
                 DSTS=self._mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
                 DSTSbit3to0 = DSTS & 0b00001111
@@ -100,7 +101,8 @@ class DST_():
                     print ""                 
                 break
 
-        print "DST finished" 
+        if self.ShowMessage:
+            print "DST finished" 
         if error==0:           
             return self._mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
         else:

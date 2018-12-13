@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+        #=======================================================================
+        # abstract  function
+        #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        # abstract  variables
+        #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
+        #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
+        #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
+        #=======================================================================     
+
+
 
 # Import python built-ins
 import sys
@@ -18,6 +30,29 @@ class SMI_SmartHealthLog(NVME):
     Version = "20181211"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    SubCase1TimeOut = 60
+    SubCase1Desc = "Test if controller accept TMT1 and TMT2 value is zero or not"    
+    
+    SubCase2TimeOut = 60
+    SubCase2Desc = "Test if set TMT1 < MNTMT"
+
+    SubCase3TimeOut = 60
+    SubCase3Desc = "Test if set TMT1 > MXTMT"    
+
+    SubCase4TimeOut = 60
+    SubCase4Desc = "Test if set TMT1 >= TMT2"    
+
+    SubCase5TimeOut = 60
+    SubCase5Desc = "Test if set TMT2 < MNTMT"    
+
+    SubCase6TimeOut = 60
+    SubCase6Desc = "Test if set TMT2 > MXTMT"    
+
+    SubCase7TimeOut = 60
+    SubCase7Desc = "Test if set TMT2 <= TMT1"    
+
+    SubCase8TimeOut = 240
+    SubCase8Desc = "Test HCTM functionality"    
     
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
@@ -45,15 +80,16 @@ class SMI_SmartHealthLog(NVME):
         # set feature
         return self.set_feature(0x10, TMT)   
     def CheckisINVALID_FIELD(self, strin):
-        global  ret_code
+        ret_code=0
         mStr = "INVALID_FIELD"
         if re.search(mStr, strin):
             self.Print("Pass", "p")
         else:
             self.Print("Fail", "f")
             ret_code = 1
+        return ret_code
     
-    def ResetHCTM(self):
+    def ClearHCTMFunc(self):
         print ""
         print "Set TMT1=MXTMT-1, TMT2=MXTMT to exit the HCTM status if the HCTM is acting "
         mTMT1=self.MXTMT-1
@@ -61,15 +97,29 @@ class SMI_SmartHealthLog(NVME):
         print "Set TMT1= %s, TMT2= %s"%(self.KelvinToC(mTMT1), self.KelvinToC(mTMT2))
         self.SetTMT1_TMT2(mTMT1, mTMT2)
         sleep(1)
+        print ""
+        print "NVMe reset controller"
+        self.nvme_reset()    
            
     def CheckisSuccess(self, strin):
-        global  ret_code
+        ret_code=0
         mStr = "INVALID_FIELD"
         if not re.search(mStr, strin):
             self.Print("Pass", "p")
         else:
             self.Print("Fail", "f")
             ret_code = 1       
+        return ret_code
+    
+    def ResetHCTM(self):
+            print ""
+            print "Reset TMT value"
+            self.SetTMT1_TMT2(self.TMT1bk, self.TMT2bk)
+            print ""
+
+            print ""
+            print "NVMe reset controller"
+            self.nvme_reset()          
     
     def RaisingTempture(self, TargetTemp, TimeOut):
     # TimeOut = time limit in secend
@@ -116,31 +166,280 @@ class SMI_SmartHealthLog(NVME):
         self.TMT1bk, self.TMT2bk = self.GetTMT1_TMT1()      
         # </Parameter>
         
-        # add all sub items to test script list
-        self.AddScript(self.Script0, "Test if controller accept TMT1 and TMT2 value is zero or not")
-        self.AddScript(self.Script1)
+
         
-    # <sub item scripts>
-    @deadline(60)
-    def Script0(self):
-  
         
-        print "123456"
-        return 0
+    # <sub item scripts> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    @deadline(SubCase1TimeOut)
+    def SubCase1(self):  
+        print "Test if controller accept TMT1 and TMT2 value is zero or not, expected result: Accept"
+        if self.HCTMA==1:
+            mTMT1=0
+            mTMT2=0
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            return self.CheckisSuccess(mStr)
+        else:
+            print "not supported"
+            return 255
     
-    @deadline(60)
-    def Script1(self):
-        print "abcde"  
-        return 1  
+    @deadline(SubCase2TimeOut)
+    def SubCase2(self):
+        print "Test if set TMT1 < MNTMT, then the command shall fail with a status code of Invalid Field in Command "      
+        if self.HCTMA==1:
+            mTMT1=self.MNTMT-1
+            mTMT2=self.MXTMT
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            return self.CheckisINVALID_FIELD(mStr)            
+        else:
+            print "not supported"
+            return 255
         
-    # </sub item scripts>
+    @deadline(SubCase3TimeOut)
+    def SubCase3(self):
+        print "Test if set TMT1 > MXTMT, then the command shall fail with a status code of Invalid Field in Command "     
+        if self.HCTMA==1:            
+            mTMT1=self.MXTMT+1
+            mTMT2=self.MXTMT
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            return self.CheckisINVALID_FIELD(mStr)     
+        else:
+            print "not supported"
+            return 255
+        
+    @deadline(SubCase4TimeOut)
+    def SubCase4(self):
+        print "Test if set TMT1 >= TMT2, then the command shall fail with a status code of Invalid Field in Command "          
+        if self.HCTMA==1:            
+            mTMT1=self.MNTMT
+            mTMT2=self.MNTMT
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            code1=self.CheckisINVALID_FIELD(mStr)
+            print ""
+            mTMT1=self.MNTMT+1
+            mTMT2=self.MNTMT
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            code2=self.CheckisINVALID_FIELD(mStr)
+            
+            if code1==1 or code2==1:
+                return 1
+            else:
+                return 0
+        else:
+            print "not supported"
+            return 255                
+        
+    @deadline(SubCase5TimeOut)
+    def SubCase5(self):
+        print "Test if set TMT2 < MNTMT, then the command shall fail with a status code of Invalid Field in Command "   
+        if self.HCTMA==1:            
+            mTMT1=self.MNTMT
+            mTMT2=self.MNTMT-1
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            return self.CheckisINVALID_FIELD(mStr)     
+        else:
+            print "not supported"
+            return 255        
+
+    @deadline(SubCase6TimeOut)
+    def SubCase6(self):
+        print "Test if set TMT2 > MXTMT, then the command shall fail with a status code of Invalid Field in Command "
+        if self.HCTMA==1:            
+            mTMT1=self.MNTMT
+            mTMT2=self.MXTMT+1
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            return self.CheckisINVALID_FIELD(mStr)     
+        else:
+            print "not supported"
+            return 255   
+        
+    @deadline(SubCase7TimeOut)
+    def SubCase7(self):
+        print "Test if set TMT2 <= TMT1, then the command shall fail with a status code of Invalid Field in Command "
+        if self.HCTMA==1:            
+            mTMT1=self.MNTMT
+            mTMT2=self.MNTMT
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            code1=self.CheckisINVALID_FIELD(mStr)
+            print ""
+            mTMT1=self.MNTMT+1
+            mTMT2=self.MNTMT
+            print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
+            mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
+            code2=self.CheckisINVALID_FIELD(mStr)
+            
+            print ""
+            print "Reset TMT value"
+            self.SetTMT1_TMT2(self.TMT1bk, self.TMT2bk)  
+            
+            if code1==1 or code2==1:
+                return 1
+            else:
+                return 0            
+        else:
+            print "not supported"
+            return 255   
+
+    @deadline(SubCase8TimeOut)
+    def SubCase8(self):
+        print "Test HCTM functionality"
+        if self.HCTMA==1:        
+            ret_code=0    
+            print ""
+            self.Print("Warning! If the Composite Temperature is above 35 °C now, it may fail this test  ", "w")
+            self.Print("Please cool down the controller and try it later, expected temperature < 35 °C", "w")
+            print ""
+            print "Reset HCTM function"
+            self.ClearHCTMFunc()
+            print ""
+            TMT1bk, TMT2bk = self.GetTMT1_TMT1()
+            print "TMT1: %s = %s °C"%(TMT1bk,self.KelvinToC(TMT1bk))
+            print "TMT2: %s = %s °C"%(TMT2bk,self.KelvinToC(TMT2bk))
+            print ""
+            print "Check if controller is not performing HCTM function"
+            print "i.e.Thermal Management T1 Total Time and Thermal Management T2 Total Time is not counting"
+            TTTMT1 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
+            TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
+            
+            print ""
+            print "TTTMT1: %s"%TTTMT1
+            print "TTTMT2: %s"%TTTMT2
+            print ""
+            print "Sleep 2 s"
+            sleep(2)
+            TTTMT1_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
+            TTTMT2_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
+            print ""
+            print "TTTMT1: %s"%TTTMT1_n
+            print "TTTMT2: %s"%TTTMT2_n
+            
+            if TTTMT1!=TTTMT1_n or TTTMT2!=TTTMT2_n:
+                self.Print("Fail, can't reset HCTM function, quit this test item", "f")
+                ret_code=1
+            else:
+                print "Controller is not performing HCTM function now"
+                LiveT = self.GetLog.SMART.CompositeTemperature
+                
+                print "Minimum Thermal Management Temperature(MNTMT): %s °C"%self.KelvinToC(self.MNTMT)
+                print "Maximum Thermal Management Temperature(MXTMT): %s °C"%self.KelvinToC(self.MXTMT)
+                print "CompositeTemperature now: %s °C"%self.KelvinToC(LiveT)
+                
+                
+                
+                # get value from smart log 
+                TMT1TC = self.GetLog.SMART.ThermalManagementTemperature1TransitionCount
+                TMT2TC = self.GetLog.SMART.ThermalManagementTemperature2TransitionCount
+                TTTMT1 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
+                TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
+                
+                
+                # TMT min number must large then MNTMT
+                if LiveT<self.MNTMT:
+                    BaseT=self.MNTMT
+                else:
+                    BaseT=LiveT
+                
+                print ""
+                mTMT1=BaseT+1
+                mTMT2=BaseT+2
+                print "Set TMT1= %s °C, TMT2= %s °C"%(self.KelvinToC(mTMT1), self.KelvinToC(mTMT2))
+                self.SetTMT1_TMT2(mTMT1, mTMT2)
+                
+                TargetTemp = mTMT2 + 1
+                TimeLimit = 180
+                print "Writing data to increase temperature to make it large then TMT2(Let's set target temperature = %s °C)"%self.KelvinToC(TargetTemp)
+                print "Time limit is %s s "%TimeLimit
+                LiveT_n = self.RaisingTempture(TargetTemp, TimeLimit)
+                
+                # get value from smart log 
+                TMT1TC_n = self.GetLog.SMART.ThermalManagementTemperature1TransitionCount
+                TMT2TC_n = self.GetLog.SMART.ThermalManagementTemperature2TransitionCount
+                TTTMT1_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
+                TTTMT2_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
+                
+                print ""
+                print "-- befor test --"
+                print "Composite Temperature: %s °C"%self.KelvinToC(LiveT)
+                print "TMT1TC: %s"%TMT1TC
+                print "TMT2TC: %s"%TMT2TC
+                print "TTTMT1: %s"%TTTMT1
+                print "TTTMT2: %s"%TTTMT2
+                print "-- after test --"
+                print "Composite Temperature: %s °C"%self.KelvinToC(LiveT_n)
+                print "TMT1TC: %s"%TMT1TC_n
+                print "TMT2TC: %s"%TMT2TC_n
+                print "TTTMT1: %s"%TTTMT1_n
+                print "TTTMT2: %s"%TTTMT2_n
+                
+                print ""
+                if LiveT_n>=mTMT1:
+                    print "HCTM enter light throttle status, Composite Temperature > TMT1"
+                    print "Check if after the test, TMT1TC += 1"
+                    if TMT1TC_n==TMT1TC+1:
+                        self.Print("Pass", "p")
+                    else:
+                        self.Print("Fail", "f")
+                        ret_code = 1
+                    print "Check if after the test, TTTMT1 changed"
+                    if TTTMT1_n!=TTTMT1:
+                        self.Print("Pass", "p")
+                    else:
+                        self.Print("Fail", "f")   
+                        ret_code = 1
+                else:
+                    self.Print("Warning! The temperature has never great then TMT1 in %s s"%TimeLimit, "w")
+                
+                print ""
+                if LiveT_n>=mTMT2:
+                    print "HCTM enter heavy throttle ststus, Composite Temperature > TMT2"
+                    print "Check if after the test, TMT2TC += 1"
+                    if TMT2TC_n==TMT2TC+1:
+                        self.Print("Pass", "p")
+                    else:
+                        self.Print("Fail", "f")
+                        ret_code = 1
+                    print "Check if after the test, TTTMT2 changed"
+                    if TTTMT2_n!=TTTMT2:
+                        self.Print("Pass", "p")
+                    else:
+                        self.Print("Fail", "f")   
+                        ret_code = 1
+                else:
+                    self.Print("Warning! The temperature has never great then TMT2 in %s s"%TimeLimit, "w")    
+                    
+                print ""   
+                print "Check if after the test, Composite Temperature has been changed or not"
+                if LiveT_n!=LiveT:
+                    self.Print("Pass", "p")
+                else:
+                    self.Print("Warning! never changed", "w")   
+                    
+ 
+            
+            return ret_code  
+        else:
+            print "not supported"
+            return 255   
+
+
+
+    # </sub item scripts> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     
     
     
 if __name__ == "__main__":
-    DUT = SMI_SmartHealthLog(sys.argv ) 
+    DUT = SMI_SmartHealthLog(sys.argv )
+    DUT.PrintInfo()
     DUT.RunScript()
+    DUT.PrintColorBriefReport()
     
     
     
