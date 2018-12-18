@@ -1,43 +1,300 @@
 #!/usr/bin/env python
-'''
-Created on Aug 15, 2018
-
-@author: root
-'''
+# -*- coding: utf-8 -*-
 from lib_vct import NVME
+from lib_vct import NVMECom
 import sys
 from time import sleep
 import threading
+import re
 import random
+import time
+import os.path
+import subprocess
+from tuned import admin
 
-print "SMI_NVMeReset.py"
+
+print "SMI_SetGetFeatureCMD.py"
 print "Author: Sam Chan"
 print "Ver: 20181203"
+print ""
+mNVME = NVME.NVME(sys.argv )
 
 ## paramter #####################################
-mNVME = NVME.NVME(sys.argv[1] )
-ret_code=0
-NSSRSupport=True if mNVME.CR.CAP.NSSRS.int==1 else False
+ret_code = 0
+sub_ret=0
+CMD_Result="0"
+SANACT=0
+ErrorLog=[]
+Ns=1
 TestItems=[]
+SELSupport = True if mNVME.IdCtrl.ONCS.bit(4)=="1" else False
+NsSupported=True if mNVME.IdCtrl.OACS.bit(3)=="1" else False
+## function #####################################
+class item:
+    description=0
+    fid=1
+    capabilities=2
+    reset_value=3
+    valid_value=4
+    supported=5
 
-## function ##################################### 
-def GetRDY():
-    return mNVME.CR.CSTS.bit(0)
-
-def init():
+def initial():
+    # [description, id, capabilities, reset_value, valid_value, supported]
     global TestItems
-    # TestItems=[[description, function],[description, function],..]
     
-    TestItems.append(["Controller Reset", mNVME.nvme_reset])
+    description = "Arbitration"
+    fid = 1
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=reset_value+(1<<24)
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
     
-    if NSSRSupport:
-        TestItems.append(["NVM Subsystem Reset", mNVME.subsystem_reset])
+    description = "Power Management"
+    fid = 2
+    supported = True if mNVME.IdCtrl.NPSS.int!=0 else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=0 if reset_value!=0 else 1
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
+    
+    description = "LBA Range Type"
+    fid = 3
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=0 if reset_value!=0 else 1
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
+    
+    description = "Temperature Threshold"
+    fid = 4
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=reset_value+1
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])    
+    
+    description = "Error Recovery"
+    fid = 5
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=reset_value+1
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])        
+    
+    description = "Volatile Write Cache"
+    fid = 6
+    supported = True if mNVME.IdCtrl.VWC.bit(0) == "1" else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])            
+    '''    
+    description = "Number of Queues"
+    fid = 7
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    NCQR=mNVME.int2bytes(reset_value, 2)
+    NSQR=mNVME.int2bytes(reset_value, 0)
+    valid_value=((NCQR-1)<<16) + (NSQR-1)
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])           
+    '''    
+    
+    description = "Interrupt Coalescing"
+    fid = 8
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])              
+    
+    description = "Interrupt Vector Configuration(Testing secend Interrupt Vector where cdw11=0x1)"
+    fid = 9
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    CoalescingDisable=mNVME.int2bytes(reset_value, 4)
+    if CoalescingDisable>=1:
+        valid_value = reset_value & 0xFFFF
+    else:
+        valid_value = reset_value | (1<<16)
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])        
+    
+    description = "Write Atomicity Normal"
+    fid = 0xA
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])   
         
-    TestItems.append(["PCI Express Hot reset", mNVME.hot_reset])    
+    description = "Asynchronous Event Configuration"
+    fid = 0xB
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])   
+        
+    description = "Autonomous Power State Transition"
+    fid = 0xC
+    supported = True if mNVME.IdCtrl.APSTA.bit(0) == "1" else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
     
-    TestItems.append(["Data Link Down status", mNVME.link_reset]) 
+    description = "Host Memory Buffer"
+    fid = 0xD
+    supported = True if mNVME.IdCtrl.HMPRE.int != 0 else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)    
+    if reset_value &0x1 >=1:
+        valid_value = reset_value & 0b0010
+    else:
+        valid_value = reset_value | 0b0001    
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])  
+
+    description = "Host Controlled Thermal Management"
+    fid = 0x10
+    supported = True if mNVME.IdCtrl.HCTMA.bit(0) == "1" else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)    
+    # Note, MNTMT<= valid_value <=MXTMT
+    MXTMT = mNVME.IdCtrl.MXTMT.int
+    TMT1=MXTMT-1
+    TMT2=MXTMT
+    TMT=(TMT1<<16)+(TMT2)    
+    if TMT==reset_value:
+        TMT1=MXTMT-2
+        TMT=(TMT1<<16)+(TMT2)
+    valid_value=TMT     
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
     
-    TestItems.append(["Function Level Reset", mNVME.FunctionLevel_reset])
+    description = "Software Progress Marker"
+    fid = 0x80
+    supported = True
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])          
+    
+    description = "Host Identifier"
+    fid = 0x81
+    supported = True if mNVME.IdCtrl.ONCS.bit(5) == "1" else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
+    
+    description = "Reservation Notification Mask"
+    fid = 0x82
+    supported = True if mNVME.IdNs.RESCAP.int !=0 else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=2 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
+    
+    description = "Reservation Persistance"
+    fid = 0x83
+    supported = True if mNVME.IdNs.RESCAP.int !=0 else False
+    capabilities=GetFeatureSupportedCapabilities(fid)
+    reset_value=GetFeature(fid = fid)
+    valid_value=1 if reset_value==0 else 0
+    TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
+                
+def CreateLBARangeDataStructure(NumOfEntrys):
+    # create multi entry of LBARangeDataStructure
+    # return string , ex "\\255\\12\\78\\ .."
+    mStr=""
+    for entry in range(NumOfEntrys):        
+        mNVME.LBARangeDataStructure.Type=0x2
+        mNVME.LBARangeDataStructure.Attributes=0x1
+        mNVME.LBARangeDataStructure.SLBA=entry*8
+        mNVME.LBARangeDataStructure.NLB=7
+        mNVME.LBARangeDataStructure.CreatePattern()
+        # save created string to mStr
+        mStr = mStr + mNVME.LBARangeDataStructure.Pattern
+        
+    return mStr
+        
+def PrintSupportedFeature():
+    for mItem in TestItems:
+        print mItem[item.description]
+            
+
+def GetFeatureValue(fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
+    Value=0 
+    buf = mNVME.get_feature(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
+    mStr="0"
+    if sel==0:
+        mStr="Current value:(.+)"
+    if sel==1:
+        mStr="Default value:(.+)"
+    if sel==2:
+        mStr="Saved value:(.+)"
+    if sel==3:
+        mStr="capabilities value:(.+)"                
+        
+    if re.search(mStr, buf):
+        Value=int(re.search(mStr, buf).group(1),16)
+    else:
+        Value= -1
+    return Value
+
+
+def GetFeatureSupportedCapabilities(fid):
+    if SELSupport:
+        return GetFeature(fid=fid, sel=3)
+    else:
+        return -1
+
+def SetFeature(fid, value, sv, nsid=0):
+    # if LBA range, create data structure for set feature command
+    if fid==3:
+        # Number of LBA Ranges is zero based, 0 means there is 1 LBA Range
+        DS=CreateLBARangeDataStructure(value+1)
+        mNVME.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)
+    else:
+        mNVME.set_feature(fid = fid, value = value, SV = sv, nsid = nsid)
+
+def GetFeature(fid, sel=0, nsid=1):
+    # if Interrupt Vector Configuration, read with cdw11=1
+    if fid==3:
+        return GetFeatureValue(fid=fid, sel=sel, nsid=nsid, nsSpec=True)
+    if fid==9:
+        return GetFeatureValue(fid=fid, sel=sel, cdw11=1, nsid=nsid, nsSpec=False)
+    else:
+        return GetFeatureValue(fid=fid, sel=sel, nsid=nsid, nsSpec=False)
+def DifferentValueFromCurrent(fid):
+    currentValue = GetFeature(fid, sel=0)
+    resetValue=0
+    validValue=0
+    for mItem in TestItems:
+        if mItem[item.fid]==fid:            
+            resetValue=mItem[item.reset_value]
+            validValue=mItem[item.valid_value]
+            break
+            
+    if currentValue != resetValue:
+        return resetValue
+    else:
+        return validValue
+
+def CheckResult(OriginValue, CurrentValue, ExpectMatch):
+# if OriginValue = CurrentValue, and ExpectMatch = true,
+# or OriginValue != CurrentValue, and ExpectMatch = false, then pass
+
+    global ret_code
+    print "Send get feature command, returned feature value: %s "%hex(CurrentValue)
+    print "Check get feature value, expected value: %s , %s "%( hex(OriginValue) if ExpectMatch else hex(CurrentValue), "changed" if ExpectMatch else "not changed" )
+    if CurrentValue == OriginValue and ExpectMatch == True:
+        mNVME.Print("PASS", "p")  
+    else:
+        mNVME.Print("Fail", "f")
+        ret_code=1          
     
 ## end function #####################################
 
@@ -47,188 +304,260 @@ def init():
 
 
 
-init()
+print ""
+print "-- NVME Get/Set Feature command test" 
+print "-----------------------------------------------------------------------------------"
 
+print "Nvme reset controller"
+mNVME.nvme_reset()
 
-print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
-print "Keyword: The Admin Queue registers (AQA, ASQ, or ACQ) are not reset as part of a controller reset"
-print "" 
-    
-RDY = GetRDY()
+# initial TestItems
+initial()
 
-if RDY==1:
-    print "\033[31mCheck CSTS.RDY before reset: FAIL! (CSTS.RDY=%s) , exit test\033[0m" %(RDY)
-else:
-    print "\033[32mCheck CSTS.RDY before reset: PASS! (CSTS.RDY=%s)\033[0m" %(RDY)
-    
-    
-AQA = mNVME.CR.AQA.str    
-ASQ = mNVME.CR.ASQ.str   
-ACQ = mNVME.CR.ACQ.str    
-
-
-
-
-print "NVME reset (Controller disable)"
-
-t = threading.Thread(target = mNVME.nvme_reset)
-t.start()
-
-print "Wait for CSTS.RDY = 0"
-while GetRDY()==1:
-    pass
-
-print "\033[32mCSTS.RDY = 0 \033[0m"
-print "Wait for CSTS.RDY = 1"
-while GetRDY()==0:
-    pass
-
-t.join()
-print "\033[32mCSTS.RDY = 1 \033[0m"
-
-print "compare AQA, ASQ, ACQ after reset"
-print "before reset: AQA = %s" %(AQA)
-print "before reset: ASQ = %s" %(ASQ)
-print "before reset: ACQ = %s" %(ACQ)
-print "after reset: AQA = %s" %(mNVME.CR.AQA.str)
-print "after reset: ASQ = %s" %(mNVME.CR.ASQ.str)
-print "after reset: ACQ = %s" %(mNVME.CR.ACQ.str)
-
-if AQA!=mNVME.CR.AQA.str or ASQ!=mNVME.CR.ASQ.str or ACQ!=mNVME.CR.ACQ.str:
-    print  "\033[31m FAIL! \033[0m"   
-    ret_code=1
-else:
-    "\033[32mPASS! \033[0m"        
-sleep(0.1)
+mNVME.Print("Test item 'Timestamp' is in script SMI_FeatureTimestamp ", "w")
+mNVME.Print("Test item 'Keep Alive Timer' has not implemented ", "w")
+mNVME.Print("Test item 'Number of Queues' has not implemented ", "w")
 
 
 print ""
 print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
-print "Check if all supported reset is working"
+print "Keyword: Get Features - Command Dword 10"
+print "Check if Select field in Get Features - Command Dword 10 supported or not"
 print ""
-for mItem in TestItems:        
-    reset_type_name=mItem[0]
-    reset_func=mItem[1] 
-    print "issue " + reset_type_name
-    print "Check if controll is alive after reset"
-    reset_func()
-    if mNVME.dev_alive:
-        mNVME.Print("PASS", "p")
-    else:
-        mNVME.Print("FAIL, exit", "f")
-        ret_code = 1
-    print  ""    
-    
-    
-# max loopcnt = len(TestItems)* loop
-loopcnt=0    
-for loop in range(10):
-    
-    for mItem in TestItems:        
-        loopcnt=loopcnt+1
-        mItem=TestItems[3]
-        reset_type_name=mItem[0]
-        reset_func=mItem[1] 
+if SELSupport:
+    mNVME.Print("Supported", "p")
+else:
+    mNVME.Print("Not Supported", "f")
 
-        print "===== reset_type = %s  ========== loop = %s ============================" %( reset_type_name, loopcnt)        
-        print "-- start testing for Pending Admin Commands after reset --"
-        print "Keyword: The controller stops processing any outstanding Admin or I/O commands."  
-        print "Test if device self-test operation was aborted due to the reset commands"     
-          
-        if mNVME.IdCtrl.OACS.bit(4)=="0":
-            print "Controller does not support the DST operation, quit this test item!"
+
+if SELSupport:
+    print ""
+    print "-- %s ---------------------------------------------------------------------------------"%mNVME.SubItemNum()
+    print "Keyword: Get Features - Command Dword 10"
+    print "Select field supported, test all the attributes in Select field"
+    print "" 
+    '''   
+    print "Supported features:"
+    print "------------------------------------------"
+    PrintSupportedFeature()
+    print "------------------------------------------"
+    '''
+    
+    print ""  
+
+    for mItem in TestItems:
+        print "========================================="
+        print mItem[item.description]   
+        print "Feature ID: %s"%mItem[item.fid]   
+        supported=mItem[item.supported]
+        saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
+        nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
+        changeable=True if mItem[item.capabilities]&0b100 > 0 else False
+        if not supported:
+            print "Not supported"      
+            print ""  
         else:
-            mNVME.Flow.DST.EventTriggeredMessage="Send format command as DST execution >= 1% "
-            mNVME.Flow.DST.ShowProgress=True     
-            # set DST command nsid
-            mNVME.Flow.DST.SetNSID(0x1)
-            # set Event
-            mNVME.Flow.DST.SetEventTrigger(reset_func)                     
-            # set DST type = Short device self-test operation
-            mNVME.Flow.DST.SetDstType(1)    
-            # set Threshold = 1 to raise event
-            mNVME.Flow.DST.SetEventTriggerThreshold(1)
-                
-            # start DST flow and get device self test status 
-            DSTS=mNVME.Flow.DST.Start()        
-            if DSTS!=-1:        
-                # get bit 3:0        
-                DSTSbit3to0 = DSTS & 0b00001111
-                print "result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0)
-                print "Check the result of the device self-test operation , expected result:  0x2(Operation was aborted by a Controller Level Reset)"
-                if DSTSbit3to0==2:
-                    mNVME.Print("PASS", "p")
-                else:
-                    mNVME.Print("FAIL", "f")
-                    ret_code = 1                         
-            else:
-                print "Controller does not support the DST operation"          
-        
-        
-        print""
-               
-        print "-- start testing for Pending IO Commands after reset(data integrity) --"
-        print "Keyword: The controller stops processing any outstanding Admin or I/O commands."  
-        print "Test if write command was aborted due to the reset commands"
-       
-        patten=0x5A
-        thread_w=5
-        block_w=1024 
-        total_byte_w=block_w*thread_w *512
-        
-        # clear SSD data to 0x0
-        mNVME.fio_write(0, total_byte_w, 0x0)        
-        
-        # write data using multy thread
-        mThreads = mNVME.nvme_write_multi_thread(thread_w, 0, block_w, patten)
-        
-        # check if all process finished 
-        reset_cnt=0
-        while True:        
-            allfinished=1
-            for process in mThreads:
-                if process.is_alive():
-                    allfinished=0
-        
-            # if all process finished then, quit while loop, else  send reset command
-            if allfinished==1:        
-                break
-            else:
-                reset_func()
-                reset_cnt=reset_cnt+1
-                sleep(0.5)
-                        
-        print  "send reset command %s times while writing data is in progress"%(reset_cnt)
-        if not mNVME.dev_alive:
-            ret_code=1
-            mNVME.Print("Error! after reset, device is missing, quit test", "f")
-            break
-         
-        # if have 00 and 5a in flash, then pass the test(f_write pattern=0x5a)
-        find_00 = mNVME.shell_cmd("hexdump %s -n %s |grep '0000 0000' 2>/dev/null"%(mNVME.dev, total_byte_w))
-        find_patten = mNVME.shell_cmd("hexdump %s -n %s |grep '5a5a 5a5a' 2>/dev/null"%(mNVME.dev, total_byte_w))        
-        
-        # controller reset can't verify data integrity, so let data integrity test = pass
-        if (find_00 and find_patten) or reset_type_name=="Controller Reset":
-            print "\033[32mCheck data integrity: PASS! \033[0m"
-        else:
-            print  "\033[31mCheck data integrity: FAIL! \033[0m"
-            ret_code=1
+            print "Supported"              
+            print "" 
+            print "Feature saveable: %s"%("Yes" if saveable else "No")
+            print "Feature namespace specific: %s"%("Yes" if nsSpec else "No")
+            print "Feature changeable: %s"%("Yes" if changeable else "No")
+            print ""
             
-        print ""
- 
+            print "-(1)-- Test Get Features with Select=0, Current --"    
+            print "        and test Features capabilities bit 2, Feature Identifier is changeable or not"
+            print "        "+ "Feature is changeable, all the fallowing test should change the value" if changeable else "Feature is no changeable, all the fallowing test should not change the value"
+            fid=mItem[item.fid]
+            rdValue=GetFeature(fid, sel=0)
+            value=DifferentValueFromCurrent(fid)
+            print "Send get feature command, returned feature value: %s "%hex(rdValue)
+            print "Send set feature command with value = %s"%hex(value)
+            
+            # Send set feature command    
+            SetFeature(fid, value, sv=0,nsid=1) if nsSpec else SetFeature(fid, value, sv=0)
+            
+            # Send get feature command    
+            GetValue = GetFeature(fid, sel=0)
+            
+            # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
+            CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)    
+            print ""
+
+            print "-(2)--  Test Get Features with Select=1, Default --"  
+            DefaultValue = GetFeature(fid, sel=1)
+            print "Send get feature command with Select=1, returned feature default value: %s "%hex(DefaultValue)
+            print ""
+            
+            print "-(3)--  Test Get Features with Select=2, Saved --"            
+                       
+            if saveable:
+                print "Feature is saveable in capabilities filed"
+                
+                rdValue=GetFeature(fid, sel=2)
+                # choice one value that is not equal to daved value (valid_value, DefaultValue, reset_value)
+                if rdValue!=mItem[item.valid_value]:
+                    value=mItem[item.valid_value]
+                elif rdValue!=mItem[item.reset_value]:
+                    value=mItem[item.reset_value]
+                else:
+                    value=DefaultValue
+                
+                print "Read saved value = %s"%hex(rdValue)                
+                print "Send set feature command with value = %s and SV field =1"%hex(value)
+            
+                # Send set feature command    
+                SetFeature(fid, value, sv=1,nsid=1) if nsSpec else SetFeature(fid, value, sv=1)
+                
+                # Send get feature command    
+                GetValue = GetFeature(fid, sel=2)              
+                SavedValue =   GetValue            
+                
+                # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
+                CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)   
+
+                
+                print "Test Persistent Across Power Cycle and Reset"
+                print "Issue Nvme Reset"
+                mNVME.nvme_reset()
+                # Send get feature command    
+                GetValue = GetFeature(fid, sel=2)                
+                print "After reset, read feature saved value: %s "%hex(GetValue)
+                print "Check if get feature saved value is %s or not "%hex(SavedValue)
+                if GetValue == value:
+                    mNVME.Print("PASS", "p")  
+                else:
+                    mNVME.Print("Fail", "f")
+                    ret_code=1 
+                                    
+                print ""                          
+                            
+            else:
+                print "Feature is not saveable in capabilities filed"
+                print ""
+
+            print "-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"        
+            if not nsSpec:
+                print "Feature is not namespace specific in capabilities filed"
+            else:
+                print "Feature is namespace specificin in capabilities filed"
+                print "Test if Feature Identifier is namespace specific or not"
+                print ""
+          
+                if not NsSupported:
+                    print "Controller don't support mulit namespaces!, quit this test item"
+                elif not changeable:
+                    print "Feature is not changeable!, quit this test item"
+                else:
+                    # if only 1 namespace currently, create 2 namespaces
+                    if Ns==1:
+                        print "Create 2 namespaces, size  1G"
+                        Ns=mNVME.CreateMultiNs(NumOfNS=2)
+                        
+                    if Ns!=2:
+                        mNVME.Print("Fail to create 2 namespaces", "f")
+                        ret_code=1 
+                    else:                            
+                        print ""               
+                        # nsid = 1 ------------------------------------------------------------
+                        value = mItem[item.reset_value]
+                        print "Reset feature value = %s for nsid=1 and nsid=2"%value
+                        SetFeature(fid=fid, value=value, sv=0, nsid=1)
+                        SetFeature(fid=fid, value=value, sv=0, nsid=2)
+                        original1 = GetFeature(fid, sel=0, nsid=1)
+                        original2 = GetFeature(fid, sel=0, nsid=2)
+                        #print "Check if feature value = %s or not in all namespaces"%value                
+                        if original1 != value or original2!=value:
+                            mNVME.Print("Fail, value from ns1= %s ,ns2= %s "%(original1,original2), "f")
+                            ret_code=1                     
+                        else:
+                            value = mItem[item.valid_value]
+                            print "Set feature with nsid =1, value= %s"%value                    
+                            SetFeature(fid=fid, value=value, sv=0, nsid=1)
+                            
+                            current1 = GetFeature(fid, sel=0, nsid=1)
+                            current2 = GetFeature(fid, sel=0, nsid=2)
+                            
+                            print "Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 
+                            print "Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   
+                            
+                            if current1==value and current2==original2:
+                                mNVME.Print("PASS", "p")  
+                            else:
+                                mNVME.Print("Fail", "f")
+                                ret_code=1 
+                            
+                            # nsid = 2 ------------------------------------------------------------
+                            print ""
+                            value = mItem[item.reset_value]
+                            print "Reset feature value = %s for nsid=1 and nsid=2"%value
+                            SetFeature(fid=fid, value=value, sv=0, nsid=1)
+                            SetFeature(fid=fid, value=value, sv=0, nsid=2)                    
+                            original1 = GetFeature(fid, sel=0, nsid=1)
+                            original2 = GetFeature(fid, sel=0, nsid=2)  
+                               
+                            value = mItem[item.valid_value]               
+                            print "Set feature with nsid =2, value= %s"%value                    
+                            SetFeature(fid=fid, value=value, sv=0, nsid=2)
+                            
+                            current1 = GetFeature(fid, sel=0, nsid=1)
+                            current2 = GetFeature(fid, sel=0, nsid=2)
+                            
+                            print "Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 
+                            print "Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   
+                            
+                            if current1==original1 and current2==value:
+                                mNVME.Print("PASS", "p")  
+                            else:
+                                mNVME.Print("Fail", "f")
+                                ret_code=1         
+                    
 
 
 
 
-print""    
+
+
+
+if Ns!=1:
+    mNVME.ResetNS()
+
+
+
+print ""    
 print "ret_code:%s"%ret_code
-print "finished" 
+print "Finish"
+sys.exit(ret_code)   
 
-sys.exit(ret_code)
 
 
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

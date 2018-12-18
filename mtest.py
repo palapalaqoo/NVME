@@ -22,11 +22,18 @@ def GetPS():
 print "Ver: 20181022_0930"
 mNVME = NVME.NVME(sys.argv )
 
-NSSRSupport=True if mNVME.CR.CAP.NSSRS.int==1 else False
-print "support" if NSSRSupport else "not support"
+aa=mNVME.IsControllerName("2262")
+print "y" if aa else "n"
+aa=mNVME.IsControllerName("2262")
+print "y" if aa else "n"
 
+aa=mNVME.IsControllerName("2211")
+print "y" if aa else "n"
+aa=mNVME.IsControllerName("2262")
+print "y" if aa else "n"
 
-print mNVME.CR.CSTS.bit(0)
+aa=mNVME.IsControllerName("2262")
+print "y" if aa else "n"
 '''
 
 mNVME.LBARangeDataStructure.Type=0x2

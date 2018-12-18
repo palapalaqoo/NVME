@@ -19,13 +19,13 @@ import re
 
 # Import VCT modules
 from lib_vct.NVME import NVME
-from lib_vct.NVMECom import deadline
 
 class SMI_DSM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
     Version = "20181211"
+    # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     SubCase1TimeOut = 60
@@ -108,7 +108,6 @@ class SMI_DSM(NVME):
         
         
     # <sub item scripts> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    @deadline(SubCase1TimeOut)
     def SubCase1(self):  
         print "Test the controller should accept all the attributes in CDW11"
         if self.DSMSupported:         
@@ -145,7 +144,6 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255
     
-    @deadline(SubCase2TimeOut)
     def SubCase2(self):
         "Test the values read from a deallocated is euqal to DLFEAT reported value"  
         ret_code=0    
@@ -224,7 +222,6 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255
         
-    @deadline(SubCase3TimeOut)
     def SubCase3(self):
         print "Test the values read from a deallocated is euqal to DLFEAT reported value for multi namespaces "
          
@@ -323,7 +320,6 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255
         
-    @deadline(SubCase4TimeOut)
     def SubCase4(self):
         print "Test the current number of logical blocks allocated in the namespace has changed after deallocation"         
         if self.DSMSupported:            
@@ -362,7 +358,6 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255                
         
-    @deadline(SubCase5TimeOut)
     def SubCase5(self):
         print "Test the write performance of IDW" 
         if self.DSMSupported:            
@@ -400,7 +395,6 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255        
 
-    @deadline(SubCase6TimeOut)
     def SubCase6(self):
         print "Test the read performance of IDR"
         if self.DSMSupported:     
@@ -436,7 +430,6 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255   
         
-    @deadline(SubCase7TimeOut)
     def SubCase7(self):
         print "Test Context Attributes for DSM command"
         if self.DSMSupported:    
@@ -488,10 +481,8 @@ class SMI_DSM(NVME):
     
 if __name__ == "__main__":
     DUT = SMI_DSM(sys.argv )
-    DUT.PrintInfo()
     DUT.RunScript()
-    DUT.PrintColorBriefReport()
-    
+    DUT.Finish() 
     
     
     

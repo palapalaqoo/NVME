@@ -352,8 +352,13 @@ class NVMECom():
         goal = 0xFF << (8 * n)
         return int((target & goal) >> (8 * n))       
 
-
-
+    def IsControllerName(self, name):
+    # check if is specific Controller by it's name
+        find=self.shell_cmd("nvme list |grep %s |grep %s"%(self.device, name))
+        if find=="":
+            return False
+        else:
+            return True
 
 #== end NVMECom =================================================
 

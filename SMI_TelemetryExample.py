@@ -1,298 +1,327 @@
 #!/usr/bin/env python
-from lib_vct import NVME
+# -*- coding: utf-8 -*-
+
+        #=======================================================================
+        # abstract  function
+        #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        # abstract  variables
+        #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
+        #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
+        #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
+        #=======================================================================     
+        
+# Import python built-ins
 import sys
+import time
 from time import sleep
 import threading
 import re
-from lib_vct import NVMEAsyncEventRequest
 
-print "SMI_TelemetryExample.py"
-print "Author: Sam Chan"
-print "Ver: 20181203"
-print ""
+# Import VCT modules
+from lib_vct.NVME import NVME
+import SMI_AsynchronousEventRequest
 
-mNVME = NVME.NVME(sys.argv )
-AsyncNVME = NVMEAsyncEventRequest.AsyncEvent(sys.argv )
-
-
-if mNVME.dev_alive:
-    print "device alive"
-else:    
-    print "device missing"
-    sys.exit(-1)
+class SMI_TelemetryExample(NVME):
+    # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    ScriptName = "SMI_TelemetryExample.py"
+    Author = "Sam Chan"
+    Version = "20181211"
+    # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
-## paramter #####################################
-ret_code=0
-AsyncEventCmdFail=0
-AsyncEventCmdTimeout=0
-## function #####################################
-def testBlockAreas(ID):
-    ret=0
-    print "Get log page: %s"%ID
-    print ""    
-    mLOG=mNVME.get_log_passthru(ID, 512, 1, 1)
+    # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    SubCase1TimeOut = 60
+    SubCase1Desc = "Test host-initiated data collection"    
+    
+    SubCase2TimeOut = 180
+    SubCase2Desc = "Test Attribute - Deallocate (AD), single name spaces"
 
-    if not len(mLOG) == 512:
-        mNVME.Print("Fail to get log", "f")
-        ret=1 
-    else:
-        
-        print "check if (Data Area 1 Last Block <= Data Area 2 Last Block<= Data Area 3 Last Block) or not"
-        
-        LastBlock1=int(mLOG[9]+mLOG[8])
-        LastBlock2=int(mLOG[11]+mLOG[10])
-        LastBlock3=int(mLOG[13]+mLOG[12])
-        '''
-        #--- TODO test ----
-        LastBlock1=2
-        LastBlock2=2
-        LastBlock3=1
-        '''
-        
-        print "1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3)
-        if (LastBlock1<=LastBlock2) and (LastBlock2<=LastBlock3):
-            mNVME.Print("PASS", "p")
+
+    # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    def testBlockAreas(self, ID):
+        ret=0
+        print "Get log page: %s"%ID
+        print ""    
+        mLOG=self.get_log_passthru(ID, 512, 1, 1)
+    
+        if not len(mLOG) == 512:
+            self.Print("Fail to get log", "f")
+            ret=1 
         else:
-            mNVME.Print("Fail", "f")
-            ret=1  
-        
-        #-----------------------------------------------------------------------------------
-        print ""
-        print "check Data Areas"
-        
-        if LastBlock1==0:
-            print "Data Area 1: No Data"
-        else:
-            print "Data Area 1: from block %s to block %s"%("0", LastBlock1)
             
-        if LastBlock2==LastBlock1:
-            print "Data Area 2: No Data"
-        else:
-            print "Data Area 2: from block %s to block %s"%(LastBlock1+1, LastBlock2)
+            print "check if (Data Area 1 Last Block <= Data Area 2 Last Block<= Data Area 3 Last Block) or not"
             
-        if LastBlock3==LastBlock2:
-            print "Data Area 3: No Data"
-        else:
-            print "Data Area 3: from block %s to block %s"%(LastBlock2+1, LastBlock3)  
-        #-----------------------------------------------------------------------------------
-        print ""
-        print "-------- Read Data Areas 1 --------"
-        if LastBlock1==0:
-            print "Data Area 1: No Data"    
-        else:
-            print "Data Area 1: from block %s to block %s"%("0", LastBlock1)
-            for i in range(1, LastBlock1+1):
-                LOG=mNVME.get_log_passthru(7, 512, 0, 0, 512*i)
-                print "Data Area 1, block %s"%i
-                print LOG
-        
+            LastBlock1=int(mLOG[9]+mLOG[8])
+            LastBlock2=int(mLOG[11]+mLOG[10])
+            LastBlock3=int(mLOG[13]+mLOG[12])
+            '''
+            #--- TODO test ----
+            LastBlock1=2
+            LastBlock2=2
+            LastBlock3=1
+            '''
             
-        print ""
-        print "-------- Read Data Areas 2 --------"
-        if LastBlock2==LastBlock1:
-            print "Data Area 2: No Data"    
-        else:
-            print "Data Area 2: from block %s to block %s"%(LastBlock1+1, LastBlock2)
-            for i in range(LastBlock1+1, LastBlock2+1):
-                LOG=mNVME.get_log_passthru(7, 512, 0, 0, 512*i)
-                print "Data Area 2, block %s"%i
-                print LOG
-         
-                    
-        print ""
-        print "-------- Read Data Areas 3 --------"
-        if LastBlock3==LastBlock2:
-            print "Data Area 3: No Data"    
-        else:
-            print "Data Area 3: from block %s to block %s"%(LastBlock2+1, LastBlock3)  
-            for i in range(LastBlock2+1, LastBlock3+1):
-                LOG=mNVME.get_log_passthru(7, 512, 0, 0, 512*i)
-                print "Data Area 3, block %s"%i
-                print LOG
-    return True if ret==0 else False
-
-def getReasonIdentifier(ID):
-    mLOG=mNVME.get_log_passthru(ID, 512, 1, 0)
-    rStr=""
-    for byte in range(384, 512):
-        rStr=rStr+mLOG[byte]
-    return rStr
-#############################################
-    
-
-
-
-
-
-print ""
-print "-----------------------------------------------------------------------------------"
-print "-- Telemetry (Optional) test" 
-
-#-----------------------------------------------------------------------------------
-print "The host identifies controller support for Telemetry log pages in the Identify Controller data structure."
-SupportTelemetry=mNVME.IdCtrl.LPA.bit(0)
-
-if SupportTelemetry==0:
-    mNVME.Print( "Controller do not support telemetry in Log Page Attributes (LPA)", 'f')
-    print "exit test" 
-    sys.exit(1)
-else:
-    mNVME.Print( "Check if Controller support telemetry in Log Page Attributes (LPA) or not", 'p')
-    
-
-#-----------------------------------------------------------------------------------
-
-print ""    
-print "====================== Host-initiated telemetry test(log page 0x7) ====================== "
-print ""  
-print "The host proceeds with a host-initiated data collection "
-print "by submitting the Get Log Page command for the Telemetry Host-Initiated log page with the Create Telemetry Host-Initiated Data bitset to '1'."
-print "Check if get log page command success"
-LOG07=mNVME.get_log_passthru(7, 512, 0, 1)
-if len(LOG07) == 512:
-    mNVME.Print("PASS", "p")
-else:
-    mNVME.Print("Fail", "f")
-    ret_code=1 
-
-print ""
-print "Teset Block Areas for 0x7 "
-if testBlockAreas(0x7):
-    mNVME.Print("PASS", "p")
-else:
-    mNVME.Print("Fail", "f")
-    ret_code=1         
-
-print ""
-print "Get Reason Identifier "
-print "Reason Identifier: %s"%getReasonIdentifier(0x7)
-
-#-----------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------
-#-----------------------------------------------------------------------------------
-
-#----------------------------------------------------------------------------------- 
-print ""     
-print "====================== Async event test and controller-initiated telemetry test(log page 0x8) ====================== "
-print ""    
-# save Telemetry Controller-Initiated Data Generation Number
-LOG08=mNVME.get_log_passthru(8, 512, 0, 0)
-LOG08_383_old= LOG08[383]
-
-print "To receive notification that controller-initiated data is available,"
-print "the host enables Telemetry Log Notices using the Asynchronous Event Configuration feature."
-
-mNVME.shell_cmd(" nvme set-feature %s -f 0xB -v 0x3fff"%(mNVME.dev), 0.5)   
-mNVME.Print(  "set Asynchronous Event Configuration = 0xff to enable all the events can be reported to the host: done ", 'p')
-
-# assign a thread for event request cmd
-print "Assign a thread for event request cmd"
-async_result = AsyncNVME.thread_asynchronous_event_request_cmd()
-
-
-# wait thread finish and timeout=2s
-print "wait for controller signals that controller-initiated telemetry data is available(time out = 60s)"
-async_result.join(60)
-
-        
-# if time out
-if async_result.is_alive():
-    print "async_result.is_alive=true"
-    AsyncEventCmdTimeout=1
-else:        
-    # get return code from Asynchronous Event Request command        
-    try:
-        mThreadStr=AsyncNVME.que.get(timeout=1)
-    except Exception as error:
-        AsyncNVME.Print("Can't get return code from Asynchronous Event Request command", "f")
-        AsyncEventCmdTimeout=1
-    AsyncNVME.Print("return string from request command : %s" %(mThreadStr), "t")   
-    
-    mstr="0" 
-    try:
-        print "Return status: %s"%mThreadStr
-        mStr="NVMe command result:(.+)" 
-        if re.search(mStr, mThreadStr):
-            mstrs=re.search(mStr, mThreadStr).group(1)
-            print "Completion Queue Entry Dword 0: %s" %(mstrs)    
-            print "Check Dword 0"
-            if mstrs=="00030202":
-                AsyncNVME.Print("PASS", "p")
+            print "1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3)
+            if (LastBlock1<=LastBlock2) and (LastBlock2<=LastBlock3):
+                self.Print("PASS", "p")
             else:
-                AsyncNVME.Print("Fail", "f")
-                AsyncEventCmdFail=1   
-        else:
-            AsyncEventCmdTimeout=1          
-    except ValueError:
-        #when return 'passthru: Interrupted system call'
-        print "return string from request command : %s" %(mThreadStr)
-        AsyncEventCmdTimeout=1
-    #clear Asynchronous Event Request command
-    mNVME.nvme_reset()
-
-# if can't receive async event         
-if AsyncEventCmdTimeout==1:
-    print ""
-    AsyncNVME.Print("Can't receive the return code of Asynchronous Event Request command", "w")
-    AsyncNVME.Print("exit async test and controller-initiated telemetry test", "w")
-else:
-    print ""
-    print "Check if Telemetry Controller-Initiated Data Available in log 0x7 = 1"
-    LOG07=mNVME.get_log_passthru(7, 512, 1, 0)
-    if LOG07[382]=="01":
-        mNVME.Print("PASS", "p")
-    else:
-        mNVME.Print("Fail", "f")
-        ret_code=1  
-        
-    print ""      
-    print "Check if Telemetry Controller-Initiated Data Available in log 0x8 = 1"
-    LOG08=mNVME.get_log_passthru(8, 512, 1, 0)
-    if LOG08[382]=="01":
-        mNVME.Print("PASS", "p")         
-    else:
-        mNVME.Print("Fail", "f")      
-        ret_code=1  
-
-    print ""
-    print "Teset Block Areas for 0x8 "
-    if testBlockAreas(0x8):
-        mNVME.Print("PASS", "p")
-    else:
-        mNVME.Print("Fail", "f")
-        ret_code=1    
-        
-    print ""    
-    print "Check if Telemetry Controller-Initiated Data Available in log 0x8 = 0 after get log command with RAE=0"
-    LOG08=mNVME.get_log_passthru(8, 512, 0, 0)
-    if LOG08[382]=="00":
-        mNVME.Print("PASS", "p")         
-    else:
-        mNVME.Print("Fail", "f")      
-        ret_code=1          
+                self.Print("Fail", "f")
+                ret=1  
+            
+            #-----------------------------------------------------------------------------------
+            print ""
+            print "check Data Areas"
+            
+            if LastBlock1==0:
+                print "Data Area 1: No Data"
+            else:
+                print "Data Area 1: from block %s to block %s"%("0", LastBlock1)
+                
+            if LastBlock2==LastBlock1:
+                print "Data Area 2: No Data"
+            else:
+                print "Data Area 2: from block %s to block %s"%(LastBlock1+1, LastBlock2)
+                
+            if LastBlock3==LastBlock2:
+                print "Data Area 3: No Data"
+            else:
+                print "Data Area 3: from block %s to block %s"%(LastBlock2+1, LastBlock3)  
+            #-----------------------------------------------------------------------------------
+            print ""
+            print "-------- Read Data Areas 1 --------"
+            if LastBlock1==0:
+                print "Data Area 1: No Data"    
+            else:
+                print "Data Area 1: from block %s to block %s"%("0", LastBlock1)
+                for i in range(1, LastBlock1+1):
+                    LOG=self.get_log_passthru(7, 512, 0, 0, 512*i)
+                    print "Data Area 1, block %s"%i
+                    print LOG
+            
+                
+            print ""
+            print "-------- Read Data Areas 2 --------"
+            if LastBlock2==LastBlock1:
+                print "Data Area 2: No Data"    
+            else:
+                print "Data Area 2: from block %s to block %s"%(LastBlock1+1, LastBlock2)
+                for i in range(LastBlock1+1, LastBlock2+1):
+                    LOG=self.get_log_passthru(7, 512, 0, 0, 512*i)
+                    print "Data Area 2, block %s"%i
+                    print LOG
+             
+                        
+            print ""
+            print "-------- Read Data Areas 3 --------"
+            if LastBlock3==LastBlock2:
+                print "Data Area 3: No Data"    
+            else:
+                print "Data Area 3: from block %s to block %s"%(LastBlock2+1, LastBlock3)  
+                for i in range(LastBlock2+1, LastBlock3+1):
+                    LOG=self.get_log_passthru(7, 512, 0, 0, 512*i)
+                    print "Data Area 3, block %s"%i
+                    print LOG
+        return True if ret==0 else False
     
-    print ""    
-    print "Check if Telemetry Controller-Initiated Data Generation Number changed"
-    print "before: %s"%LOG08_383_old
-    print "after   : %s"%LOG08[383]
-    if not LOG08_383_old==LOG08[383]:
-        mNVME.Print("PASS", "p")        
-    else:
-        mNVME.Print("Fail", "f")      
-        ret_code=1  
-         
-    print ""
-    print "Get Reason Identifier "
-    print "Reason Identifier: %s"%getReasonIdentifier(0x8)        
+    def getReasonIdentifier(self, ID):
+        mLOG=self.get_log_passthru(ID, 512, 1, 0)
+        rStr=""
+        for byte in range(384, 512):
+            rStr=rStr+mLOG[byte]
+        return rStr    
+    
+    # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    aaabbb=123456
+    def __init__(self, argv):
+        # initial parent class
+        super(SMI_TelemetryExample, self).__init__(argv)        
         
+        self.AsyncNVME = SMI_AsynchronousEventRequest.SMI_AsynchronousEventRequest(sys.argv )
+        self.SupportTelemetry=True if self.IdCtrl.LPA.bit(3)!="0" else False
+    # override PreTest()
+    def PreTest(self):
+        if DUT.SupportTelemetry:
+            self.Print( "Controller support telemetry in Log Page Attributes (LPA)", "p")
+        else:
+            self.Print( "Controller do not support telemetry in Log Page Attributes (LPA)", "w")
+        return DUT.SupportTelemetry
+        
+    # <sub item scripts>
+    def SubCase1(self):
+        ret_code=0
+        print "The host proceeds with a host-initiated data collection "
+        print "by submitting the Get Log Page command for the Telemetry Host-Initiated log page with the Create Telemetry Host-Initiated Data bitset to '1'."
+        print "Check if get log page command success"
+        
+        LOG07=self.get_log_passthru(7, 512, 0, 1)
+        if len(LOG07) == 512:
+            self.Print("PASS", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code=1  
+
+        print ""
+        print "Teset Block Areas for 0x7 "
+        if self.testBlockAreas(0x7):
+            self.Print("PASS", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code=1         
+        
+        print ""
+        print "Get Reason Identifier "
+        print "Reason Identifier: %s"%self.getReasonIdentifier(0x7)            
+            
+                   
+        return ret_code
+    
+    def SubCase2(self):
+        ret_code=0    
+        print "Async event test and controller-initiated telemetry test(log page 0x8)" 
+        print ""    
+        # save Telemetry Controller-Initiated Data Generation Number
+        LOG08=self.get_log_passthru(8, 512, 0, 0)
+        LOG08_383_old= LOG08[383]
+        
+        print "To receive notification that controller-initiated data is available,"
+        print "the host enables Telemetry Log Notices using the Asynchronous Event Configuration feature."
+        
+        self.shell_cmd(" nvme set-feature %s -f 0xB -v 0x3fff"%(self.dev), 0.5)   
+        self.Print(  "set Asynchronous Event Configuration = 0xff to enable all the events can be reported to the host: done ", 'p')
+        
+        # assign a thread for event request cmd
+        print "Assign a thread for event request cmd"
+        async_result = self.AsyncNVME.thread_asynchronous_event_request_cmd()
+        
+        
+        # wait thread finish and timeout=2s
+        print "wait for controller signals that controller-initiated telemetry data is available(time out = 60s)"
+        async_result.join(60)
+        
+                
+        # if time out
+        if async_result.is_alive():
+            print "async_result.is_alive=true"
+            AsyncEventCmdTimeout=1
+        else:        
+            # get return code from Asynchronous Event Request command        
+            try:
+                mThreadStr=self.AsyncNVME.que.get(timeout=1)
+            except Exception as error:
+                self.AsyncNVME.Print("Can't get return code from Asynchronous Event Request command", "f")
+                AsyncEventCmdTimeout=1
+            self.AsyncNVME.Print("return string from request command : %s" %(mThreadStr), "t")   
+            
+            mstr="0" 
+            try:
+                print "Return status: %s"%mThreadStr
+                mStr="NVMe command result:(.+)" 
+                if re.search(mStr, mThreadStr):
+                    mstrs=re.search(mStr, mThreadStr).group(1)
+                    print "Completion Queue Entry Dword 0: %s" %(mstrs)    
+                    print "Check Dword 0"
+                    if mstrs=="00030202":
+                        self.AsyncNVME.Print("PASS", "p")
+                    else:
+                        self.AsyncNVME.Print("Fail", "f")
+                        AsyncEventCmdFail=1   
+                else:
+                    AsyncEventCmdTimeout=1          
+            except ValueError:
+                #when return 'passthru: Interrupted system call'
+                print "return string from request command : %s" %(mThreadStr)
+                AsyncEventCmdTimeout=1
+            #clear Asynchronous Event Request command
+            self.nvme_reset()
+        
+        # if can't receive async event         
+        if AsyncEventCmdTimeout==1:
+            print ""
+            self.AsyncNVME.Print("Can't receive the return code of Asynchronous Event Request command", "w")
+            self.AsyncNVME.Print("exit async test and controller-initiated telemetry test", "w")
+        else:
+            print ""
+            print "Check if Telemetry Controller-Initiated Data Available in log 0x7 = 1"
+            LOG07=self.get_log_passthru(7, 512, 1, 0)
+            if LOG07[382]=="01":
+                self.Print("PASS", "p")
+            else:
+                self.Print("Fail", "f")
+                ret_code=1  
+                
+            print ""      
+            print "Check if Telemetry Controller-Initiated Data Available in log 0x8 = 1"
+            LOG08=self.get_log_passthru(8, 512, 1, 0)
+            if LOG08[382]=="01":
+                self.Print("PASS", "p")         
+            else:
+                self.Print("Fail", "f")      
+                ret_code=1  
+        
+            print ""
+            print "Teset Block Areas for 0x8 "
+            if self.testBlockAreas(0x8):
+                self.Print("PASS", "p")
+            else:
+                self.Print("Fail", "f")
+                ret_code=1    
+                
+            print ""    
+            print "Check if Telemetry Controller-Initiated Data Available in log 0x8 = 0 after get log command with RAE=0"
+            LOG08=self.get_log_passthru(8, 512, 0, 0)
+            if LOG08[382]=="00":
+                self.Print("PASS", "p")         
+            else:
+                self.Print("Fail", "f")      
+                ret_code=1          
+            
+            print ""    
+            print "Check if Telemetry Controller-Initiated Data Generation Number changed"
+            print "before: %s"%LOG08_383_old
+            print "after   : %s"%LOG08[383]
+            if not LOG08_383_old==LOG08[383]:
+                self.Print("PASS", "p")        
+            else:
+                self.Print("Fail", "f")      
+                ret_code=1  
+                 
+            print ""
+            print "Get Reason Identifier "
+            print "Reason Identifier: %s"%self.getReasonIdentifier(0x8)            
 
 
-print ""
-print "ret_code:%s"%ret_code
-print "Finish"
-sys.exit(ret_code)
+
+
+        return ret_code
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+    # </sub item scripts>
+    
+    
+    
+    
+if __name__ == "__main__":
+    DUT = SMI_TelemetryExample(sys.argv ) 
+    DUT.RunScript()
+    DUT.Finish()
+    
+    
+    
+    
+    

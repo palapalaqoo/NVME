@@ -17,6 +17,7 @@ from lib_vct import IdNs
 from lib_vct.GetLog import GetLog
 from lib_vct.Flow import Flow
 from lib_vct.NVMECom import TimedOutExc
+from lib_vct.NVMECom import deadline
 import re
 import time
 
@@ -26,7 +27,6 @@ def foo1():
     
 class NVME(object, NVMECom):
     
-
     
     def __init__(self, argv):
         
@@ -80,12 +80,19 @@ class NVME(object, NVMECom):
     def CreateAbstractFuncAndVariablesForSonClassToOverride(self): 
         #=======================================================================
         # abstract  function
+        #     PreTest()                                                           :Override it for pretest, ex. check if controll support features, etc.
+        #                                                                                :return true or false
         #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        #                                                                                :return 0=pass, 1=fals, 255=skip/notSupport
         # abstract  variables
         #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
-        #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
+        #     SubCase1KeyWord to SubCase32KeyWord    :Override it for sub case 1 keyWord to sub case32 keyWord
+        #     SubCase1TimeOut to SubCase32TimeOut :Override it for sub case 1 TimeOut to sub case32 TimeOut        
         #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
         #=======================================================================            
+        
+        # PreTest()
+        exec("NVME.PreTest=self._function")
         
         # generate dynamic function for SubCase1() to SubCase32() for sun class to override
         # e.g. 
@@ -95,19 +102,24 @@ class NVME(object, NVMECom):
         for x in range(1, self.SubCaseMaxNum+1): 
             exec("NVME.SubCase%s=self._function"%x)
 
-        # generate dynamic variables 
+        # generate dynamic variables: SubCase1Desc
         for x in range(1, self.SubCaseMaxNum+1): 
             setattr(NVME, "SubCase%sDesc"%x, "")
             
-        # generate dynamic variables 
+        # generate dynamic variables: SubCase1Keyword
         for x in range(1, self.SubCaseMaxNum+1): 
-            setattr(NVME, "SubCase%sKeyword"%x, "")        
+            setattr(NVME, "SubCase%sKeyWord"%x, "")        
         # print (dir(NVME))
         #  print (dir(self))       
-        
-        self.ScriptName="Null"
-        self.Author="Null"
-        self.Version="Null"
+
+        # generate dynamic variables: SubCase1TimeOut
+        for x in range(1, self.SubCaseMaxNum+1): 
+            setattr(NVME, "SubCase%sTimeOut"%x, "")        
+                    
+        # others
+        NVME.ScriptName="Null"
+        NVME.Author="Null"
+        NVME.Version="Null"
                  
     def init_parameters(self):        
         
@@ -152,67 +164,107 @@ class NVME(object, NVMECom):
         else:
             return False
     
-    def AddScript(self, SubCaseFunc, Description="No description", SpecKeyWord=""):
-    # SubCaseFunc: function for sub item
-    # Description: sub item description that will be written to log file 
-        self.SubCase.append([ self.SubCaseCnt, SubCaseFunc, Description, SpecKeyWord])
-        self.SubCaseCnt = self.SubCaseCnt + 1
-    
+    def GetAbstractFunctionOrVariable(self, Num, Type):
+    # return  abstract function or variable
+        if Type=="subcase":
+            return  getattr(self, "SubCase%s"%Num)
+        elif Type=="pretest":
+            return  getattr(self, "PreTest")        
+        elif Type=="description":
+            return  getattr(self, "SubCase%sDesc"%Num)
+        elif Type=="keyword":
+            return  getattr(self, "SubCase%sKeyWord"%Num)
+        elif Type=="timeout":
+            return  getattr(self, "SubCase%sTimeOut"%Num)        
+                
+       
     def RunScript(self):
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
             for i in range(1, self.SubCaseMaxNum+1):
                 self.UserSubItems.append(i)
         
-        # check function is override or not, from SubCase1() to SubCase32()
+        # print information
+        self.PrintInfo()
+        
+        # if override Pretest(), then run it, or PreTestIsPass= true
+        if self.IsMethodOverride( "PreTest"):
+            PreTest = self.GetAbstractFunctionOrVariable(0, "pretest")
+            PreTestIsPass = PreTest()
+        else:
+            PreTestIsPass = True
+        
+        # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase32>
         for SubCaseNum in range(1, self.SubCaseMaxNum+1):
-            if self.IsMethodOverride("SubCase%s"%SubCaseNum):
+            if self.IsMethodOverride("SubCase%s"%SubCaseNum):                
                 
-                SubCaseFunc = getattr(self, "SubCase%s"%SubCaseNum)
-                Description=getattr(self, "SubCase%sDesc"%SubCaseNum)
-                SpecKeyWord=getattr(self, "SubCase%sKeyword"%SubCaseNum)
-                # if find subitem, e.g. user assign it to run, then run it with time out=  timeOut
-                if SubCaseNum in self.UserSubItems:
+                # get subcase content
+                SubCaseFunc = self.GetAbstractFunctionOrVariable(SubCaseNum, "subcase")
+                Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
+                SpecKeyWord=self.GetAbstractFunctionOrVariable(SubCaseNum, "keyword") 
+                Timeout=self.GetAbstractFunctionOrVariable(SubCaseNum, "timeout") 
+                # if not set timeout, then set default timeout=600(10minute)
+                Timeout=600 if Timeout=="" else Timeout
+                # if find subitem and PreTestIsPass=true, e.g. user assign it to run, then run it with time out=  timeOut, else return skip
+                if SubCaseNum in self.UserSubItems and PreTestIsPass:
                     # print sub case titles
                     print ""
-                    print "-- Case %s ---------------------------------------------------------------------------------"%SubCaseNum
+                    print "-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout)
                     print "-- %s"%Description
                     print "-- Keyword: %s"%SpecKeyWord
                     
                     try:
-                        # run script
-                        Code=SubCaseFunc()    
+                        # run script, 3th,4th line equal 1,2 line statements
+                        #    @deadline(Timeout)
+                        #    Code=SubCaseFunc()
+                        SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
+                        Code = SubCaseFuncWithTimeOut()                        
+                        
+                        
+                        #  prevent coding no return code, eg. 0/1/255
+                        if Code ==None:
+                            Code = 0
                         
                     except TimedOutExc as e:              
                         print ""
                         self.Print( "Timeout!: %ss, quit Case %s test!"%(e, SubCaseNum), "f" )
                         self.Print( "Fail", "f" )
                         Code = 1
-                        pass                                   
-                    
-                    # get return code and print to log file
-                    if Code==0:
-                        rtMsg="Pass"
-                        color = self.color.GREEN
-                    elif Code==1:
-                        rtMsg="Fail"
-                        color = self.color.RED
-                        # set rtCode = 1
-                        self.rtCode=1
-                    elif Code==255:
-                        rtMsg="Skip"
-                        color = self.color.YELLOW
-                        # if rtCode = 0, then set rtCode = 255
-                        self.rtCode = 255 if self.rtCode==0 else self.rtCode
-                    else:
-                        rtMsg="Unknow"                    
-                    
-                    mStr = "CASE %s : %s : %s"%(SubCaseNum, Description, rtMsg)
-                    #print to default log
-                    self.Logger(mStr, mfile="default")
-                    
-                    #print to color log
-                    self.Logger(mStr, mfile="color", color=color )                          
+                        pass     
+                else:
+                    # if user didn't assign subcase, return skip                              
+                    Code = 255
+                
+                # write to log file    
+                self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
+        # </for function from SubCase1 to SubCaseX   >     
+                
+        # print ColorBriefReport
+        self.PrintColorBriefReport()
+        
+    def WriteSubCaseResultToLog(self, Code, SubCaseNum, Description): 
+        # get return code and print to log file
+        if Code==0:
+            rtMsg="Pass"
+            color = self.color.GREEN
+        elif Code==1:
+            rtMsg="Fail"
+            color = self.color.RED
+            # set rtCode = 1
+            self.rtCode=1
+        elif Code==255:
+            rtMsg="Skip"
+            color = self.color.YELLOW
+            # if rtCode = 0, then set rtCode = 255
+            self.rtCode = 255 if self.rtCode==0 else self.rtCode
+        else:
+            rtMsg="Unknow"                    
+        
+        mStr = "CASE %s : %s : %s"%(SubCaseNum, Description, rtMsg)
+        #print to default log
+        self.Logger(mStr, mfile="default")        
+        #print to color log
+        self.Logger(mStr, mfile="color", color=color )        
         
     def PrintColorBriefReport(self):
         print ""
@@ -222,6 +274,9 @@ class NVME(object, NVMECom):
         print "Overall return code: %s" %self.rtCode
         print "Finish.."
         print "========================================="
+        
+    def Finish(self):
+        sys.exit(self.rtCode)  
         
     def CSAEL(self, CMDType, Opcode, Field):
         # return int

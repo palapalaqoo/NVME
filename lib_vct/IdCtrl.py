@@ -8,7 +8,6 @@ from lib_vct.RegDescriptor import RegDescriptor
 from lib_vct.RegDescriptor import RegType
 # register class
 class IdCtrl_(object, NVMECom):
-    
     VID=RegDescriptor("id-ctrl", "vid", nsSpec=False)
     SSVID=RegDescriptor("id-ctrl", "ssvid", nsSpec=False)
     SN=RegDescriptor("id-ctrl", "sn", nsSpec=False)

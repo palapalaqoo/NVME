@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+        #=======================================================================
+        # abstract  function
+        #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        # abstract  variables
+        #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
+        #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
+        #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
+        #=======================================================================     
+        
 # Import python built-ins
 import sys
 import time
@@ -10,7 +19,6 @@ import re
 
 # Import VCT modules
 from lib_vct.NVME import NVME
-from lib_vct.NVMECom import deadline
 
 class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -77,28 +85,12 @@ class SMI_NVMeReset(NVME):
         # <Parameter>
         self.NSSRSupport=True if self.CR.CAP.NSSRS.int==1 else False
         self.TestItems=[]
-
-        # </Parameter>
-        
+        # </Parameter>      
+          
         self.initTestItems()
         
-        # add script descriptions
-        self.AddInfo(self.ScriptName, self.Author, self.Version)
-        
-        # add all sub items to test script list
-
-        '''
-        self.AddScript(self.SubCase2, self.SubCase2Desc)
-        self.AddScript(self.SubCase3, self.SubCase3Desc)
-        self.AddScript(self.SubCase4, self.SubCase4Desc)
-        self.AddScript(self.SubCase5, self.SubCase5Desc)
-        self.AddScript(self.SubCase6, self.SubCase6Desc)
-        self.AddScript(self.SubCase7, self.SubCase7Desc)
-
-        '''
         
     # <sub item scripts> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    @deadline(SubCase1TimeOut)
     def SubCase1(self):  
         print "Test The Admin Queue registers (AQA, ASQ, or ACQ) are not reset as part of a controller reset"
         print "" 
@@ -151,7 +143,6 @@ class SMI_NVMeReset(NVME):
         
         return ret_code
     
-    @deadline(SubCase2TimeOut)
     def SubCase2(self):
         print "Check if all supported reset is working"  
         ret_code=0    
@@ -173,7 +164,6 @@ class SMI_NVMeReset(NVME):
         return ret_code
 
         
-    @deadline(SubCase3TimeOut)
     def SubCase3(self):
         print "Test if reset occur, controller stops processing any outstanding Admin command"
         print "Test if device self-test operation(admin command) was aborted due to the reset commands"  
@@ -213,6 +203,72 @@ class SMI_NVMeReset(NVME):
                              
             return ret_code
 
+    def SubCase4(self):
+        print "Test if reset occur, controller stops processing any outstanding IO command"
+        print "Test if write command was aborted due to the reset commands"  
+        print "test Loop = 10 "
+        print ""
+        
+        ret_code=0
+        # max loopcnt = len(TestItems)* loop
+        loopcnt=0    
+        for loop in range(10):                
+            # loop for every kind of reset
+            for mItem in self.TestItems:        
+                loopcnt=loopcnt+1
+                # unmark below to assign reset type for all test, 
+                #mItem=self.TestItems[3]
+                reset_type_name=mItem[0]
+                reset_func=mItem[1]                    
+             
+                # start to write and test command was abort or not
+                patten=0x5A
+                thread_w=5
+                block_w=1024 
+                total_byte_w=block_w*thread_w *512
+                
+                # clear SSD data to 0x0
+                self.fio_write(0, total_byte_w, 0x0)        
+                
+                # write data using multy thread
+                mThreads = self.nvme_write_multi_thread(thread_w, 0, block_w, patten)
+                
+                # check if all process finished 
+                reset_cnt=0
+                while True:        
+                    allfinished=1
+                    for process in mThreads:
+                        if process.is_alive():
+                            allfinished=0
+                
+                    # if all process finished then, quit while loop, else  send reset command
+                    if allfinished==1:        
+                        break
+                    else:
+                        reset_func()
+                        reset_cnt=reset_cnt+1
+                        sleep(0.5)
+                                
+                print  "send reset command %s times while writing data is in progress"%(reset_cnt)
+                if not self.dev_alive:
+                    ret_code=1
+                    self.Print("Error! after reset, device is missing, quit test", "f")
+                    break
+                 
+                # if have 00 and 5a in flash, then pass the test(f_write pattern=0x5a)
+                find_00 = self.shell_cmd("hexdump %s -n %s |grep '0000 0000' 2>/dev/null"%(self.dev, total_byte_w))
+                find_patten = self.shell_cmd("hexdump %s -n %s |grep '5a5a 5a5a' 2>/dev/null"%(self.dev, total_byte_w))        
+                
+                # controller reset can't verify data integrity, so let data integrity test = pass
+                if (find_00 and find_patten) or reset_type_name=="Controller Reset":
+                    self.Print("Loop: %s, reset type: %s, PASS"%(loop, reset_type_name), "p")
+                else:
+                    self.Print("Loop: %s, reset type: %s, Fail"%(loop, reset_type_name), "f")
+                    ret_code=1
+                    
+        return ret_code 
+                 
+
     # </sub item scripts> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     
@@ -220,10 +276,8 @@ class SMI_NVMeReset(NVME):
     
 if __name__ == "__main__":
     DUT = SMI_NVMeReset(sys.argv )
-    DUT.PrintInfo()
     DUT.RunScript()
-    DUT.PrintColorBriefReport()
-    
+    DUT.Finish() 
     
     
     

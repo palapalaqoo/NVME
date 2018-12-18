@@ -36,7 +36,8 @@ class RegDescriptor(object,NVMECom):
             mstrint=int(mstr, 16)
         elif self.regtype==RegType.decimal:
             mstrint=int(mstr)
-        totalbits=len(mstr)*4     
+        totalbits=len(mstr)*4    
+        totalbits = self.bitstop if self.bitstop>totalbits else totalbits
         bitstart_rev=totalbits-self.bitstop
         bitstop_rev=totalbits-self.bitstart
         mstrbin=format(mstrint, 'b').zfill(totalbits)[bitstart_rev : bitstop_rev]
