@@ -31,7 +31,7 @@ class NVME(object, NVMECom):
     def __init__(self, argv):
         
         # self.dev = /dev/nvme0n1
-        self.dev, self.UserSubItems, self.TestModeOn =  self.ParserArgv()
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv()
         # self.dev_port = /dev/nvme0
         self.dev_port=self.dev[0:self.dev.find("nvme")+5]
         # self.dev_ns = 1
@@ -42,8 +42,7 @@ class NVME(object, NVMECom):
         # final return code
         self.rtCode=0
         
-        self.Info="No description for this script"
-        
+              
         # the start 1G start block, middle and last, 
         self.start_SB=0
         self.middle_SB=0
@@ -72,6 +71,7 @@ class NVME(object, NVMECom):
                 print ""
                 self.init_parameters()
                 self.status="normal"     
+                
      
     # function for CreateAbstractFuncAndVariablesForSonClassToOverride
     def _function(self):
@@ -86,8 +86,8 @@ class NVME(object, NVMECom):
         #                                                                                :return 0=pass, 1=fals, 255=skip/notSupport
         # abstract  variables
         #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
-        #     SubCase1KeyWord to SubCase32KeyWord    :Override it for sub case 1 keyWord to sub case32 keyWord
-        #     SubCase1TimeOut to SubCase32TimeOut :Override it for sub case 1 TimeOut to sub case32 TimeOut        
+        #     SubCase1KeyWord to SubCase32KeyWord   :Override it for sub case 1 keyWord to sub case32 keyWord
+        #     SubCase1TimeOut to SubCase32TimeOut     :Override it for sub case 1 TimeOut to sub case32 TimeOut        
         #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
         #=======================================================================            
         
@@ -124,7 +124,6 @@ class NVME(object, NVMECom):
     def init_parameters(self):        
         
         self.CreateAbstractFuncAndVariablesForSonClassToOverride()        
-        self.CreateScriptInfo()
         self.CR = ControllerRegister.CR_()        
         self.IdNs = IdNs.IdNs_()
         self.GetLog = GetLog.GetLog_(self)
@@ -186,6 +185,9 @@ class NVME(object, NVMECom):
         
         # print information
         self.PrintInfo()
+        # print document only
+        if self.mScriptDoc:
+            return 0     
         
         # if override Pretest(), then run it, or PreTestIsPass= true
         if self.IsMethodOverride( "PreTest"):
@@ -804,14 +806,30 @@ class NVME(object, NVMECom):
         else:
             return self.IsOpcodeSupported(CMDType, opcode)       
     
-    def PrintInfo(self):
-        print self.Info
 
-    def CreateScriptInfo(self):
-        self.Info = "ScriptName : %s\n"%self.ScriptName
-        self.Info = self.Info +  "Author : %s\n"%self.Author
-        self.Info = self.Info +  "Version : %s\n"%self.Version        
-    
+
+    def PrintInfo(self):
+        print ""
+        print "    ====================="
+        print "    *ScriptName : %s"%self.ScriptName
+        print "    *Author : %s"%self.Author
+        print "    *Version : %s"%self.Version 
+        print "    ====================="     
+        
+        print ""
+        print "  Sub Case list ---------------------------------"
+        # print Descriptions
+        cnt=1
+        for SubCaseNum in range(1, self.SubCaseMaxNum+1):
+            if self.IsMethodOverride("SubCase%s"%SubCaseNum):                
+                
+                # get subcase content
+                Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
+                print "  %s) %s"%(cnt, Description)
+                cnt=cnt+1
+        print "  End Sub Case list -------------------------------"     
+        print ""    
+
 # ==============================================================    
 class DevWakeUpAllTheTime():
 # make device wake up all the time

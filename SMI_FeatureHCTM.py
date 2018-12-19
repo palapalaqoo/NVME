@@ -3,12 +3,16 @@
 
         #=======================================================================
         # abstract  function
+        #     PreTest()                                                           :Override it for pretest, ex. check if controll support features, etc.
+        #                                                                                :return true or false
         #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        #                                                                                :return 0=pass, 1=fals, 255=skip/notSupport
         # abstract  variables
         #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
-        #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
+        #     SubCase1KeyWord to SubCase32KeyWord   :Override it for sub case 1 keyWord to sub case32 keyWord
+        #     SubCase1TimeOut to SubCase32TimeOut     :Override it for sub case 1 TimeOut to sub case32 TimeOut        
         #     self.ScriptName, self.Author, self.Version      :self.ScriptName, self.Author, self.Version
-        #=======================================================================     
+        #=======================================================================       
 
 
 
@@ -33,25 +37,22 @@ class SMI_SmartHealthLog(NVME):
     SubCase1Desc = "Test if controller accept TMT1 and TMT2 value is zero or not"    
     
     SubCase2TimeOut = 60
-    SubCase2Desc = "Test if set TMT1 < MNTMT"
+    SubCase2Desc = "Test set TMT1 < MNTMT"
 
     SubCase3TimeOut = 60
-    SubCase3Desc = "Test if set TMT1 > MXTMT"    
+    SubCase3Desc = "Test set TMT1 > MXTMT"    
 
     SubCase4TimeOut = 60
-    SubCase4Desc = "Test if set TMT1 >= TMT2"    
+    SubCase4Desc = "Test set TMT1 >= TMT2"    
 
     SubCase5TimeOut = 60
-    SubCase5Desc = "Test if set TMT2 < MNTMT"    
+    SubCase5Desc = "Test set TMT2 < MNTMT"    
 
     SubCase6TimeOut = 60
-    SubCase6Desc = "Test if set TMT2 > MXTMT"    
+    SubCase6Desc = "Test set TMT2 > MXTMT"    
 
     SubCase7TimeOut = 60
-    SubCase7Desc = "Test if set TMT2 <= TMT1"    
-
-    SubCase8TimeOut = 240
-    SubCase8Desc = "Test HCTM functionality"    
+    SubCase7Desc = "Test HCTM functionality"    
     
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
@@ -179,6 +180,7 @@ class SMI_SmartHealthLog(NVME):
     # <override sub item scripts>        
     def SubCase1(self):  
         print "Test if controller accept TMT1 and TMT2 value is zero or not, expected result: Accept"
+        print "Keyword: A value cleared to zero, specifies that this part of the feature shall be disabled."
         mTMT1=0
         mTMT2=0
         print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
@@ -243,33 +245,13 @@ class SMI_SmartHealthLog(NVME):
         mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
         return self.CheckisINVALID_FIELD(mStr)    
        
-
-    def SubCase7(self):
-        print "Test if set TMT2 <= TMT1, then the command shall fail with a status code of Invalid Field in Command "
-           
-        mTMT1=self.MNTMT
-        mTMT2=self.MNTMT
-        print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
-        mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
-        code1=self.CheckisINVALID_FIELD(mStr)
-        print ""
-        mTMT1=self.MNTMT+1
-        mTMT2=self.MNTMT
-        print "Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2)
-        mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
-        code2=self.CheckisINVALID_FIELD(mStr)
         
         print ""
         print "Reset TMT value"
-        self.SetTMT1_TMT2(self.TMT1bk, self.TMT2bk)  
+        self.SetTMT1_TMT2(self.TMT1bk, self.TMT2bk)       
         
-        if code1==1 or code2==1:
-            return 1
-        else:
-            return 0            
 
-
-    def SubCase8(self):
+    def SubCase7(self):
         print "Test HCTM functionality"
         ret_code=0    
         print ""

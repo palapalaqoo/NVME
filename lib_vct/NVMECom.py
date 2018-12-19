@@ -257,18 +257,20 @@ class NVMECom():
         parser.add_argument("dev", help="device", type=str)
         parser.add_argument("subitems", help="sub items that will be tested", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
+        parser.add_argument("-d", "--d", help="script doc", action="store_true")
         
         args = parser.parse_args()
         
         mDev=args.dev
         mTestModeOn=True if args.t else False
+        mScriptDoc=True if args.d else False
         if args.subitems==None:
             mSubItems=[]
         else:
             # split ',' and return int[]
             mSubItems = [int(x) for x in args.subitems.split(',')]        
         
-        return mDev, mSubItems, mTestModeOn
+        return mDev, mSubItems, mTestModeOn, mScriptDoc
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format
