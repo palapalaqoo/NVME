@@ -83,23 +83,23 @@ class SMI_Sanitize(NVME):
             # start the test
             self.StartTestFlowSanitize(CMDType, Opcode, ExpectedResult, LogPageID)
             # print result
-            print "Returned Status: %s"%CMD_Result
+            self.Print ("Returned Status: %s"%CMD_Result)
             if self.dev_alive:
                 self.Print("PASS", "p")  
             else:
                 self.Print("Fail, device is missing", "f")
                 self.Print("Exist all the test!", "f")
-                print ""    
+                self.Print (""    )
                 ret_code=1
-                print "ret_code:%s"%ret_code
-                print "Finish"
+                self.Print ("ret_code:%s"%ret_code)
+                self.Print ("Finish")
                 sys.exit(ret_code)                             
-            print ""
+            self.Print ("")
         else:    
             # start the test
             self.StartTestFlowSanitize(CMDType, Opcode, ExpectedResult, LogPageID)        
             # print result
-            print "Returned Status: %s"%CMD_Result
+            self.Print ("Returned Status: %s"%CMD_Result)
             if re.search("SANITIZE_IN_PROGRESS", CMD_Result) and ExpectedResult=="Deny":
                 self.Print("Expected command Deny: PASS", "p")  
             elif not re.search("SANITIZE_IN_PROGRESS", CMD_Result) and ExpectedResult=="Allow":
@@ -107,7 +107,7 @@ class SMI_Sanitize(NVME):
             else:
                 self.Print("Expected command %s: Fail"%ExpectedResult, "f")
                 ret_code=1    
-            print ""    
+            self.Print (""    )
     
     def GetErrorLog(self):
         global ErrorLog
@@ -137,24 +137,24 @@ class SMI_Sanitize(NVME):
                     finish=False
                     break
                 sleep(1)
-            #print "Recent sanitize operation was completed"
+            #self.Print ("Recent sanitize operation was completed")
    
         return finish            
         
     # override PreTest()
     def PreTest(self):
-        print "Check Sanitize Capabilities (SANICAP)"
+        self.Print ("Check Sanitize Capabilities (SANICAP)")
         self.Print("Crypto Erase sanitize operation is Supported", "p")  if self.CryptoEraseSupport else self.Print("Crypto Erase sanitize operation is not Supported", "f") 
         self.Print("Block Erase sanitize operation is Supported", "p")  if self.BlockEraseSupport else self.Print("Block Erase sanitize operation is not Supported", "f") 
         self.Print("Overwrite sanitize operation is Supported", "p")  if self.OverwriteSupport else self.Print("Overwrite sanitize operation is not Supported", "f") 
         
         if self.SANACT==0:
             self.Print("All sanitize operation is not supported, quit the test!","w")
-            print ""    
+            self.Print (""    )
             return False
         
-        print ""
-        print "Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)"
+        self.Print ("")
+        self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
         if self.WaitSanitizeOperationFinish(120):
             return True
         else:
@@ -186,17 +186,17 @@ class SMI_Sanitize(NVME):
     SubCase1Desc = "Test Command Completion Queue"      
     def SubCase1(self):
         ret_code=0
-        print "When the command is complete, the controller shall post a completion queue entry to the "
-        print "Admin Completion Queue indicating the status for the command."
-        print ""
+        self.Print ("When the command is complete, the controller shall post a completion queue entry to the ")
+        self.Print ("Admin Completion Queue indicating the status for the command.")
+        self.Print ("")
         
         # Sanitize command 
         CMD="nvme sanitize %s %s 2>&1"%(self.dev_port, "-a %s"%self.SANACT)  
-        print "Issue sanitize command: %s"%CMD
+        self.Print ("Issue sanitize command: %s"%CMD)
                      
         mStr=self.shell_cmd(CMD)
-        print "Get return code: %s"%mStr
-        print "Check return code is success or not, expected SUCCESS"
+        self.Print ("Get return code: %s"%mStr)
+        self.Print ("Check return code is success or not, expected SUCCESS")
         if re.search("SUCCESS", mStr):
             self.Print("PASS", "p")  
         else:
@@ -207,115 +207,115 @@ class SMI_Sanitize(NVME):
     SubCase2TimeOut = 180
     SubCase2Desc = "Test if only process the Admin commands listed in Figure 287"    
     def SubCase2(self):
-        print "Test While a sanitize operation is in progress"
-        print "Shall only process the Admin commands listed in Figure 287"       
+        self.Print ("Test While a sanitize operation is in progress")
+        self.Print ("Shall only process the Admin commands listed in Figure 287"       )
 
         ret_code=0
-        print ""
+        self.Print ("")
 
-        print "Delete I/O Submission Queue"
+        self.Print ("Delete I/O Submission Queue")
         self.TestCommandAllowed("admin", 0x0, "Allow")
         
-        print "Create I/O Submission Queue"
+        self.Print ("Create I/O Submission Queue")
         self.TestCommandAllowed("admin", 0x1, "Allow")          
         
-        print "Get Log Page - Error Information"
+        self.Print ("Get Log Page - Error Information")
         self.TestCommandAllowed("admin", 0x2, "Allow", 0x1)  
         
-        print "Get Log Page - SMART / Health Information"
+        self.Print ("Get Log Page - SMART / Health Information")
         self.TestCommandAllowed("admin", 0x2, "Allow", 0x2)  
         
-        print "Get Log Page - Firmware Slot Information"
+        self.Print ("Get Log Page - Firmware Slot Information")
         self.TestCommandAllowed("admin", 0x2, "Deny", 0x3)  
         
-        print "Get Log Page - Changed Namespace List"
+        self.Print ("Get Log Page - Changed Namespace List")
         self.TestCommandAllowed("admin", 0x2, "Allow", 0x4)  
         
-        print "Get Log Page - Commands Supported and Effects"
+        self.Print ("Get Log Page - Commands Supported and Effects")
         self.TestCommandAllowed("admin", 0x2, "Deny", 0x5)  
         
-        print "Get Log Page - Device Self-test"
+        self.Print ("Get Log Page - Device Self-test")
         self.TestCommandAllowed("admin", 0x2, "Deny", 0x6)  
         
-        print "Get Log Page - Telemetry Host-Initiated"
+        self.Print ("Get Log Page - Telemetry Host-Initiated")
         self.TestCommandAllowed("admin", 0x2, "Deny", 0x7)  
         
-        print "Get Log Page - Telemetry Controller-Initiated"
+        self.Print ("Get Log Page - Telemetry Controller-Initiated")
         self.TestCommandAllowed("admin", 0x2, "Deny", 0x8)  
         
-        print "Get Log Page - Reservation Notification"
+        self.Print ("Get Log Page - Reservation Notification")
         self.TestCommandAllowed("admin", 0x2, "Allow", 0x80)  
         
-        print "Get Log Page - Sanitize Status"
+        self.Print ("Get Log Page - Sanitize Status")
         self.TestCommandAllowed("admin", 0x2, "Allow", 0x81)  
         
-        print "Delete I/O Completion Queue"
+        self.Print ("Delete I/O Completion Queue")
         self.TestCommandAllowed("admin", 0x4, "Allow")   
         
-        print "Create I/O Completion Queue"
+        self.Print ("Create I/O Completion Queue")
         self.TestCommandAllowed("admin", 0x5, "Allow")   
         
-        print "Identify"
+        self.Print ("Identify")
         self.TestCommandAllowed("admin", 0x6, "Allow")   
         
-        print "Abort"
+        self.Print ("Abort")
         self.TestCommandAllowed("admin", 0x8, "Allow")  
          
-        print "Set Features"
+        self.Print ("Set Features")
         self.TestCommandAllowed("admin", 0x9, "Allow")   
         
-        print "Get Features"
+        self.Print ("Get Features")
         self.TestCommandAllowed("admin", 0xA, "Allow")   
         
-        print "Asynchronous Event Request"
+        self.Print ("Asynchronous Event Request")
         self.TestCommandAllowed("admin", 0xC, "Allow")  
         
-        print "Namespace Management"
+        self.Print ("Namespace Management")
         self.TestCommandAllowed("admin", 0xD, "Deny")  
         
-        print "Firmware Commit"
+        self.Print ("Firmware Commit")
         self.TestCommandAllowed("admin", 0x10, "Deny")  
         
-        print "Firmware Image Download"
+        self.Print ("Firmware Image Download")
         self.TestCommandAllowed("admin", 0x11, "Deny")  
         
-        print "Device Self-test"
+        self.Print ("Device Self-test")
         self.TestCommandAllowed("admin", 0x14, "Deny")  
         
-        print "Namespace Attachment"
+        self.Print ("Namespace Attachment")
         self.TestCommandAllowed("admin", 0x15, "Deny")  
         
-        print "Keep Alive"
+        self.Print ("Keep Alive")
         self.TestCommandAllowed("admin", 0x18, "Allow")  
         
-        print "Directive Send"
+        self.Print ("Directive Send")
         self.TestCommandAllowed("admin", 0x19, "Deny")  
         
-        print "Directive Receive"
+        self.Print ("Directive Receive")
         self.TestCommandAllowed("admin", 0x1A, "Deny")  
         
-        print "Virtualization Management"
+        self.Print ("Virtualization Management")
         self.TestCommandAllowed("admin", 0x1C, "Deny")  
         
-        print "NVMe-MI Send"
+        self.Print ("NVMe-MI Send")
         self.TestCommandAllowed("admin", 0x1D, "Deny")  
         
-        print "NVMe-MI Receive"
+        self.Print ("NVMe-MI Receive")
         self.TestCommandAllowed("admin", 0xE, "Deny")  
         
-        print "Doorbell Buffer Config"
+        self.Print ("Doorbell Buffer Config")
         self.TestCommandAllowed("admin", 0x7C, "Deny")  
         
-        print "Format NVM"
+        self.Print ("Format NVM")
         self.TestCommandAllowed("admin", 0x80, "Deny")  
         
-        print "Security Send"
+        self.Print ("Security Send")
         self.TestCommandAllowed("admin", 0x81, "Deny")  
         
-        print "Security Receive"
+        self.Print ("Security Receive")
         self.TestCommandAllowed("admin", 0x82, "Deny")  
         
-        print "Sanitize"
+        self.Print ("Sanitize")
         self.TestCommandAllowed("admin", 0x84, "Deny")            
 
         return ret_code
@@ -323,42 +323,42 @@ class SMI_Sanitize(NVME):
     SubCase3TimeOut = 180
     SubCase3Desc = "Test All I/O Commands shall be aborted"    
     def SubCase3(self):
-        print "Test While a sanitize operation is in progress"
-        print "All I/O Commands shall be aborted with a status of Sanitize In Progress"        
-        print ""
+        self.Print ("Test While a sanitize operation is in progress")
+        self.Print ("All I/O Commands shall be aborted with a status of Sanitize In Progress"        )
+        self.Print ("")
         ret_code=0
         
-        print "Flush"
+        self.Print ("Flush")
         self.TestCommandAllowed("io", 0x0, "Deny")
         
-        print "Write"
+        self.Print ("Write")
         self.TestCommandAllowed("io", 0x1, "Deny")
         
-        print "Read"
+        self.Print ("Read")
         self.TestCommandAllowed("io", 0x2, "Deny")
         
-        print "Write Uncorrectable"
+        self.Print ("Write Uncorrectable")
         self.TestCommandAllowed("io", 0x4, "Deny")
         
-        print "Compare"
+        self.Print ("Compare")
         self.TestCommandAllowed("io", 0x5, "Deny")
         
-        print "Write Zeroes"
+        self.Print ("Write Zeroes")
         self.TestCommandAllowed("io", 0x8, "Deny")
         
-        print "Dataset Management"
+        self.Print ("Dataset Management")
         self.TestCommandAllowed("io", 0x9, "Deny")
         
-        print "Reservation Register"
+        self.Print ("Reservation Register")
         self.TestCommandAllowed("io", 0xD, "Deny")
         
-        print "Reservation Report"
+        self.Print ("Reservation Report")
         self.TestCommandAllowed("io", 0xE, "Deny")
         
-        print "Reservation Acquire"
+        self.Print ("Reservation Acquire")
         self.TestCommandAllowed("io", 0x11, "Deny")
         
-        print "Reservation Release"
+        self.Print ("Reservation Release")
         self.TestCommandAllowed("io", 0x15, "Deny")
 
         return ret_code
@@ -366,20 +366,20 @@ class SMI_Sanitize(NVME):
     SubCase4TimeOut = 60
     SubCase4Desc = "Test if controller return zeros in the LBA field for get Error log command"    
     def SubCase4(self):    
-        print "Test While a sanitize operation is in progress and check if controller return zeros in the LBA field for get Error Information log command"
+        self.Print ("Test While a sanitize operation is in progress and check if controller return zeros in the LBA field for get Error Information log command")
         ret_code=0   
-        print ""
-        print "Create Error Information by reading uncorrectable block"
-        print "Set uncorrectable block, start block=0, block count=127"
+        self.Print ("")
+        self.Print ("Create Error Information by reading uncorrectable block")
+        self.Print ("Set uncorrectable block, start block=0, block count=127")
         self.write_unc(SLB=0, BlockCnt=127)
         
-        print "Generate error log by reading uncorrectable block where is 5th block"
+        self.Print ("Generate error log by reading uncorrectable block where is 5th block")
         self.shell_cmd("  buf=$(nvme read %s -s 5 -z 1024 -c 1 2>&1 > /dev/null) "%(self.dev)) 
         
-        print "Check if error log was created with 0x5 in LBA field or not"
+        self.Print ("Check if error log was created with 0x5 in LBA field or not")
         self.GetErrorLog()
         LBA = int(ErrorLog[16])
-        print "LBA Field: %s"%LBA
+        self.Print ("LBA Field: %s"%LBA)
         
         if LBA==5:
             self.Print("PASS", "p")         
@@ -388,11 +388,11 @@ class SMI_Sanitize(NVME):
             ret_code=1    
         
         if LBA==5:
-            print ""
-            print "Read error log and check if Return zeros in the LBA field or not while sanitize in progress" 
+            self.Print ("")
+            self.Print ("Read error log and check if Return zeros in the LBA field or not while sanitize in progress" )
             self.GetErrorInfoWhileSanitizeInProgress()
             LBA = int(ErrorLog[16])
-            print "LBA Field: %s"%LBA
+            self.Print ("LBA Field: %s"%LBA)
             
             if LBA==0:
                 self.Print("PASS", "p")  
@@ -404,17 +404,17 @@ class SMI_Sanitize(NVME):
     SubCase5TimeOut = 60
     SubCase5Desc = "Test hot reset while sanitize operation is in progress"    
     def SubCase5(self):    
-        print "Test Issue hot reset while a sanitize operation is in progress, and check if controller resume the sanitize operation after reset or not"
+        self.Print ("Test Issue hot reset while a sanitize operation is in progress, and check if controller resume the sanitize operation after reset or not")
         ret_code=0   
         
-        print ""
-        print "Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)"
+        self.Print ("")
+        self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
         if not self.WaitSanitizeOperationFinish(120):
             self.Print("Time out!, exit all test ", "f")  
             ret_code=1
         else:   
-            print ""
-            print "Start to test hot reset while Sanitize Progress(SPROG)>=0x1FFF, Time out=120s"     
+            self.Print ("")
+            self.Print ("Start to test hot reset while Sanitize Progress(SPROG)>=0x1FFF, Time out=120s"     )
             self.Flow.Sanitize.ShowProgress=True   
             self.Flow.Sanitize.SetEventTrigger(self.nvme_reset)
             self.Flow.Sanitize.SetOptions("-a %s"%self.SANACT)
@@ -428,7 +428,7 @@ class SMI_Sanitize(NVME):
                 self.Print("Pass", "p")
             elif FlowStatus==2:
                 self.Print("Fail", "f")
-                print "Do POR(power off reset) to reset controller"
+                self.Print ("Do POR(power off reset) to reset controller")
                 self.por_reset()
                 ret_code=1
             else:
@@ -441,14 +441,14 @@ class SMI_Sanitize(NVME):
     def SubCase6(self):    
 
         ret_code=0           
-        print ""
-        print "Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)"
+        self.Print ("")
+        self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
         if not self.WaitSanitizeOperationFinish(120):
             self.Print("Time out!, exit all test ", "f")  
             ret_code=1
         else:   
-            print ""
-            print "Issue sanitize command"     
+            self.Print ("")
+            self.Print ("Issue sanitize command"     )
             self.Flow.Sanitize.ShowProgress=True   
             self.Flow.Sanitize.SetEventTrigger(None)
             self.Flow.Sanitize.SetOptions("-a %s"%self.SANACT)
@@ -457,33 +457,33 @@ class SMI_Sanitize(NVME):
             self.Flow.Sanitize.TimeOut=120
             FlowStatus = self.Flow.Sanitize.Start()       
             
-            print ""
-            print "Check if SPROG was counting from 0 to 0xFFFF"                
+            self.Print ("")
+            self.Print ("Check if SPROG was counting from 0 to 0xFFFF"                )
             if  FlowStatus!=2:
                 self.Print("Pass", "p")
             else:
                 self.Print("Fail", "f")
                 ret_code=1
 
-            print ""
-            print "Check if SSTAT is 0x1(The most recent sanitize operation completed successfully)  " 
+            self.Print ("")
+            self.Print ("Check if SSTAT is 0x1(The most recent sanitize operation completed successfully)  " )
             if self.GetLog.SanitizeStatus.SSTAT & 0x1 > 0:  
                 self.Print("Pass", "p")
             else:
                 self.Print("Fail", "f")
                 ret_code=1 
 
-            print ""
-            print "Check if GlobalDataErased = 1 after sanitize"             
+            self.Print ("")
+            self.Print ("Check if GlobalDataErased = 1 after sanitize"             )
             if self.GetLog.SanitizeStatus.SSTAT & 0x0100 >0:  
                 self.Print("Pass", "p")
             else:
                 self.Print("Fail", "f")
                 ret_code=1
 
-            print ""
-            print "Check if SCDW10 is euqal to the Command Dword 10 field of the Sanitize command" 
-            print "Expect value: %s"%self.SANACT            
+            self.Print ("")
+            self.Print ("Check if SCDW10 is euqal to the Command Dword 10 field of the Sanitize command" )
+            self.Print ("Expect value: %s"%self.SANACT            )
             if self.GetLog.SanitizeStatus.SCDW10 ==self.SANACT:  
                 self.Print("Pass", "p")
             else:

@@ -22,7 +22,8 @@ import re
 import time
 
 def foo1():
-    print "foo!"
+    pass
+    #self.Print ("foo!")
     
     
 class NVME(object, NVMECom):
@@ -66,8 +67,8 @@ class NVME(object, NVMECom):
                 self.Print( "Can't Reset Namespace, Exit!", "f")
                 sys.exit(1)
             else:
-                print "Reset namespace success"
-                print ""
+                self.Print ("Reset namespace success")
+                self.Print ("")
                 self.init_parameters()
                 self.status="normal"     
                 
@@ -219,10 +220,10 @@ class NVME(object, NVMECom):
                 # if find subitem and PreTestIsPass=true, e.g. user assign it to run, then run it with time out=  timeOut, else return skip
                 if SubCaseNum in self.UserSubItems and PreTestIsPass:
                     # print sub case titles
-                    print ""
-                    print "-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout)
-                    print "-- %s"%Description
-                    print "-- Keyword: %s"%SpecKeyWord
+                    self.Print ("")
+                    self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout))
+                    self.Print ("-- %s"%Description)
+                    self.Print ("-- Keyword: %s"%SpecKeyWord)
 
                     # enable RecordCmdToLogFile to recode command
                     NVMECom.RecordCmdToLogFile=True             
@@ -242,7 +243,7 @@ class NVME(object, NVMECom):
                         except Exception, error:
                             self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%NVMECom.LogNameCmd, "f" )
                             self.Print( "Exception message as below", "f" )
-                            print ""
+                            self.Print ("")
                             self.Print( "=====================================", "f" )
                             self.Print(str(error), "f" )
                             self.Print( "=====================================", "f" )
@@ -253,7 +254,7 @@ class NVME(object, NVMECom):
                             Code = 0
                         
                     except TimedOutExc as e:              
-                        print ""
+                        self.Print ("")
                         self.Print( "Timeout!: %ss, quit Case %s test!"%(e, SubCaseNum), "f" )
                         self.Print( "Fail", "f" )
                         Code = 1
@@ -299,13 +300,13 @@ class NVME(object, NVMECom):
         self.Logger(mStr, mfile="color", color=color )        
         
     def PrintColorBriefReport(self):
-        print ""
-        print "== Brief report ================================"
+        self.Print ("")
+        self.Print ("== Brief report ================================")
         print self.ReadLogFile(mfile="color")
-        print "---------------------------------------------------------------------"
-        print "Overall return code: %s" %self.rtCode
-        print "Finish.."
-        print "========================================="
+        self.Print ("---------------------------------------------------------------------")
+        self.Print ("Overall return code: %s" %self.rtCode)
+        self.Print ("Finish..")
+        self.Print ("=========================================")
         
     def Finish(self):
         sys.exit(self.rtCode)  
@@ -662,7 +663,7 @@ class NVME(object, NVMECom):
             '''
             retCommandSueess=bool(re.search("ABORT_REQ", mStr))          
             if retCommandSueess==True:
-                print "%s, abort at block %s" %(mStr,block)
+                self.Print ("%s, abort at block %s" %(mStr,block))
             '''
         else:
             return False            
@@ -725,7 +726,7 @@ class NVME(object, NVMECom):
                     LBADS=int(re.search(mStr, buf).group(2))
                     RP=int(re.search(mStr, buf).group(3))           
             except Exception as error:        
-                print "Got exception at LBAF%s"%i   
+                self.Print ("Got exception at LBAF%s"%i   )
              
             LFDS.extend([i, MS, LBADS, RP])
             LBAFs.append(LFDS)
@@ -748,7 +749,7 @@ class NVME(object, NVMECom):
         sleep(0.2)
         CreatedNSID=self.CreateNs(TotalBlocks)        
         if CreatedNSID != i:
-            print "create namespace error!"    
+            self.Print ("create namespace error!"    )
             return False  
         else:
             sleep(0.2)
@@ -764,7 +765,7 @@ class NVME(object, NVMECom):
         NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
         NN=self.IdCtrl.NN.int
         if NsSupported:
-            #print "controller supports the Namespace Management and Namespace Attachment commands"            
+            #self.Print ("controller supports the Namespace Management and Namespace Attachment commands"            )
             # set max test namespace <=8(default)
             MaxNs=NumOfNS if NN>NumOfNS else NN
             print  "create namespcaes form nsid 1 to nsid %s, size 1G, and attach to the controller"%MaxNs       
@@ -778,7 +779,7 @@ class NVME(object, NVMECom):
                 sleep(0.2)
                 CreatedNSID=self.CreateNs(SizeInBlock)        
                 if CreatedNSID != i:
-                    print "create namespace error!"    
+                    self.Print ("create namespace error!"    )
                     error=1
                     break
                 else:
@@ -839,15 +840,15 @@ class NVME(object, NVMECom):
 
 
     def PrintInfo(self):
-        print ""
-        print "    ====================="
-        print "    *ScriptName : %s"%self.ScriptName
-        print "    *Author : %s"%self.Author
-        print "    *Version : %s"%self.Version 
-        print "    ====================="     
+        self.Print ("")
+        self.Print ("    =====================")
+        self.Print ("    *ScriptName : %s"%self.ScriptName)
+        self.Print ("    *Author : %s"%self.Author)
+        self.Print ("    *Version : %s"%self.Version )
+        self.Print ("    ====================="     )
         
-        print ""
-        print "  Sub Case list ---------------------------------"
+        self.Print ("")
+        self.Print ("  Sub Case list ---------------------------------")
         # print Descriptions
         cnt=1
         for SubCaseNum in range(1, self.SubCaseMaxNum+1):
@@ -855,10 +856,10 @@ class NVME(object, NVMECom):
                 
                 # get subcase content
                 Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
-                print "  %s) %s"%(cnt, Description)
+                self.Print ("  %s) %s"%(cnt, Description))
                 cnt=cnt+1
-        print "  End Sub Case list -------------------------------"     
-        print ""    
+        self.Print ("  End Sub Case list -------------------------------"     )
+        self.Print (""    )
 
 # ==============================================================    
 class DevWakeUpAllTheTime():

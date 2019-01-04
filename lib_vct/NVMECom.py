@@ -17,7 +17,7 @@ class TimedOutExc(Exception):
 def deadline(timeout, *args):
     def decorate(f):
         def handler(signum, frame):
-            #print "Timeout!: %ss, quit sub case test!"%timeout
+            #self.Print ("Timeout!: %ss, quit sub case test!"%timeout)
             raise TimedOutExc(timeout)
 
         def new_f(*args):
@@ -249,7 +249,7 @@ class NVMECom():
             if NVMECom.mTestModeOn:
                 print  self.color.CYAN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="d" or Ctype=="D":  
-            print "%s" %(msg)            
+            print "%s" %(msg)
             
     
     def Logger(self, msg, mfile="default", color="No"):
@@ -342,7 +342,7 @@ class NVMECom():
         sys.stdout.flush()    
         # Print New Line on Complete
         if iteration == total: 
-            print ""
+            self.Print ("")
 
     def KMGT(self, size):
     # ex. KMGT(1024), return "1K"

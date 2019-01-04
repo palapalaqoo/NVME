@@ -47,10 +47,10 @@ class SMI_FeatureTimeStamp(NVME):
     def PrintFormatedTime(self):
         self.Refresh()
         Timestamp=self.Timestamp
-        print "Timestampstamp = %s (%s milliseconds)"%(hex(self.Timestamp), self.Timestamp)
+        self.Print ("Timestampstamp = %s (%s milliseconds)"%(hex(self.Timestamp), self.Timestamp))
         #      localtime or gmtime
         mStr=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.Timestamp/1000))
-        print "Formatted Timestamp(local time) = %s "%mStr
+        self.Print ("Formatted Timestamp(local time) = %s "%mStr)
         return  self.Timestamp
         
     def GetDataStructure(self):
@@ -101,14 +101,14 @@ class SMI_FeatureTimeStamp(NVME):
     # override
     def PreTest(self):   
         
-        print ""
-        print "Check if controll support Timestamp or not"
+        self.Print ("")
+        self.Print ("Check if controll support Timestamp or not")
         if self.ONCS_bit6=="1":
             self.Print("Supported", "p")
             return True
         else:
             self.Print("Not supported", "p")
-            print "quit all the test items!"
+            self.Print ("quit all the test items!")
             return False 
             
             
@@ -118,13 +118,13 @@ class SMI_FeatureTimeStamp(NVME):
     SubCase1KeyWord = "Synch"
     def SubCase1(self):
         ret_code=0
-        #print "Send nvme reset command(Controller Level Reset)"
+        #self.Print ("Send nvme reset command(Controller Level Reset)")
         self.nvme_reset()
-        print ""
-        print "Synch = %s"%self.Synch
+        self.Print ("")
+        self.Print ("Synch = %s"%self.Synch)
         if self.Synch==1:    
-            print "Becouse Synch=1, In case of the controller may have stopped counting during vendor specific"
-            print "Create a thread of compare operation to avoid controller enter non-operational power states"
+            self.Print ("Becouse Synch=1, In case of the controller may have stopped counting during vendor specific")
+            self.Print ("Create a thread of compare operation to avoid controller enter non-operational power states")
             DWUATT=DevWakeUpAllTheTime(self)
             DWUATT.Start()
         
@@ -132,9 +132,9 @@ class SMI_FeatureTimeStamp(NVME):
         sub_ret=0
         # Timestamp
         
-        print ""
-        print "print Timestamp every 1 second for 5 times"
-        print ""
+        self.Print ("")
+        self.Print ("print Timestamp every 1 second for 5 times")
+        self.Print ("")
         
         for cnt in range(6):    
             Timestamp = self.PrintFormatedTime()
@@ -143,8 +143,8 @@ class SMI_FeatureTimeStamp(NVME):
             last_Timestamp=Timestamp
             sleep(1)
         
-        print ""
-        print "Check if Timestamp was incresed appropriately (> 0.9 second and < 1.1 second for every loop)"
+        self.Print ("")
+        self.Print ("Check if Timestamp was incresed appropriately (> 0.9 second and < 1.1 second for every loop)")
         if sub_ret==0:
             self.Print("PASS", "p")
         else:
@@ -154,8 +154,8 @@ class SMI_FeatureTimeStamp(NVME):
         
         
         if self.Synch==1: 
-            print ""
-            print "Delete thread of compare operation"
+            self.Print ("")
+            self.Print ("Delete thread of compare operation")
             DWUATT.Stop()
 
         return ret_code
@@ -170,17 +170,17 @@ class SMI_FeatureTimeStamp(NVME):
     SubCase2KeyWord="The Timestamp field was initialized with a Timestamp value using a Set Features command."
     def SubCase2(self): 
         ret_code=0
-        print "If host set the Timestamp value, then the Timestamp Origin field must be set to 001b "
+        self.Print ("If host set the Timestamp value, then the Timestamp Origin field must be set to 001b ")
         
-        print "Set Timestamp=0"
+        self.Print ("Set Timestamp=0")
         self.SetTimeStamp(0)
         
         
-        print ""
-        print "Get Timestamp"
+        self.Print ("")
+        self.Print ("Get Timestamp")
         Timestamp = self.PrintFormatedTime()
-        print ""
-        print "Check if Timestamp field was initialized with a Timestamp value using a Set Features command or not(e.g. Timestamp<=100 milliseconds)"
+        self.Print ("")
+        self.Print ("Check if Timestamp field was initialized with a Timestamp value using a Set Features command or not(e.g. Timestamp<=100 milliseconds)")
         if Timestamp<=100:
             self.Print("PASS", "p")
         else:
@@ -188,8 +188,8 @@ class SMI_FeatureTimeStamp(NVME):
             ret_code=1  
         
         Origin= self.Origin
-        print "Timestamp Origin = %s"%Origin
-        print "Check if Timestamp Origin field is set to 001b or not"
+        self.Print ("Timestamp Origin = %s"%Origin)
+        self.Print ("Check if Timestamp Origin field is set to 001b or not")
         if Origin==1:
             self.Print("PASS", "p")
         else:
@@ -203,30 +203,30 @@ class SMI_FeatureTimeStamp(NVME):
     SubCase3KeyWord ="Timestamp field"
     def SubCase3(self): 
         ret_code=0
-        print "If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 "
+        self.Print ("If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 ")
         
         if self.Synch==1:    
-            print ""
-            print "Becouse Synch=1, In case of the controller may have stopped counting during vendor specific"
-            print "Create a thread of compare operation to avoid controller enter non-operational power states"
+            self.Print ("")
+            self.Print ("Becouse Synch=1, In case of the controller may have stopped counting during vendor specific")
+            self.Print ("Create a thread of compare operation to avoid controller enter non-operational power states")
             DWUATT=DevWakeUpAllTheTime(self)
             DWUATT.Start()
         
-        print ""
-        print "Set Timestamp=0xFFFFFFFFFFF0"
+        self.Print ("")
+        self.Print ("Set Timestamp=0xFFFFFFFFFFF0")
         self.SetTimeStamp(0xFFFFFFFFFFF0)
         self.PrintFormatedTime()
         
-        print ""
-        print "wait 2 seconds"
+        self.Print ("")
+        self.Print ("wait 2 seconds")
         sleep(2)
         
-        print ""
-        print "Get Timestamp"
+        self.Print ("")
+        self.Print ("Get Timestamp")
         Timestamp = self.PrintFormatedTime()
         
-        print ""
-        print "Check if Timestamp was be reduced modulo 2^48(e.g. Timestamp <= 2100 milliseconds)"
+        self.Print ("")
+        self.Print ("Check if Timestamp was be reduced modulo 2^48(e.g. Timestamp <= 2100 milliseconds)")
         if Timestamp<=2100:
             self.Print("PASS", "p")
         else:
@@ -234,8 +234,8 @@ class SMI_FeatureTimeStamp(NVME):
             ret_code=1  
         
         if self.Synch==1: 
-            print ""
-            print "Delete thread of compare operation"
+            self.Print ("")
+            self.Print ("Delete thread of compare operation")
             DWUATT.Stop()        
 
         return ret_code

@@ -48,14 +48,14 @@ class DST_():
     # or return device self test status in get log page if command finish
         # if DST not supported
         if self._mNVME.IdCtrl.OACS.bit(4)=="0":
-            print "Controller does not support the DST operation, quit DST test!"
+            self.Print ("Controller does not support the DST operation, quit DST test!")
             return -1
         # if DST is running before this test, then send abort DST command with cd10=0xf
         if self._mNVME.GetLog.DeviceSelfTest.CDSTO!=0:
             self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=0xF -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID))
             
         if self.ShowMessage:    
-            print "Starting DST .."  
+            self.Print ("Starting DST .."  )
             print self.EventTriggeredMessage 
         event_trigged=0
         error=0
@@ -71,7 +71,7 @@ class DST_():
             DST_per=self._mNVME.GetLog.DeviceSelfTest.CDSTC
             if DST_per_old!=DST_per:
                 if self.ShowProgress and DST_per!=0:
-                    #print "percentage = %s"%DST_per
+                    #self.Print ("percentage = %s"%DST_per)
                     self._mNVME.PrintProgressBar(DST_per, 100, prefix = 'Progress:', length = 50)
             else:
                 sleep (0.1)
@@ -98,11 +98,11 @@ class DST_():
                 if DSTSbit3to0==0:
                     self._mNVME.PrintProgressBar(100, 100, prefix = 'Progress:', length = 50)
                 else:                
-                    print ""                 
+                    self.Print (""                 )
                 break
 
         if self.ShowMessage:
-            print "DST finished" 
+            self.Print ("DST finished" )
         if error==0:           
             return self._mNVME.GetLog.DeviceSelfTest.TestResultDataStructure_1th.DeviceSelfTestStatus
         else:

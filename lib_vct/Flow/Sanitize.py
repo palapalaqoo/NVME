@@ -78,7 +78,7 @@ class Sanitize_():
     # 2 SPROG count error
     # or return 0
             
-        #print "Starting "  
+        #self.Print ("Starting "  )
         #print self.EventTriggeredMessage 
         event_trigged=0
         error=0
@@ -117,7 +117,7 @@ class Sanitize_():
                 per=self._mNVME.GetLog.SanitizeStatus.SPROG
                 if per_old!=per:
                     if self.ShowProgress and per!=0:
-                        #print "percentage = %s"%per
+                        #self.Print ("percentage = %s"%per)
                         self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:', length = 50)
                 else:
                     sleep (0.1)
@@ -135,7 +135,7 @@ class Sanitize_():
                         else:                    
                             self._EventTrigger(*self._args)
                     except Exception as e:
-                        print ""
+                        self.Print ("")
                         self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
                         error=1
                         
@@ -148,7 +148,7 @@ class Sanitize_():
                 # if timeout
                 TimeElapsed= TimeStart-self._mNVME.Second
                 if TimeElapsed > self.TimeOut:
-                    print ""
+                    self.Print ("")
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
                     error=2                
                     break
@@ -175,7 +175,7 @@ class Sanitize_():
                 per=self._mNVME.GetLog.SanitizeStatus.SPROG
                 if per_old!=per:
                     if self.ShowProgress and per!=0:
-                        #print "percentage = %s"%per
+                        #self.Print ("percentage = %s"%per)
                         self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:', length = 50)
                 else:
                     sleep (0.1)
@@ -200,7 +200,7 @@ class Sanitize_():
                                 break
                                 
                     except Exception as e:
-                        print ""
+                        self.Print ("")
                         self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
                         error=1
 
@@ -212,7 +212,7 @@ class Sanitize_():
                 # if timeout
                 TimeElapsed= TimeStart-self._mNVME.Second
                 if TimeElapsed > self.TimeOut:
-                    print ""
+                    self.Print ("")
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
                     error=2               
                     break

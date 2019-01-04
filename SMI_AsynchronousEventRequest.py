@@ -137,8 +137,8 @@ class SMI_AsynchronousEventRequest(NVME):
     # <sub item scripts>
     def SubCase1(self):
         ret_code=0
-        print "self.AERL: %s" %(self.AERL)
-        print "Sending Asynchronous Event Request command for %s times.." %(self.AERL)
+        self.Print ("self.AERL: %s" %(self.AERL))
+        self.Print ("Sending Asynchronous Event Request command for %s times.." %(self.AERL))
         self.reset()
         result_b=[]
         for i  in range(self.AERL+1):
@@ -164,9 +164,9 @@ class SMI_AsynchronousEventRequest(NVME):
                 self.Print("return string from request command : %s" %(mThreadStr), "t")  
                 
                 # check the commands are aborted or not
-                print "This is the last time "
-                print "and the return code is: %s" %(mThreadStr) 
-                print "Check the return code is Asynchronous Event Request Limit Exceeded or not"
+                self.Print ("This is the last time ")
+                self.Print ("and the return code is: %s" %(mThreadStr) )
+                self.Print ("Check the return code is Asynchronous Event Request Limit Exceeded or not")
                 if re.search("NVMe Status:ASYNC_LIMIT", mThreadStr):
                     self.Print("PASS", "p")
                 else:
@@ -174,13 +174,13 @@ class SMI_AsynchronousEventRequest(NVME):
                     ret_code=1            
         return ret_code
     def SubCase2(self):
-        print "set Asynchronous Event Configuration = 0xff to enable all the events can be reported to the host "
+        self.Print ("set Asynchronous Event Configuration = 0xff to enable all the events can be reported to the host ")
         self.reset()
         
         ret_code=0
         # loop for test items
         for Item in self.TestItem:
-            print ""
+            self.Print ("")
             print Item[0]
             
             # assign a thread for event request cmd
@@ -209,11 +209,11 @@ class SMI_AsynchronousEventRequest(NVME):
             try:
                 mstr=re.split("NVMe command result:", mThreadStr)[1]
             except ValueError:
-                print "return string from request command : %s" %(mThreadStr)
+                self.Print ("return string from request command : %s" %(mThreadStr))
         
-            print "Completion Queue Entry Dword 0: %s" %(mstr)
+            self.Print ("Completion Queue Entry Dword 0: %s" %(mstr))
         
-            print "Check Dword 0"
+            self.Print ("Check Dword 0")
             if mstr==Item[2]:
                 self.Print("PASS", "p")
             else:
@@ -222,14 +222,14 @@ class SMI_AsynchronousEventRequest(NVME):
         return ret_code
     
     def SubCase3(self):
-        print "set Asynchronous Event Configuration = 0x0 to disable all the events can be reported to the host "
+        self.Print ("set Asynchronous Event Configuration = 0x0 to disable all the events can be reported to the host ")
         self.reset()
         ret_code=0
         self.shell_cmd(" nvme set-feature %s -f 0xB -v 0x0"%(self.dev), 0.5)   
         
         # loop for test items
         for Item in self.TestItemDisableReport:
-            print ""
+            self.Print ("")
             print Item[0]
             
             # assign a thread for event request cmd
@@ -244,7 +244,7 @@ class SMI_AsynchronousEventRequest(NVME):
             async_result.join(2)
                 
             # if time out, pass the test
-            print "Check event was reported to host or not, if an event is not sent to the host then pass the test"
+            self.Print ("Check event was reported to host or not, if an event is not sent to the host then pass the test")
             if async_result.is_alive():
                 self.Print("PASS", "p")
             else:
@@ -253,7 +253,7 @@ class SMI_AsynchronousEventRequest(NVME):
         return ret_code
         
     def SubCase4(self):
-        print "Sending Asynchronous Event Request command"
+        self.Print ("Sending Asynchronous Event Request command")
         self.reset()
         ret_code=0
         
@@ -261,7 +261,7 @@ class SMI_AsynchronousEventRequest(NVME):
         async_result = self.thread_asynchronous_event_request_cmd()
           
         # nvme reset
-        print "Trigger nvme reset"
+        self.Print ("Trigger nvme reset")
         self.nvme_reset()
         
         # wait thread finish and timeout=2s
@@ -279,9 +279,9 @@ class SMI_AsynchronousEventRequest(NVME):
             self.Print("return string from request command : %s" %(mThreadStr), "t")
             
             mstr = mThreadStr
-            print "return code : %s" %(mstr)
+            self.Print ("return code : %s" %(mstr))
             
-            print "Check the return code is abort request or not"
+            self.Print ("Check the return code is abort request or not")
             # check the commands are aborted or not
             if re.search("NVMe Status:ABORT_REQ", mThreadStr):
                 self.Print("PASS", "p")

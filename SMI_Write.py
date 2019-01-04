@@ -51,7 +51,7 @@ class SMI_Write(NVME):
     
     
     def testDW10_DW11(self, SLBA, msg0, msg1 , ExpectCommandSuccess):  
-        print ""
+        self.Print ("")
         print msg0
         print msg1   
         
@@ -80,7 +80,7 @@ class SMI_Write(NVME):
             return False       
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      
-        print ""
+        self.Print ("")
         print msg0
         print msg1   
         cdw12=NLB
@@ -137,7 +137,7 @@ class SMI_Write(NVME):
         for i in range(16):  
             ret_code=0        
             ML=i
-            print "set Metadata Length=%s for write command and check if write command success"%(ML)   
+            self.Print ("set Metadata Length=%s for write command and check if write command success"%(ML)   )
             
         if self.testMPTR(ML) :
             self.Print("PASS", "p") 
@@ -152,10 +152,10 @@ class SMI_Write(NVME):
     def SubCase2(self):
         ret_code=0
         MC=self.IdNs.MC.int
-        print "Metadata Capabilities (MC): %s"%MC
+        self.Print ("Metadata Capabilities (MC): %s"%MC)
         
         NSZE=self.IdNs.NSZE.int
-        print "NSZE: %s"%NSZE
+        self.Print ("NSZE: %s"%NSZE)
         
         #--------------------------------------------------
         SLBA=0
@@ -181,7 +181,7 @@ class SMI_Write(NVME):
     SubCase3TimeOut = 60
     SubCase3Desc = "Test Command Dword 12 for LR, FUA, PRINFO"       
     def SubCase3(self):
-        print "set  cdw[31:26] from 0x0 to 0x3F and check if write command success(expected result: command success) "
+        self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if write command success(expected result: command success) ")
         ret_code=0
         for i in range(0x40):  
         
@@ -224,7 +224,7 @@ class SMI_Write(NVME):
     SubCase5TimeOut = 160
     SubCase5Desc = "Test Command Dword 13"       
     def SubCase5(self):
-        print "set Command Dword 13 from 0x0 to 0xFF and check if write command success(expected result: command success) "
+        self.Print ("set Command Dword 13 from 0x0 to 0xFF and check if write command success(expected result: command success) ")
         ret_code=0
         for i in range(0x100):
             DSM=i
@@ -241,7 +241,7 @@ class SMI_Write(NVME):
     SubCase6Desc = "Test Command Dword 14"       
     def SubCase6(self):
         
-        print "set Command Dword 14 from 0x0 to 0xFF and check if write command success(expected result: command success) "
+        self.Print ("set Command Dword 14 from 0x0 to 0xFF and check if write command success(expected result: command success) ")
         ret_code=0
         for i in range(0x100):
             EILBRT= (i<<24) +(i<<16) +(i<<8) + i
@@ -257,7 +257,7 @@ class SMI_Write(NVME):
     SubCase7TimeOut = 60
     SubCase7Desc = "Test Command Dword 15"       
     def SubCase7(self):
-        print "set Command Dword 15 from 0x0 to 0xFF and check if write command success(expected result: command success) "
+        self.Print ("set Command Dword 15 from 0x0 to 0xFF and check if write command success(expected result: command success) ")
         ret_code=0
         for i in range(0x100):
             LBATM= (i<<8) + i

@@ -86,12 +86,12 @@ class SMI_NVMeReset(NVME):
     SubCase1TimeOut = 60
     SubCase1Desc = "Test The Admin Queue registers (AQA, ASQ, or ACQ)"  
     def SubCase1(self):  
-        print "Test The Admin Queue registers (AQA, ASQ, or ACQ) are not reset as part of a controller reset"
-        print "" 
+        self.Print ("Test The Admin Queue registers (AQA, ASQ, or ACQ) are not reset as part of a controller reset")
+        self.Print ("" )
         ret_code=0
         RDY = self.GetRDY()
         
-        print "Check if CSTS.RDY is set to 1 before reset:"
+        self.Print ("Check if CSTS.RDY is set to 1 before reset:")
         if RDY=="1":
             self.Print("Pass", "p")
         else:
@@ -104,29 +104,29 @@ class SMI_NVMeReset(NVME):
         ASQ = self.CR.ASQ.str   
         ACQ = self.CR.ACQ.str    
                       
-        print "NVME reset (Controller disable)"        
+        self.Print ("NVME reset (Controller disable)"        )
         t = threading.Thread(target = self.nvme_reset)
         t.start()
         
-        print "Wait for CSTS.RDY = 0"
+        self.Print ("Wait for CSTS.RDY = 0")
         while self.GetRDY()==1:
             pass
         
         self.Print("CSTS.RDY = 0", "p")
-        print "Wait for CSTS.RDY = 1"
+        self.Print ("Wait for CSTS.RDY = 1")
         while self.GetRDY()==0:
             pass
         
         t.join()
         self.Print("CSTS.RDY = 1", "p")
         
-        print "compare AQA, ASQ, ACQ after reset"
-        print "before reset: AQA = %s" %(AQA)
-        print "before reset: ASQ = %s" %(ASQ)
-        print "before reset: ACQ = %s" %(ACQ)
-        print "after reset: AQA = %s" %(self.CR.AQA.str)
-        print "after reset: ASQ = %s" %(self.CR.ASQ.str)
-        print "after reset: ACQ = %s" %(self.CR.ACQ.str)
+        self.Print ("compare AQA, ASQ, ACQ after reset")
+        self.Print ("before reset: AQA = %s" %(AQA))
+        self.Print ("before reset: ASQ = %s" %(ASQ))
+        self.Print ("before reset: ACQ = %s" %(ACQ))
+        self.Print ("after reset: AQA = %s" %(self.CR.AQA.str))
+        self.Print ("after reset: ASQ = %s" %(self.CR.ASQ.str))
+        self.Print ("after reset: ACQ = %s" %(self.CR.ACQ.str))
         
         if AQA!=self.CR.AQA.str or ASQ!=self.CR.ASQ.str or ACQ!=self.CR.ACQ.str:
             self.Print("Fail", "f")
@@ -140,15 +140,15 @@ class SMI_NVMeReset(NVME):
     SubCase2TimeOut = 60
     SubCase2Desc = "Test if all supported reset is working"    
     def SubCase2(self):
-        print "Check if all supported reset is working"  
+        self.Print ("Check if all supported reset is working"  )
         ret_code=0    
 
-        print ""
+        self.Print ("")
         for mItem in self.TestItems:        
             reset_type_name=mItem[0]
             reset_func=mItem[1] 
-            print "issue " + reset_type_name
-            print "Check if controller is working after reset"
+            self.Print ("issue " + reset_type_name)
+            self.Print ("Check if controller is working after reset")
             reset_func()
             if self.dev_alive:
                 self.Print("PASS", "p")
@@ -162,13 +162,13 @@ class SMI_NVMeReset(NVME):
     SubCase3TimeOut = 3600
     SubCase3Desc = "Test if stop processing any outstanding Admin command"        
     def SubCase3(self):
-        print "Test if reset occur, controller stops processing any outstanding Admin command"
-        print "Test if device self-test operation(admin command) was aborted due to the reset commands"  
-        print "test Loop = 10 "
-        print ""
+        self.Print ("Test if reset occur, controller stops processing any outstanding Admin command")
+        self.Print ("Test if device self-test operation(admin command) was aborted due to the reset commands"  )
+        self.Print ("test Loop = 10 ")
+        self.Print ("")
         
         if self.IdCtrl.OACS.bit(4)=="0":
-            print "Controller does not support the DST operation, quit this test item!"
+            self.Print ("Controller does not support the DST operation, quit this test item!")
             return 0        
         else:
             # max loopcnt = len(TestItems)* loop
@@ -188,25 +188,25 @@ class SMI_NVMeReset(NVME):
                     if DSTS!=-1:        
                         # get bit 3:0        
                         DSTSbit3to0 = DSTS & 0b00001111
-                        #print "result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0)
-                        #print "Check the result of the device self-test operation , expected result:  0x2(Operation was aborted by a Controller Level Reset)"
+                        #self.Print ("result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0))
+                        #self.Print ("Check the result of the device self-test operation , expected result:  0x2(Operation was aborted by a Controller Level Reset)")
                         if DSTSbit3to0==2:
                             self.Print("Loop: %s, reset type: %s, PASS"%(loop, reset_type_name), "p")
                         else:
                             self.Print("Loop: %s, reset type: %s, Fail"%(loop, reset_type_name), "f")
                             ret_code = 1                         
                     else:
-                        print "Controller does not support the DST operation"     
+                        self.Print ("Controller does not support the DST operation"     )
                              
             return ret_code
 
     SubCase4TimeOut = 7200
     SubCase4Desc = "Test if stop processing any outstanding IO command"    
     def SubCase4(self):
-        print "Test if reset occur, controller stops processing any outstanding IO command"
-        print "Test if write command was aborted due to the reset commands"  
-        print "test Loop = 10 "
-        print ""
+        self.Print ("Test if reset occur, controller stops processing any outstanding IO command")
+        self.Print ("Test if write command was aborted due to the reset commands"  )
+        self.Print ("test Loop = 10 ")
+        self.Print ("")
         
         ret_code=0
         # max loopcnt = len(TestItems)* loop

@@ -46,11 +46,11 @@ class SMI_FeatureNumberofQueues(NVME):
     SubCase1Desc = "Test NCQR"        
     def SubCase1(self):
         ret_code=0
-        print "Test if NCQR specified is 65,535, the controller should return an error of Invalid Field in Command or not" 
-        print "set NCQR=0xFFFF, NSQR=0x0"
+        self.Print ("Test if NCQR specified is 65,535, the controller should return an error of Invalid Field in Command or not" )
+        self.Print ("set NCQR=0xFFFF, NSQR=0x0")
         mStr=self.shell_cmd(" nvme set-feature %s -f 7 -v 0xFFFF0000 2>&1"%(self.dev))
-        print "returned status code: %s" %mStr
-        print "Check returned status code"
+        self.Print ("returned status code: %s" %mStr)
+        self.Print ("Check returned status code")
         retCommandSueess=bool(re.search("INVALID_FIELD", mStr))
         if (retCommandSueess ==  True) :
             self.Print("PASS", "p")     
@@ -63,11 +63,11 @@ class SMI_FeatureNumberofQueues(NVME):
     SubCase2Desc = "Test NSQR"
     def SubCase2(self): 
         ret_code=0
-        print "Test if NSQR specified is 65,535, the controller should return an error of Invalid Field in Command or not" 
-        print "set NCQR=0x0, NSQR=0xFFFF"
+        self.Print ("Test if NSQR specified is 65,535, the controller should return an error of Invalid Field in Command or not" )
+        self.Print ("set NCQR=0x0, NSQR=0xFFFF")
         mStr=self.shell_cmd(" nvme set-feature %s -f 7 -v 0x0000FFFF 2>&1"%(self.dev))
-        print "returned status code: %s" %mStr
-        print "Check returned status code"
+        self.Print ("returned status code: %s" %mStr)
+        self.Print ("Check returned status code")
         retCommandSueess=bool(re.search("INVALID_FIELD", mStr))
         if (retCommandSueess ==  True) :
             self.Print("PASS", "p")     

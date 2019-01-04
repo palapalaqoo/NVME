@@ -291,8 +291,8 @@ class SMI_SetGetFeatureCMD(NVME):
     # or OriginValue != CurrentValue, and ExpectMatch = false, then pass
     
         
-        print "Send get feature command, returned feature value: %s "%hex(CurrentValue)
-        print "Check get feature value, expected value: %s , %s "%( hex(OriginValue) if ExpectMatch else hex(CurrentValue), "changed" if ExpectMatch else "not changed" )
+        self.Print ("Send get feature command, returned feature value: %s "%hex(CurrentValue))
+        self.Print ("Check get feature value, expected value: %s , %s "%( hex(OriginValue) if ExpectMatch else hex(CurrentValue), "changed" if ExpectMatch else "not changed" ))
         if CurrentValue == OriginValue and ExpectMatch == True:
             self.Print("PASS", "p")  
         else:
@@ -304,7 +304,7 @@ class SMI_SetGetFeatureCMD(NVME):
         # initial parent class
         super(SMI_SetGetFeatureCMD, self).__init__(argv)
 
-        print "Nvme reset controller"
+        self.Print ("Nvme reset controller")
         self.nvme_reset()    
         self.ret_code = 0
         self.Ns=1
@@ -315,8 +315,8 @@ class SMI_SetGetFeatureCMD(NVME):
     
     # override
     def PreTest(self):
-        print "Check if Select field in Get Features - Command Dword 10 supported or not"
-        print ""
+        self.Print ("Check if Select field in Get Features - Command Dword 10 supported or not")
+        self.Print ("")
         if self.SELSupport:
             self.Print("Supported", "p")    
             # initial self.TestItems
@@ -336,32 +336,32 @@ class SMI_SetGetFeatureCMD(NVME):
         self.ret_code=0
         
         for mItem in self.TestItems:
-            print "========================================="
+            self.Print ("=========================================")
             print mItem[item.description]   
-            print "Feature ID: %s"%mItem[item.fid]   
+            self.Print ("Feature ID: %s"%mItem[item.fid]   )
             supported=mItem[item.supported]
             saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
             nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
             changeable=True if mItem[item.capabilities]&0b100 > 0 else False
             if not supported:
-                print "Not supported"      
-                print ""  
+                self.Print ("Not supported"      )
+                self.Print (""  )
             else:
-                print "Supported"              
-                print "" 
-                print "Feature saveable: %s"%("Yes" if saveable else "No")
-                print "Feature namespace specific: %s"%("Yes" if nsSpec else "No")
-                print "Feature changeable: %s"%("Yes" if changeable else "No")
-                print ""
+                self.Print ("Supported"              )
+                self.Print ("" )
+                self.Print ("Feature saveable: %s"%("Yes" if saveable else "No"))
+                self.Print ("Feature namespace specific: %s"%("Yes" if nsSpec else "No"))
+                self.Print ("Feature changeable: %s"%("Yes" if changeable else "No"))
+                self.Print ("")
                 
-                print "-(1)-- Test Get Features with Select=0, Current --"    
-                print "        and test Features capabilities bit 2, Feature Identifier is changeable or not"
-                print "        "+ "Feature is changeable, all the fallowing test should change the value" if changeable else "Feature is no changeable, all the fallowing test should not change the value"
+                self.Print ("-(1)-- Test Get Features with Select=0, Current --"    )
+                self.Print ("        and test Features capabilities bit 2, Feature Identifier is changeable or not")
+                self.Print ("        "+ "Feature is changeable, all the fallowing test should change the value" if changeable else "Feature is no changeable, all the fallowing test should not change the value")
                 fid=mItem[item.fid]
                 rdValue=self.GetFeature(fid, sel=0)
                 value=self.DifferentValueFromCurrent(fid)
-                print "Send get feature command, returned feature value: %s "%hex(rdValue)
-                print "Send set feature command with value = %s"%hex(value)
+                self.Print ("Send get feature command, returned feature value: %s "%hex(rdValue))
+                self.Print ("Send set feature command with value = %s"%hex(value))
                 
                 # Send set feature command    
                 self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
@@ -371,17 +371,17 @@ class SMI_SetGetFeatureCMD(NVME):
                 
                 # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
                 self.CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)    
-                print ""
+                self.Print ("")
     
-                print "-(2)--  Test Get Features with Select=1, Default --"  
+                self.Print ("-(2)--  Test Get Features with Select=1, Default --"  )
                 DefaultValue = self.GetFeature(fid, sel=1)
-                print "Send get feature command with Select=1, returned feature default value: %s "%hex(DefaultValue)
-                print ""
+                self.Print ("Send get feature command with Select=1, returned feature default value: %s "%hex(DefaultValue))
+                self.Print ("")
                 
-                print "-(3)--  Test Get Features with Select=2, Saved --"            
+                self.Print ("-(3)--  Test Get Features with Select=2, Saved --"            )
                            
                 if saveable:
-                    print "Feature is saveable in capabilities filed"
+                    self.Print ("Feature is saveable in capabilities filed")
                     
                     rdValue=self.GetFeature(fid, sel=2)
                     # choice one value that is not equal to daved value (valid_value, DefaultValue, reset_value)
@@ -392,8 +392,8 @@ class SMI_SetGetFeatureCMD(NVME):
                     else:
                         value=DefaultValue
                     
-                    print "Read saved value = %s"%hex(rdValue)                
-                    print "Send set feature command with value = %s and SV field =1"%hex(value)
+                    self.Print ("Read saved value = %s"%hex(rdValue)                )
+                    self.Print ("Send set feature command with value = %s and SV field =1"%hex(value))
                 
                     # Send set feature command    
                     self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)
@@ -406,69 +406,69 @@ class SMI_SetGetFeatureCMD(NVME):
                     self.CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)   
     
                     
-                    print "Test Persistent Across Power Cycle and Reset"
-                    print "Issue Nvme Reset"
+                    self.Print ("Test Persistent Across Power Cycle and Reset")
+                    self.Print ("Issue Nvme Reset")
                     self.nvme_reset()
                     # Send get feature command    
                     GetValue = self.GetFeature(fid, sel=2)                
-                    print "After reset, read feature saved value: %s "%hex(GetValue)
-                    print "Check if get feature saved value is %s or not "%hex(SavedValue)
+                    self.Print ("After reset, read feature saved value: %s "%hex(GetValue))
+                    self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
                     if GetValue == value:
                         self.Print("PASS", "p")  
                     else:
                         self.Print("Fail", "f")
                         self.ret_code=1 
                                         
-                    print ""                          
+                    self.Print (""                          )
                                 
                 else:
-                    print "Feature is not saveable in capabilities filed"
-                    print ""
+                    self.Print ("Feature is not saveable in capabilities filed")
+                    self.Print ("")
     
-                print "-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"        
+                self.Print ("-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"        )
                 if not nsSpec:
-                    print "Feature is not namespace specific in capabilities filed"
+                    self.Print ("Feature is not namespace specific in capabilities filed")
                 else:
-                    print "Feature is namespace specificin in capabilities filed"
-                    print "Test if Feature Identifier is namespace specific or not"
-                    print ""
+                    self.Print ("Feature is namespace specificin in capabilities filed")
+                    self.Print ("Test if Feature Identifier is namespace specific or not")
+                    self.Print ("")
               
                     if not self.NsSupported:
-                        print "Controller don't support mulit namespaces!, quit this test item"
+                        self.Print ("Controller don't support mulit namespaces!, quit this test item")
                     elif not changeable:
-                        print "Feature is not changeable!, quit this test item"
+                        self.Print ("Feature is not changeable!, quit this test item")
                     else:
                         # if only 1 namespace currently, create 2 namespaces
                         if self.Ns==1:
-                            print "Create 2 namespaces, size  1G"
+                            self.Print ("Create 2 namespaces, size  1G")
                             Ns=self.CreateMultiNs(NumOfNS=2)
                             
                         if Ns!=2:
                             self.Print("Fail to create 2 namespaces", "f")
                             self.ret_code=1 
                         else:                            
-                            print ""               
+                            self.Print (""               )
                             # nsid = 1 ------------------------------------------------------------
                             value = mItem[item.reset_value]
-                            print "Reset feature value = %s for nsid=1 and nsid=2"%value
+                            self.Print ("Reset feature value = %s for nsid=1 and nsid=2"%value)
                             self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
                             self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
                             original1 = self.GetFeature(fid, sel=0, nsid=1)
                             original2 = self.GetFeature(fid, sel=0, nsid=2)
-                            #print "Check if feature value = %s or not in all namespaces"%value                
+                            #self.Print ("Check if feature value = %s or not in all namespaces"%value                )
                             if original1 != value or original2!=value:
                                 self.Print("Fail, value from ns1= %s ,ns2= %s "%(original1,original2), "f")
                                 self.ret_code=1                     
                             else:
                                 value = mItem[item.valid_value]
-                                print "Set feature with nsid =1, value= %s"%value                    
+                                self.Print ("Set feature with nsid =1, value= %s"%value                    )
                                 self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
                                 
                                 current1 = self.GetFeature(fid, sel=0, nsid=1)
                                 current2 = self.GetFeature(fid, sel=0, nsid=2)
                                 
-                                print "Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 
-                                print "Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   
+                                self.Print ("Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 )
+                                self.Print ("Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   )
                                 
                                 if current1==value and current2==original2:
                                     self.Print("PASS", "p")  
@@ -477,23 +477,23 @@ class SMI_SetGetFeatureCMD(NVME):
                                     self.ret_code=1 
                                 
                                 # nsid = 2 ------------------------------------------------------------
-                                print ""
+                                self.Print ("")
                                 value = mItem[item.reset_value]
-                                print "Reset feature value = %s for nsid=1 and nsid=2"%value
+                                self.Print ("Reset feature value = %s for nsid=1 and nsid=2"%value)
                                 self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
                                 self.SetFeature(fid=fid, value=value, sv=0, nsid=2)                    
                                 original1 = self.GetFeature(fid, sel=0, nsid=1)
                                 original2 = self.GetFeature(fid, sel=0, nsid=2)  
                                    
                                 value = mItem[item.valid_value]               
-                                print "Set feature with nsid =2, value= %s"%value                    
+                                self.Print ("Set feature with nsid =2, value= %s"%value                    )
                                 self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
                                 
                                 current1 = self.GetFeature(fid, sel=0, nsid=1)
                                 current2 = self.GetFeature(fid, sel=0, nsid=2)
                                 
-                                print "Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 
-                                print "Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   
+                                self.Print ("Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 )
+                                self.Print ("Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   )
                                 
                                 if current1==original1 and current2==value:
                                     self.Print("PASS", "p")  

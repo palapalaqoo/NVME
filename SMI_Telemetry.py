@@ -103,10 +103,10 @@ class SMI_Telemetry(NVME):
     # <override sub item scripts>
     def SubCase1(self):
         ret_code = 0
-        print "Test if get log page command is not a multiple of 512 bytes for this log, then the controller shall return an error of Invalid Field in Command"
+        self.Print ("Test if get log page command is not a multiple of 512 bytes for this log, then the controller shall return an error of Invalid Field in Command")
         
         for DataBlock in range(12, 513, 50):
-            print "Send Get Log Page command for %s byte datas of Data Blocks "%DataBlock
+            self.Print ("Send Get Log Page command for %s byte datas of Data Blocks "%DataBlock)
             
             mStr = self.shell_cmd("nvme get-log %s --log-id=0x7 --log-len=%s 2>&1"%(self.dev, DataBlock))
             self.Print(mStr, 't')
@@ -121,7 +121,7 @@ class SMI_Telemetry(NVME):
     
     def SubCase2(self):
         ret_code = 0
-        print "check Command Dword 10 -- Log Specific Field for 'Create Telemetry Host-Initiated Data'"                
+        self.Print ("check Command Dword 10 -- Log Specific Field for 'Create Telemetry Host-Initiated Data'"                )
         if len(self.LOG07_0) == 512 and len(self.LOG07_1) == 512 and len(self.LOG08_0) == 512 and len(self.LOG08_1) == 512 :
             self.Print("PASS", "p")
         else:
@@ -139,12 +139,12 @@ class SMI_Telemetry(NVME):
         
         
         
-        print ""   
-        print "Check Log Identifier in log byte0"
+        self.Print (""   )
+        self.Print ("Check Log Identifier in log byte0")
         
         LogId=self.LOG07[0]
         
-        print "Log Identifier: %s"%LogId
+        self.Print ("Log Identifier: %s"%LogId)
         if LogId=="07":
             self.Print("PASS", "p")
         else:
@@ -154,9 +154,9 @@ class SMI_Telemetry(NVME):
 
     def SubCase4(self):
         ret_code = 0          
-        print "Check if IEEE OUI Identifier = identify.IEEE or not"
+        self.Print ("Check if IEEE OUI Identifier = identify.IEEE or not")
         IEEE=int((self.LOG07[7]+self.LOG07[6]+self.LOG07[5]),16)
-        print "IEEE: %s, identify.IEEE: %s" %(IEEE, self.IdCtrl.IEEE.int)
+        self.Print ("IEEE: %s, identify.IEEE: %s" %(IEEE, self.IdCtrl.IEEE.int))
         
         if IEEE==self.IdCtrl.IEEE.int:
             self.Print("PASS", "p")
@@ -167,11 +167,11 @@ class SMI_Telemetry(NVME):
     
     def SubCase5(self):
         ret_code = 0    
-        print "check if (Telemetry Host-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not"      
+        self.Print ("check if (Telemetry Host-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not"      )
         LastBlock1=int(self.LOG07[9]+self.LOG07[8])
         LastBlock2=int(self.LOG07[11]+self.LOG07[10])
         LastBlock3=int(self.LOG07[13]+self.LOG07[12])
-        print "1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3)
+        self.Print ("1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3))
         if (LastBlock1<=LastBlock2) and (LastBlock2<=LastBlock3):
             self.Print("PASS", "p")
         else:
@@ -181,8 +181,8 @@ class SMI_Telemetry(NVME):
 
     def SubCase6(self):
         ret_code = 0          
-        print "check if Telemetry Controller-Initiated Data Available in log ID 07h = Telemetry Controller-Initiated Data Available in log ID 08h  or not"
-        print "TCIDA in 0x7h: %s, TCIDA in 0x8h: %s" %(self.LOG07[382], self.LOG08[382])      
+        self.Print ("check if Telemetry Controller-Initiated Data Available in log ID 07h = Telemetry Controller-Initiated Data Available in log ID 08h  or not")
+        self.Print ("TCIDA in 0x7h: %s, TCIDA in 0x8h: %s" %(self.LOG07[382], self.LOG08[382])      )
         if self.LOG07[382]<=self.LOG08[382]:
             self.Print("PASS", "p")
         else:
@@ -192,8 +192,8 @@ class SMI_Telemetry(NVME):
 
     def SubCase7(self):
         ret_code = 0          
-        print "check if Telemetry Controller-Initiated Data Generation Number in log ID 07h = Telemetry Controller-Initiated Data Generation Number in log ID 08h  or not"
-        print "TCIDGN in 0x7h: %s, TCIDGN in 0x8h: %s" %(self.LOG07[383], self.LOG08[383])
+        self.Print ("check if Telemetry Controller-Initiated Data Generation Number in log ID 07h = Telemetry Controller-Initiated Data Generation Number in log ID 08h  or not")
+        self.Print ("TCIDGN in 0x7h: %s, TCIDGN in 0x8h: %s" %(self.LOG07[383], self.LOG08[383]))
         if self.LOG07[383]<=self.LOG08[383]:
             self.Print("PASS", "p")
         else:
@@ -203,9 +203,9 @@ class SMI_Telemetry(NVME):
 
     def SubCase8(self):
         ret_code = 0          
-        print "Test if get log page command is not a multiple of 512 bytes for this log, then the controller shall return an error of Invalid Field in Command"
+        self.Print ("Test if get log page command is not a multiple of 512 bytes for this log, then the controller shall return an error of Invalid Field in Command")
         for DataBlock in range(12, 513, 50):
-            print "Send Get Log Page command for %s byte datas of Data Blocks "%DataBlock
+            self.Print ("Send Get Log Page command for %s byte datas of Data Blocks "%DataBlock)
             
             mStr = self.shell_cmd("nvme get-log %s --log-id=0x8 --log-len=%s 2>&1"%(self.dev, DataBlock))
             self.Print(mStr, 't')
@@ -220,11 +220,11 @@ class SMI_Telemetry(NVME):
 
     def SubCase9(self):
         ret_code = 0          
-        print "Check Log Identifier in log byte0"      
+        self.Print ("Check Log Identifier in log byte0"      )
 
         LogId=self.LOG08[0]
         
-        print "Log Identifier: %s"%LogId
+        self.Print ("Log Identifier: %s"%LogId)
         if LogId=="08":
             self.Print("PASS", "p")
         else:
@@ -234,9 +234,9 @@ class SMI_Telemetry(NVME):
 
     def SubCase10(self):
         ret_code = 0          
-        print "Check if IEEE OUI Identifier = identify.IEEE or not"
+        self.Print ("Check if IEEE OUI Identifier = identify.IEEE or not")
         IEEE=int((self.LOG08[7]+self.LOG08[6]+self.LOG08[5]),16)
-        print "IEEE: %s, identify.IEEE: %s" %(IEEE, self.IdCtrl.IEEE.int)
+        self.Print ("IEEE: %s, identify.IEEE: %s" %(IEEE, self.IdCtrl.IEEE.int))
         if IEEE==self.IdCtrl.IEEE.int:
             self.Print("PASS", "p")
         else:
@@ -246,11 +246,11 @@ class SMI_Telemetry(NVME):
 
     def SubCase11(self):
         ret_code = 0          
-        print "check if (Telemetry Controller-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not"
+        self.Print ("check if (Telemetry Controller-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not")
         LastBlock1=int(self.LOG08[9]+self.LOG08[8])
         LastBlock2=int(self.LOG08[11]+self.LOG08[10])
         LastBlock3=int(self.LOG08[13]+self.LOG08[12])
-        print "1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3)
+        self.Print ("1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3))
         if (LastBlock1<=LastBlock2) and (LastBlock2<=LastBlock3):
             self.Print("PASS", "p")
         else:
@@ -260,18 +260,18 @@ class SMI_Telemetry(NVME):
     
     def SubCase12(self):
         ret_code = 0          
-        print "check if Telemetry Controller-Initiated Data Available(TCIDA) value is persistent across power states and reset or not"
+        self.Print ("check if Telemetry Controller-Initiated Data Available(TCIDA) value is persistent across power states and reset or not")
         TCIDA_old=self.LOG08[383]
-        print "TCIDA: %s" %TCIDA_old
-        print "-- start test TCIDA for power state  --"
+        self.Print ("TCIDA: %s" %TCIDA_old)
+        self.Print ("-- start test TCIDA for power state  --")
         NPSS=self.IdCtrl.NPSS.int
-        print "NPSS: %s"%NPSS
+        self.Print ("NPSS: %s"%NPSS)
              
         NPSS=self.IdCtrl.NPSS.int
             
         for i in range(NPSS+1):
             self.set_feature(2, i)
-            print "set power state = %s"%i
+            self.Print ("set power state = %s"%i)
             PS=self.GetPS()
             # verify set_feature successfull
             if PS!=i:
@@ -283,15 +283,15 @@ class SMI_Telemetry(NVME):
             self.LOG07=self.get_log_passthru(7, 512, 1, 0)
             self.LOG08=self.get_log_passthru(8, 512, 1, 0)
                 
-            print "TCIDA in log 0x7= %s"%self.LOG07[383]
-            print "TCIDA in log 0x8= %s"%self.LOG08[383]
+            self.Print ("TCIDA in log 0x7= %s"%self.LOG07[383])
+            self.Print ("TCIDA in log 0x8= %s"%self.LOG08[383])
             if (TCIDA_old==self.LOG08[383]) and (TCIDA_old==self.LOG07[383]):
                 self.Print("PASS", "p")    
             else:
                 self.Print("Fail", "f")
                 ret_code=1
                 
-        print "-- start test TCIDA for reset  --"        
+        self.Print ("-- start test TCIDA for reset  --"        )
         for Item in self.ResetItem:
             print Item[0]
         
@@ -299,8 +299,8 @@ class SMI_Telemetry(NVME):
             Item[1]()
             
             # reload 
-            print "TCIDA in log 0x7= %s"%self.LOG07[383]
-            print "TCIDA in log 0x8= %s"%self.LOG08[383]
+            self.Print ("TCIDA in log 0x7= %s"%self.LOG07[383])
+            self.Print ("TCIDA in log 0x8= %s"%self.LOG08[383])
             if (TCIDA_old==self.LOG08[383]) and (TCIDA_old==self.LOG07[383]):
                 self.Print("PASS", "p")    
             else:

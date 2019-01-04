@@ -120,7 +120,7 @@ class SMI_Format(NVME):
         sleep(0.2)
         CreatedNSID=self.CreateNs(TotalBlocks)        
         if CreatedNSID != i:
-            print "create namespace error!"    
+            self.Print ("create namespace error!"    )
             rtc=1
         else:
             sleep(0.2)
@@ -144,14 +144,14 @@ class SMI_Format(NVME):
         
     def Test_FFFFFFFF(self, SES):
         ret_code=0
-        print "  write 64k data to all namespaces with data=0x5c"
+        self.Print ("  write 64k data to all namespaces with data=0x5c")
         for nsid in range(1, self.StopNs+1):
             self.WriteBlock(nsid, 0x5c)
             if not self.IsEqualBlock(nsid, 0x5c):
                 self.Print(  "  write data Fail at nsid = %s"%nsid ,"w")
                 
-        print "  Done"
-        print "  send format command, nsid=0xFFFFFFFF, check if all namespaces was formatted after command"
+        self.Print ("  Done")
+        self.Print ("  send format command, nsid=0xFFFFFFFF, check if all namespaces was formatted after command")
         self.Format(0xFFFFFFFF, 0, SES)
         
         TestResult=0
@@ -167,15 +167,15 @@ class SMI_Format(NVME):
         return ret_code
     def Test_AllOtherValidValues(self, SES):
         ret_code=0
-        print "  write 64k data to all namespaces with data=0x5c"
+        self.Print ("  write 64k data to all namespaces with data=0x5c")
         for nsid in range(1, self.StopNs+1):
             self.WriteBlock(nsid, 0x5c)
             if not self.IsEqualBlock(nsid, 0x5c):
                 self.Print(  "  write data Fail at nsid = %s"%nsid ,"w")
                 
-        print "  Done"
-        print "  send format command, nsid=0x1 to %s, check if particular namespaces was formatted after command"%self.StopNs
-        print "  And other namespaces  should not be modified"
+        self.Print ("  Done")
+        self.Print ("  send format command, nsid=0x1 to %s, check if particular namespaces was formatted after command"%self.StopNs)
+        self.Print ("  And other namespaces  should not be modified")
         TestResult=0
         for nsid in range(1, self.StopNs+1):  
             
@@ -207,14 +207,14 @@ class SMI_Format(NVME):
 
     def Test_AllValidValues(self, SES):
         ret_code=0
-        print "  write 64k data to all namespaces with data=0x5c"
+        self.Print ("  write 64k data to all namespaces with data=0x5c")
         for nsid in range(1, self.StopNs+1):
             self.WriteBlock(nsid, 0x5c)
             if not self.IsEqualBlock(nsid, 0x5c):
                 self.Print(  "  write data Fail at nsid = %s"%nsid ,"w")
                 
-        print "  Done"
-        print "  send format command, nsid=0x1, check if all namespaces was formatted after command"
+        self.Print ("  Done")
+        self.Print ("  send format command, nsid=0x1, check if all namespaces was formatted after command")
         self.Format(0x1, 0, SES)
         TestResult=0
         for nsid in range(1, self.StopNs+1):
@@ -255,15 +255,15 @@ class SMI_Format(NVME):
     # =======================================================================================    
     # override pretest  
     def PreTeset(self):        
-        print ""
-        print "-- NVME format command test" 
-        print "-----------------------------------------------------------------------------------"            
-        print "Number of LBA formats (self.NLBAF): %s"%self.NLBAF
-        print "formatted LBA Size (self.FLBAS): %s"%self.FLBAS
-        print "Number of Namespaces (NN): %s"%self.NN    
-        print "Cryptographic erase is supported" if self.SecureEraseSupported else "Cryptographic erase is not supported" 
-        print "-----------------------------------------------------------------------------------"       
-        print ""
+        self.Print ("")
+        self.Print ("-- NVME format command test" )
+        self.Print ("-----------------------------------------------------------------------------------"            )
+        self.Print ("Number of LBA formats (self.NLBAF): %s"%self.NLBAF)
+        self.Print ("formatted LBA Size (self.FLBAS): %s"%self.FLBAS)
+        self.Print ("Number of Namespaces (NN): %s"%self.NN    )
+        self.Print ("Cryptographic erase is supported" if self.SecureEraseSupported else "Cryptographic erase is not supported" )
+        self.Print ("-----------------------------------------------------------------------------------"       )
+        self.Print ("")
         return 0
                                         
     # <sub item scripts>
@@ -284,12 +284,12 @@ class SMI_Format(NVME):
     SubCase2KeyWord = "LBA formats shall be allocated in order (starting with 0) and packed sequentially"
     def SubCase2(self): 
         ret_code=0
-        print "Check if first lbaf is available or not (self.LBAF0), expected result: Available"
-        print "i.e. check if LBA Data Size (LBADS) in LBA format 0 Support (self.LBAF0) >= 9 or not "
+        self.Print ("Check if first lbaf is available or not (self.LBAF0), expected result: Available")
+        self.Print ("i.e. check if LBA Data Size (LBADS) in LBA format 0 Support (self.LBAF0) >= 9 or not ")
         
         
         self.LBAF0_LBADS=self.LBAF[0][self.lbafds.LBADS]
-        print "Value for self.LBAF0->LBADS: %s"%self.LBAF0_LBADS
+        self.Print ("Value for self.LBAF0->LBADS: %s"%self.LBAF0_LBADS)
         if (self.LBAF0_LBADS >=  9) :
             self.Print("PASS", "p")     
         else:
@@ -304,19 +304,19 @@ class SMI_Format(NVME):
     def SubCase3(self): 
         ret_code=0
         
-        print "if last lbaf is not available(lbaf15), then do this test, or quit this item"
+        self.Print ("if last lbaf is not available(lbaf15), then do this test, or quit this item")
         # lbaf15->lbads  >=9 or not
         
         
         if self.LBAF15_LBADS < 9:
-            print "Value for self.LBAF15->LBADS: %s (no available)"%self.LBAF15_LBADS
-            print "set lbaf=15 and send command, then check the status code"
+            self.Print ("Value for self.LBAF15->LBADS: %s (no available)"%self.LBAF15_LBADS)
+            self.Print ("set lbaf=15 and send command, then check the status code")
             mStr=self.Format(1, 15, 0);
-            print "status code: %s"%mStr
+            self.Print ("status code: %s"%mStr)
             if not self.CheckResult(mStr, self.Status_InvalidFormat):
                 ret_code=1
         else:
-            print "last lbaf is available(lbaf15), i.e. from lbaf0 to lbaf15 are all available, quite this test item!"
+            self.Print ("last lbaf is available(lbaf15), i.e. from lbaf0 to lbaf15 are all available, quite this test item!")
             
         return ret_code
 
@@ -326,34 +326,34 @@ class SMI_Format(NVME):
     def SubCase4(self): 
         ret_code=0
         
-        print ""    
-        print "Send format command with SES=000b (No secure erase operation requested)"
+        self.Print (""    )
+        self.Print ("Send format command with SES=000b (No secure erase operation requested)")
         mStr=self.Format(1, 0, 0);
-        print "Check return code, expected returned status code: Success"
+        self.Print ("Check return code, expected returned status code: Success")
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         
-        print ""   
-        print "Send format command with SES=001b (User Data Erase)"
+        self.Print (""   )
+        self.Print ("Send format command with SES=001b (User Data Erase)")
         mStr=self.Format(1, 0, 1);
-        print "Check return code, expected returned status code: Success"
+        self.Print ("Check return code, expected returned status code: Success")
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         
-        print ""   
+        self.Print (""   )
         
         
-        print ""       
-        print "Send format command with SES=010b (Cryptographic Erase:)"
+        self.Print (""       )
+        self.Print ("Send format command with SES=010b (Cryptographic Erase:)")
         mStr=self.Format(1, 0, 2);
-        print "Check return code, expected returned status code: %s"%("Success" if self.SecureEraseSupported else "Fail")
+        self.Print ("Check return code, expected returned status code: %s"%("Success" if self.SecureEraseSupported else "Fail"))
         if self.SecureEraseSupported:
             ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         else:
             ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1        
         
         
-        print ""       
-        print "Send format command with SES from 011b to 111b (Reserved)"
-        print "Check return code, expected returned status code: fail"
+        self.Print (""       )
+        self.Print ("Send format command with SES from 011b to 111b (Reserved)")
+        self.Print ("Check return code, expected returned status code: fail")
         for i in range(3, 8):
             mStr=self.Format(1, 0, i);
             if not re.search("Success formatting namespace", mStr):
@@ -369,14 +369,14 @@ class SMI_Format(NVME):
     SubCase5KeyWord = "format NVM - Command Dword 10"
     def SubCase5(self): 
         ret_code=0
-        print ""
-        print "Send format command with PIL = 0"
-        print "Check return code, expected returned status code: Success"
+        self.Print ("")
+        self.Print ("Send format command with PIL = 0")
+        self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0);
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
-        print ""
-        print "Send format command with PIL = 1"
-        print "Check return code, expected returned status code: Success"
+        self.Print ("")
+        self.Print ("Send format command with PIL = 1")
+        self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 1);
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         
@@ -388,17 +388,17 @@ class SMI_Format(NVME):
     def SubCase6(self): 
         ret_code=0
     
-        print "End-to-end Data Protection Capabilities (self.DPC): %s"%self.DPC
+        self.Print ("End-to-end Data Protection Capabilities (self.DPC): %s"%self.DPC)
     
         
-        print "Type 1: Supported" if self.Type1Supported else "Type 1: Not supported"
-        print "Type 2: Supported" if self.Type2Supported else "Type 2: Not supported"
-        print "Type 3: Supported" if self.Type3Supported else "Type 3: Not supported"
+        self.Print ("Type 1: Supported" if self.Type1Supported else "Type 1: Not supported")
+        self.Print ("Type 2: Supported" if self.Type2Supported else "Type 2: Not supported")
+        self.Print ("Type 3: Supported" if self.Type3Supported else "Type 3: Not supported")
         
         
-        print ""
-        print "Send format command with PI = 000b"
-        print "Check return code, expected returned status code: Success"
+        self.Print ("")
+        self.Print ("Send format command with PI = 000b")
+        self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0);
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         
@@ -410,18 +410,18 @@ class SMI_Format(NVME):
                 PI_SupportedLBAF=i
                 break
         
-        print ""
-        print "Send format command with PI = 001b"
-        print "Check return code, expected returned status code: %s"%("Success" if self.Type1Supported else "Fail")
+        self.Print ("")
+        self.Print ("Send format command with PI = 001b")
+        self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type1Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 1);
         if self.Type1Supported:
             ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         else:
             ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
         
-        print ""
-        print "Send format command with PI = 010b"
-        print "Check return code, expected returned status code: %s"%("Success" if self.Type2Supported else "Fail")
+        self.Print ("")
+        self.Print ("Send format command with PI = 010b")
+        self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type2Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 2);
         if self.Type1Supported:
             ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
@@ -429,9 +429,9 @@ class SMI_Format(NVME):
             ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
             
                     
-        print ""
-        print "Send format command with PI = 011b"
-        print "Check return code, expected returned status code: %s"%("Success" if self.Type3Supported else "Fail")
+        self.Print ("")
+        self.Print ("Send format command with PI = 011b")
+        self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type3Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 3);
         if self.Type1Supported:
             ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
@@ -439,9 +439,9 @@ class SMI_Format(NVME):
             ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1        
         
         
-        print ""       
-        print "Send format command with PI from 100b to 111b (Reserved)"
-        print "Check return code, expected returned status code: fail"
+        self.Print (""       )
+        self.Print ("Send format command with PI from 100b to 111b (Reserved)")
+        self.Print ("Check return code, expected returned status code: fail")
         for i in range(4, 8):
             mStr=self.Format(1, 0, 0, 0, i);
             if not re.search("Success formatting namespace", mStr):
@@ -456,14 +456,14 @@ class SMI_Format(NVME):
     SubCase7KeyWord = "format NVM - Command Dword 10"
     def SubCase7(self): 
         ret_code=0
-        print ""
-        print "Send format command with MSET = 0"
-        print "Check return code, expected returned status code: Success"
+        self.Print ("")
+        self.Print ("Send format command with MSET = 0")
+        self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0, 0);
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
-        print ""
-        print "Send format command with MSET = 1"
-        print "Check return code, expected returned status code: Success"
+        self.Print ("")
+        self.Print ("Send format command with MSET = 1")
+        self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0, 1);
         ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
         return ret_code
@@ -473,7 +473,7 @@ class SMI_Format(NVME):
     SubCase8KeyWord = "format Progress Indicator (FPI)"
     def SubCase8(self): 
         ret_code=0
-        print "Check if the comtroller support the format Progress Indicator or not(format Progress Indicator (FPI) bit 7 )"
+        self.Print ("Check if the comtroller support the format Progress Indicator or not(format Progress Indicator (FPI) bit 7 )")
         FPI_bit7=self.IdNs.FPI.bit(7)
         if FPI_bit7=="1":
             self.Print( "Support", "p")
@@ -483,9 +483,9 @@ class SMI_Format(NVME):
         
             
         if FPI_bit7=="1":
-            print ""
-            print "Test the percentage of the format command in format Progress Indicator is counting down or not"
-            print "Sending format command.. "    
+            self.Print ("")
+            self.Print ("Test the percentage of the format command in format Progress Indicator is counting down or not")
+            self.Print ("Sending format command.. "    )
             t = threading.Thread(target = self.FormatNSID_01)
             t.start()   
             
@@ -511,7 +511,7 @@ class SMI_Format(NVME):
                 if per==0:
                     break
             t.join()    
-            print "Check the percentage is counting down or not, expected result: Counting down"             
+            self.Print ("Check the percentage is counting down or not, expected result: Counting down"             )
             if per_test_fail==0:
                 self.Print("PASS", "p")
             else:
@@ -524,21 +524,21 @@ class SMI_Format(NVME):
     SubCase9KeyWord = ""
     def SubCase9(self): 
         ret_code=0
-        print "From self.LBAF0 to self.LBAF15, send format command and check if command success while self.LBAFx is valid "
-        print "and check if command fail while self.LBAFX is in valid "
+        self.Print ("From self.LBAF0 to self.LBAF15, send format command and check if command success while self.LBAFx is valid ")
+        self.Print ("and check if command fail while self.LBAFX is in valid ")
         
         for i in range(16):    
-            print ""
+            self.Print ("")
             # is support if  LBADS >= 9
             IsValid = True if self.LBAF[i][self.lbafds.LBADS] >=9 else False
             if IsValid:
-                print "self.LBAF%s is valid"%i
+                self.Print ("self.LBAF%s is valid"%i)
             else:
-                print "self.LBAF%s is not valid"%i  
+                self.Print ("self.LBAF%s is not valid"%i  )
             
-            print "send command for self.LBAF%s"%i
+            self.Print ("send command for self.LBAF%s"%i)
             mStr=self.Format(1, i, 0);    
-            print "Check return code, expected returned status code: %s"%("Success" if IsValid else "Invalid format")
+            self.Print ("Check return code, expected returned status code: %s"%("Success" if IsValid else "Invalid format"))
             if IsValid:
                 ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
             else:
@@ -551,8 +551,8 @@ class SMI_Format(NVME):
     SubCase10KeyWord = "format NVM - Command Specific Status Values"
     def SubCase10(self): 
         ret_code=0
-        print "if enabling protection information when there is no sufficient metadata per LBA, then return fail"
-        print "Check return code, expected returned status code: Invalid format"    
+        self.Print ("if enabling protection information when there is no sufficient metadata per LBA, then return fail")
+        self.Print ("Check return code, expected returned status code: Invalid format"    )
         
         if not self.Type1Supported:
             mStr=self.Format(1, 0, 0, 0, 1);
@@ -566,9 +566,9 @@ class SMI_Format(NVME):
         else:
             self.Print("All Protection Information type is support, quite this test item!", "w")
         
-        print ""
-        print "If the specified format is not available in the current configuration, then return fail"
-        print "Check return code, expected returned status code: Invalid format"
+        self.Print ("")
+        self.Print ("If the specified format is not available in the current configuration, then return fail")
+        self.Print ("Check return code, expected returned status code: Invalid format")
         if self.LBAF15_LBADS < 9:
             mStr=self.Format(1, 15, 0);
             ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
@@ -582,9 +582,9 @@ class SMI_Format(NVME):
     def SubCase11(self): 
         ret_code=0
         DST_Format_ID = [[1, 1], [0xFFFFFFFF, 0xFFFFFFFF],[1, 0xFFFFFFFF], [0xFFFFFFFF, 1]]
-        print "Test if device self-test operation was aborted due to the processing of a format NVM command"    
+        self.Print ("Test if device self-test operation was aborted due to the processing of a format NVM command"    )
         if self.IdCtrl.OACS.bit(4)=="0":
-            print "Controller does not support the DST operation, quit this test!"
+            self.Print ("Controller does not support the DST operation, quit this test!")
         else:
             self.Flow.DST.EventTriggeredMessage="Send format command as DST execution >= 1% "
             self.Flow.DST.ShowProgress=True   
@@ -595,10 +595,10 @@ class SMI_Format(NVME):
                 for mDstType in [0x1, 0x2]:
                     IdDST=DST_Format[0]
                     IdFormat=DST_Format[1]
-                    print ""
-                    print "Setting nsid = %s in the DST command"%hex(IdDST)
-                    print "Setting nsid = %s in the format command"%hex(IdFormat)
-                    print "Short device self-test operation" if mDstType==0x1 else "Extended device self-test operation"
+                    self.Print ("")
+                    self.Print ("Setting nsid = %s in the DST command"%hex(IdDST))
+                    self.Print ("Setting nsid = %s in the format command"%hex(IdFormat))
+                    self.Print ("Short device self-test operation" if mDstType==0x1 else "Extended device self-test operation")
                     # set DST command nsid
                     self.Flow.DST.SetNSID(IdDST)
                     # set Event
@@ -613,8 +613,8 @@ class SMI_Format(NVME):
                     if DSTS!=-1:        
                         # get bit 3:0        
                         DSTSbit3to0 = DSTS & 0b00001111
-                        print "result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0)
-                        print "Check the result of the device self-test operation , expected result:  0x4"
+                        self.Print ("result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0))
+                        self.Print ("Check the result of the device self-test operation , expected result:  0x4")
                         if DSTSbit3to0==4:
                             self.Print("PASS", "p")
                         else:
@@ -628,7 +628,7 @@ class SMI_Format(NVME):
                                 self.Print("the Device Self-test command that invoked the device self-test operation ", "w")
                                  
                     else:
-                        print "Controller does not support the DST operation"
+                        self.Print ("Controller does not support the DST operation")
         return ret_code
 
     SubCase12TimeOut = 600
@@ -641,15 +641,15 @@ class SMI_Format(NVME):
         # check if controller supports the Namespace Management and Namespace Attachment commands or not
         NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
         if NsSupported:
-            print "controller supports the Namespace Management and Namespace Attachment commands"
+            self.Print ("controller supports the Namespace Management and Namespace Attachment commands")
             print  "try to create namespace" 
             # function CreateMultiNs() will create namespace less then 8 NS
             MaxNs = self.CreateMultiNs()
             if MaxNs ==1:
-                print "only namespace 1 has been created, quit this test"
+                self.Print ("only namespace 1 has been created, quit this test")
                 self.NsReady=False
             else:
-                print "namespaces nsid from 1 to %s have been created"%MaxNs
+                self.Print ("namespaces nsid from 1 to %s have been created"%MaxNs)
                 self.StopNs=MaxNs                            
         
         if self.NsReady:
@@ -664,7 +664,7 @@ class SMI_Format(NVME):
                 print  "  self.FNA bit0=1, test NSID=All valid values, All namespaces in the NVM subsystem"
                 ret_code=ret_code if self.Test_AllValidValues(0)==0 else 1
             
-            print ""
+            self.Print ("")
             if self.SecureEraseSupported:      
                 print  " format NVM - Secure Erase Scope"
                 if self.FNAbit_1=="0":
@@ -688,13 +688,13 @@ class SMI_Format(NVME):
     SubCase13KeyWord = "controller shall not return any user data that was previously contained in an affected namespace"
     def SubCase13(self): 
         ret_code=0
-        print "Check data After the format NVM command successfully completes with SES=0x0 (No secure erase operation requested)"
-        print "The controller shall not return any user data that was previously contained in an affected namespace"
-        print "write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab")
+        self.Print ("Check data After the format NVM command successfully completes with SES=0x0 (No secure erase operation requested)")
+        self.Print ("The controller shall not return any user data that was previously contained in an affected namespace")
+        self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
         self.write_SML_data(0xab)
-        print "send format command"
+        self.Print ("send format command")
         mStr=self.Format(1, 0, 0)
-        print "Check if data at block %s, %s and %s is 0x0 or not"%(self.start_SB, self.middle_SB, self.last_SB)
+        self.Print ("Check if data at block %s, %s and %s is 0x0 or not"%(self.start_SB, self.middle_SB, self.last_SB))
         if self.isequal_SML_data(0x0):
             self.Print("PASS", "p")
         else:
@@ -707,15 +707,15 @@ class SMI_Format(NVME):
     SubCase14KeyWord = "User Data Erase"
     def SubCase14(self): 
         ret_code=0
-        print "Check data After the format NVM command successfully completes with SES=0x1 (User Data Erase)"
+        self.Print ("Check data After the format NVM command successfully completes with SES=0x1 (User Data Erase)")
         if not self.SecureEraseSupported:
-            print "Secure Erase is not Supported, quite this test"
+            self.Print ("Secure Erase is not Supported, quite this test")
         else:
-            print "write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab")
+            self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
             self.write_SML_data(0xab)
-            print "send format command with SES=0x1(User Data Erase)"
+            self.Print ("send format command with SES=0x1(User Data Erase)")
             print self.Format(1, 0, 1)
-            print "Check data at block %s, %s and %s, if data is 0x0 or 0xff, then pass the test"%(self.start_SB, self.middle_SB, self.last_SB)
+            self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff, then pass the test"%(self.start_SB, self.middle_SB, self.last_SB))
             if self.isequal_SML_data(0x0):
                 self.Print("PASS", "p")
             elif self.isequal_SML_data(0xff):
@@ -730,17 +730,17 @@ class SMI_Format(NVME):
     SubCase15KeyWord = "Cryptographic Erase"
     def SubCase15(self): 
         ret_code=0
-        print "Check data After the self.Format NVM command successfully completes with SES=0x2 (Cryptographic Erase )"
-        print "This is accomplished by deleting the encryption key."
-        print "The data from the controller after self.Format NVM command is encrypted(garbled)"
+        self.Print ("Check data After the self.Format NVM command successfully completes with SES=0x2 (Cryptographic Erase )")
+        self.Print ("This is accomplished by deleting the encryption key.")
+        self.Print ("The data from the controller after self.Format NVM command is encrypted(garbled)")
         if not self.SecureEraseSupported:
-            print "Secure Erase is not Supported, quite this test"
+            self.Print ("Secure Erase is not Supported, quite this test")
         else:
-            print "write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab")
+            self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
             self.write_SML_data(0xab)
-            print "send format command with SES=0x2(Cryptographic Erase)"
+            self.Print ("send format command with SES=0x2(Cryptographic Erase)")
             print self.Format(1, 0, 2)
-            print "Check data at block %s, %s and %s, if data is 0x0 or 0xff or 0xab, then fail the test"%(self.start_SB, self.middle_SB, self.last_SB)
+            self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff or 0xab, then fail the test"%(self.start_SB, self.middle_SB, self.last_SB))
             if self.isequal_SML_data(0x0):
                 self.Print("FAIL", "f")
                 ret_code = 1
@@ -754,13 +754,13 @@ class SMI_Format(NVME):
                 self.Print("PASS", "p")  
                 
         if self.IsControllerName(self.CryptographicErasePass_0):     
-            print "Controller is %s, so let this test pass"%self.CryptographicErasePass_0
+            self.Print ("Controller is %s, so let this test pass"%self.CryptographicErasePass_0)
             ret_code=0
         if self.IsControllerName(self.CryptographicErasePass_1):     
-            print "Controller is %s, so let this test pass"%self.CryptographicErasePass_1
+            self.Print ("Controller is %s, so let this test pass"%self.CryptographicErasePass_1)
             ret_code=0
         if self.IsControllerName(self.CryptographicErasePass_2):     
-            print "Controller is %s, so let this test pass"%self.CryptographicErasePass_2
+            self.Print ("Controller is %s, so let this test pass"%self.CryptographicErasePass_2)
             ret_code=0                        
             
         return ret_code
@@ -770,29 +770,29 @@ class SMI_Format(NVME):
     SubCase16KeyWord = "SMART / Health Information Log"
     def SubCase16(self): 
         ret_code=0
-        print "Check if SMART / Health Log is retained after the format NVM command successfully completes"
-        print ""
+        self.Print ("Check if SMART / Health Log is retained after the format NVM command successfully completes")
+        self.Print ("")
                 
-        print "Store SMART / Health Log "
+        self.Print ("Store SMART / Health Log ")
         OriginalValue=self.GetHealthLog()
         
-        print ""
-        print "Send format command with SES=000b (No secure erase operation requested)"
+        self.Print ("")
+        self.Print ("Send format command with SES=000b (No secure erase operation requested)")
         mStr=self.Format(1, 0, 0);
-        print "Check return code, expected returned status code: Success"
+        self.Print ("Check return code, expected returned status code: Success")
         CmdSuccess = self.CheckResult(mStr, self.Status_Success)
         
         if not CmdSuccess:
-            print "Becouse format command fail, quit this test item!"
+            self.Print ("Becouse format command fail, quit this test item!")
         else:
-            print ""
-            print "Get current SMART / Health Log "
+            self.Print ("")
+            self.Print ("Get current SMART / Health Log ")
             CurrentValue=self.GetHealthLog()
             
-            print "Check if SMART / Health Log is retained after the format command"
-            print ""        
+            self.Print ("Check if SMART / Health Log is retained after the format command")
+            self.Print (""        )
             ValueRetained=True
-            print "============================================"
+            self.Print ("============================================")
             for i in range(len(OriginalValue)):
                 # if Original Value = Current Value, pass
                 original=OriginalValue[i][1] 
@@ -805,9 +805,9 @@ class SMI_Format(NVME):
                 else:
                     self.Print(mStr, "f")
                     ValueRetained=False
-                print "---------------------"
+                self.Print ("---------------------")
                 
-            print "============================================"
+            self.Print ("============================================")
             if ValueRetained:                
                 self.Print("PASS", "p")
             else:

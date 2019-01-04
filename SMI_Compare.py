@@ -45,7 +45,7 @@ class SMI_Compare(NVME):
     
     
     def testDW10_DW11(self, SLBA, msg0, msg1 , ExpectCommandSuccess):  
-        print ""
+        self.Print ("")
         print msg0
         print msg1   
         
@@ -74,7 +74,7 @@ class SMI_Compare(NVME):
             return False       
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      
-        print ""
+        self.Print ("")
         print msg0
         print msg1   
         cdw12=NLB
@@ -133,10 +133,10 @@ class SMI_Compare(NVME):
     def SubCase1(self):
         ret_code=0
         MC=self.IdNs.MC.int
-        print "Metadata Capabilities (MC): %s"%MC
+        self.Print ("Metadata Capabilities (MC): %s"%MC)
         
         NSZE=self.IdNs.NSZE.int
-        print "NSZE: %s"%NSZE
+        self.Print ("NSZE: %s"%NSZE)
         
         #--------------------------------------------------
         SLBA=0
@@ -163,7 +163,7 @@ class SMI_Compare(NVME):
     def SubCase2(self):
           
         ret_code=0
-        print "set  cdw[31:26] from 0x0 to 0x3F and check if compare command success(expected result: command success) "
+        self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if compare command success(expected result: command success) ")
         
         for i in range(0x40):  
         
@@ -209,7 +209,7 @@ class SMI_Compare(NVME):
     def SubCase4(self):
           
         ret_code=0
-        print "set Command Dword 14 from 0x0 to 0xFF and check if compare command success(expected result: command success) "
+        self.Print ("set Command Dword 14 from 0x0 to 0xFF and check if compare command success(expected result: command success) ")
         
         for i in range(0x100):
             EILBRT= (i<<24) +(i<<16) +(i<<8) + i
@@ -226,7 +226,7 @@ class SMI_Compare(NVME):
     def SubCase5(self):
           
         ret_code=0
-        print "set Command Dword 15 from 0x0 to 0xFF and check if compare command success(expected result: command success) "
+        self.Print ("set Command Dword 15 from 0x0 to 0xFF and check if compare command success(expected result: command success) ")
         
         for i in range(0x100):
             ELBATM= (i<<8) + i
