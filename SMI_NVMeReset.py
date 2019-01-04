@@ -27,17 +27,8 @@ class SMI_NVMeReset(NVME):
     Version = "20181211"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    SubCase1TimeOut = 60
-    SubCase1Desc = "Test The Admin Queue registers (AQA, ASQ, or ACQ)"  
-    
-    SubCase2TimeOut = 60
-    SubCase2Desc = "Test if all supported reset is working"    
-    
-    SubCase3TimeOut = 3600
-    SubCase3Desc = "Test if stops processing any outstanding Admin command"
 
-    SubCase4TimeOut = 7200
-    SubCase4Desc = "Test if stops processing any outstanding IO command"    
+       
 
     
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -91,6 +82,9 @@ class SMI_NVMeReset(NVME):
         
         
     # <sub item scripts> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    SubCase1TimeOut = 60
+    SubCase1Desc = "Test The Admin Queue registers (AQA, ASQ, or ACQ)"  
     def SubCase1(self):  
         print "Test The Admin Queue registers (AQA, ASQ, or ACQ) are not reset as part of a controller reset"
         print "" 
@@ -143,6 +137,8 @@ class SMI_NVMeReset(NVME):
         
         return ret_code
     
+    SubCase2TimeOut = 60
+    SubCase2Desc = "Test if all supported reset is working"    
     def SubCase2(self):
         print "Check if all supported reset is working"  
         ret_code=0    
@@ -152,7 +148,7 @@ class SMI_NVMeReset(NVME):
             reset_type_name=mItem[0]
             reset_func=mItem[1] 
             print "issue " + reset_type_name
-            print "Check if controll is alive after reset"
+            print "Check if controller is working after reset"
             reset_func()
             if self.dev_alive:
                 self.Print("PASS", "p")
@@ -163,7 +159,8 @@ class SMI_NVMeReset(NVME):
                     
         return ret_code
 
-        
+    SubCase3TimeOut = 3600
+    SubCase3Desc = "Test if stop processing any outstanding Admin command"        
     def SubCase3(self):
         print "Test if reset occur, controller stops processing any outstanding Admin command"
         print "Test if device self-test operation(admin command) was aborted due to the reset commands"  
@@ -203,6 +200,8 @@ class SMI_NVMeReset(NVME):
                              
             return ret_code
 
+    SubCase4TimeOut = 7200
+    SubCase4Desc = "Test if stop processing any outstanding IO command"    
     def SubCase4(self):
         print "Test if reset occur, controller stops processing any outstanding IO command"
         print "Test if write command was aborted due to the reset commands"  

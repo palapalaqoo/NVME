@@ -37,7 +37,6 @@ class NVME(object, NVMECom):
         # self.dev_ns = 1
         self.dev_ns=self.dev[-1:]
         
-
         
         # final return code
         self.rtCode=0
@@ -187,12 +186,22 @@ class NVME(object, NVMECom):
         self.PrintInfo()
         # print document only
         if self.mScriptDoc:
-            return 0     
+            return 0 
+           
         
         # if override Pretest(), then run it, or PreTestIsPass= true
         if self.IsMethodOverride( "PreTest"):
+            # enable RecordCmdToLogFile to recode command
+            NVMECom.RecordCmdToLogFile=True             
+            self.Logger("<PreTest> ----------------------------", mfile="cmd") 
+                
             PreTest = self.GetAbstractFunctionOrVariable(0, "pretest")
             PreTestIsPass = PreTest()
+            
+            # disable RecordCmdToLogFile to recode command
+            NVMECom.RecordCmdToLogFile=True             
+            self.Logger("</PreTest> ----------------------------", mfile="cmd")       
+            self.Logger("", mfile="cmd")            
         else:
             PreTestIsPass = True
         
@@ -214,15 +223,31 @@ class NVME(object, NVMECom):
                     print "-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout)
                     print "-- %s"%Description
                     print "-- Keyword: %s"%SpecKeyWord
-                    
+
+                    # enable RecordCmdToLogFile to recode command
+                    NVMECom.RecordCmdToLogFile=True             
+                    self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")   
+                                      
+                    # timeout execption
                     try:
                         # run script, 3th,4th line equal 1,2 line statements
                         #    @deadline(Timeout)
                         #    Code=SubCaseFunc()
                         SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
-                        Code = SubCaseFuncWithTimeOut()                        
+                        Code=None
                         
-                        
+                        # sub case execption
+                        try:
+                            Code = SubCaseFuncWithTimeOut()                        
+                        except Exception, error:
+                            self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%NVMECom.LogNameCmd, "f" )
+                            self.Print( "Exception message as below", "f" )
+                            print ""
+                            self.Print( "=====================================", "f" )
+                            self.Print(str(error), "f" )
+                            self.Print( "=====================================", "f" )
+                            Code = 1
+
                         #  prevent coding no return code, eg. 0/1/255
                         if Code ==None:
                             Code = 0
@@ -232,7 +257,12 @@ class NVME(object, NVMECom):
                         self.Print( "Timeout!: %ss, quit Case %s test!"%(e, SubCaseNum), "f" )
                         self.Print( "Fail", "f" )
                         Code = 1
-                        pass     
+                    # end of timeout execption    
+                         
+                    # disable RecordCmdToLogFile to recode command
+                    NVMECom.RecordCmdToLogFile=True             
+                    self.Logger("</Case %s> ----------------------------"%SubCaseNum, mfile="cmd")
+                    self.Logger("", mfile="cmd")                             
                 else:
                     # if user didn't assign subcase, return skip                              
                     Code = 255

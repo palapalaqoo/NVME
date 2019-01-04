@@ -35,6 +35,10 @@ class NVMECom():
     device_port="null"
     mTestModeOn=False
     SubItemNumValue=0
+    RecordCmdToLogFile=False
+    LogName="log"
+    LogNameColor="log"
+    LogNameCmd="log"
     
     def SubItemNum(self):
         self.SubItemNumValue+=1
@@ -49,13 +53,18 @@ class NVMECom():
         if not os.path.exists("Log"):
             os.makedirs("Log")
         #create log
-        self.LogName =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
-        f = open(self.LogName, "w")
+        NVMECom.LogName =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        f = open(NVMECom.LogName, "w")
         f.close()
         #create color log
-        self.LogNameColor =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".logcolor"
-        f = open(self.LogNameColor, "w")
-        f.close()        
+        NVMECom.LogNameColor =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".logcolor"
+        f = open(NVMECom.LogNameColor, "w")
+        f.close()    
+        #create command log for save all host command that issue to the controller 
+        NVMECom.LogNameCmd =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".logcmd"
+        f = open(NVMECom.LogNameCmd, "w")
+        f.close()          
+            
 
     def set_NVMECom_par(self, son):
         # set NVMECom parameters from subclass
@@ -72,6 +81,9 @@ class NVMECom():
         return int(time.time())       
 
     def shell_cmd(self, cmd, sleep_time=0):
+        #print to command log
+        if self.RecordCmdToLogFile:
+            self.Logger(cmd, mfile="cmd")        
         fd = os.popen(cmd)
         msg = fd.read().strip()
         fd.close()
@@ -167,7 +179,7 @@ class NVMECom():
         #check if string is legal or not
         if strin=="" or len(strin)%2!=0:
             mstr="00"
-            self.Print("Error: input string for function str2int() is not legal where string = %s"%strin, "f")
+            self.Print("/lib_vct/NVMECom Error: input string for function str2int() is not legal where string = %s"%strin, "f")
         else:
             mstr=strin
         mstr0="".join(map(str.__add__, mstr[-2::-2] ,mstr[-1::-2]))
@@ -191,11 +203,13 @@ class NVMECom():
         
     def WriteLogFile(self, mStr, mfile="default"):
     # append new lines
-    # mfile: "default"= default log file, "color"= color log 
+    # mfile: "default"= default log file, "color"= color log, "cmd"= command log
         if mfile=="color":
-            f = open(self.LogNameColor, "a")
+            f = open(NVMECom.LogNameColor, "a")
+        elif mfile=="cmd":
+            f = open(NVMECom.LogNameCmd, "a")            
         else:
-            f = open(self.LogName, "a")       
+            f = open(NVMECom.LogName, "a")       
         
         f.write(mStr)
         f.write("\n")        
@@ -203,11 +217,13 @@ class NVMECom():
         
     def ReadLogFile(self, mfile="default"):
     # append new lines
-    # mfile: "default"= default log file, "color"= color log 
+    # mfile: "default"= default log file, "color"= color log, "cmd"= command log
         if mfile=="color":
-            f = open(self.LogNameColor, "r")
+            f = open(NVMECom.LogNameColor, "r")
+        elif mfile=="cmd":
+            f = open(NVMECom.LogNameCmd, "a")          
         else:
-            f = open(self.LogName, "r")       
+            f = open(NVMECom.LogName, "r")       
         
         mStr = f.read()    
         f.close()   

@@ -20,7 +20,7 @@ class SanitizeStatus_(object, NVMECom):
     @property
     def SCDW10(self):
         # ret str 4 byte
-        return self.get_log(0x81, 20)[8:16]
+        return self.str2int(self.get_log(0x81, 20)[8:16])
     
     @property
     def ETFO(self):

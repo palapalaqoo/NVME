@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+
+
 from lib_vct import NVME
 from lib_vct import NVMECom
 import sys
@@ -19,21 +21,23 @@ import struct
 def GetPS():
     return int(mNVME.get_feature(2)[-1:])
 
-print "Ver: 20181022_0930"
+
 mNVME = NVME.NVME(sys.argv )
+'''
+def my_decorator(func):
+    def wrapped_func(*args,**kwargs):
+        return func("I've been decorated!",*args,**kwargs)
+    return wrapped_func
+'''
 
-aa=mNVME.IsControllerName("2262")
-print "y" if aa else "n"
-aa=mNVME.IsControllerName("2262")
-print "y" if aa else "n"
 
-aa=mNVME.IsControllerName("2211")
-print "y" if aa else "n"
-aa=mNVME.IsControllerName("2262")
-print "y" if aa else "n"
+print ""
 
-aa=mNVME.IsControllerName("2262")
-print "y" if aa else "n"
+
+
+
+
+
 '''
 
 mNVME.LBARangeDataStructure.Type=0x2

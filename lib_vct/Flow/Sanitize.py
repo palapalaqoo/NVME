@@ -27,6 +27,7 @@ class Sanitize_():
         self.ShowProgress=True
         self.TimeOut=60
         self.Mode=FlowSanitizeMode.Normal
+        self._Threshold=1000
          
     def SetEventTrigger(self, EventTrigger=None, *args):    
         self._EventTrigger = EventTrigger
@@ -59,7 +60,10 @@ class Sanitize_():
         # Sanitize command 
         CMD="nvme sanitize %s %s 2>&1"%(self._mNVME.dev_port, self._Options)                
         mStr=self._mNVME.shell_cmd(CMD)
-        if not re.search("SUCCESS", mStr):
+        CMD="echo $?"              
+        mStr=self._mNVME.shell_cmd(CMD) 
+        sleep(0.1)       
+        if not re.search("0", mStr):
             self._mNVME.Print("lib_vct/Flow/Sanitize: Sanitize command error!, command: %s"%CMD, "f")
             self._mNVME.Print("lib_vct/Flow/Sanitize: Command return status: %s"%mStr, "f")
             return False   
@@ -67,7 +71,11 @@ class Sanitize_():
             return True
                 
     def Start(self): 
-    # start Sanitize and return interger -1 if Exception occured
+    # start Sanitize and return interger 
+    # -1 sanitize command error
+    # 1 if Exception occured 
+    # 2 timeout
+    # 2 SPROG count error
     # or return 0
             
         #print "Starting "  
@@ -84,16 +92,25 @@ class Sanitize_():
                 self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Recent Sanitize can't finish in 10 s", "f")
                 return -1            
             # Sanitize command
-            CMD="nvme sanitize %s %s 2>&1"%(self._mNVME.dev_port, self._Options)
-            mStr=self._mNVME.shell_cmd(CMD)
-            if not re.search("SUCCESS", mStr):
-                self._mNVME.Print("lib_vct/Flow/Sanitize: Sanitize command error!, command: %s"%CMD, "f")
-                self._mNVME.Print("lib_vct/Flow/Sanitize: Command return status: %s"%mStr, "f")
-                return -1
+            if not self._IssueCommand():
+                return -1   
                 
             # print Progress with 0% 
             if self.ShowProgress:
                 self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
+            
+            # check if SPROG  start to count in 1 s, or quit all
+            WaitCnt=0    
+            while True:                
+                per = self._mNVME.GetLog.SanitizeStatus.SPROG
+                if per != 65535:
+                    break                
+                WaitCnt = WaitCnt +1
+                if WaitCnt ==10:
+                    return -1
+                sleep(0.1)                
+                
+                
             while True:            
                 sleep (0.1)
                 # if per value changed, then print per
@@ -104,7 +121,11 @@ class Sanitize_():
                         self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:', length = 50)
                 else:
                     sleep (0.1)
-                per_old=per
+                
+                # check per
+                if per < per_old:
+                    return 3
+                
                 # if percent > 2% and  _EventTrigger!=None, then trigger event
                 if per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
                     # excute event  
@@ -129,7 +150,7 @@ class Sanitize_():
                 if TimeElapsed > self.TimeOut:
                     print ""
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
-                    error=1                
+                    error=2                
                     break
     
         # == end for if self.Mode==FlowSanitizeMode.Normal ===================================================
@@ -193,10 +214,7 @@ class Sanitize_():
                 if TimeElapsed > self.TimeOut:
                     print ""
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
-                    error=1                
+                    error=2               
                     break
         # == end for if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress ========================================    
-        if error==0:           
-            return 0
-        else:
-            return -1    
+        return error

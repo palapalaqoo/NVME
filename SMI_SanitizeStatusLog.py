@@ -34,7 +34,7 @@ def SanitizeCompleted():
     return True if (mNVME.GetLog.SanitizeStatus.SSTAT & 0x1 >0) else False
 
 # Block Erase sanitize operation Support 
-BlockEraseSupport = True if (mNVME.IdCtrl.SANICAP.bit(1) > 0) else False
+BlockEraseSupport = True if (mNVME.IdCtrl.SANICAP.bit(1) =="1") else False
 if not BlockEraseSupport:
     print "Block Erase sanitize operation not Support! Exit "
     ret_code =255

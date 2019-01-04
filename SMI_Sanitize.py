@@ -29,18 +29,8 @@ class SMI_Sanitize(NVME):
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    SubCase1TimeOut = 60
-    SubCase1Desc = "Test Command Completion Queue"    
+  
     
-    SubCase2TimeOut = 180
-    SubCase2Desc = "Test if only process the Admin commands listed in Figure 287"
-
-    SubCase3TimeOut = 180
-    SubCase3Desc = "Test All I/O Commands shall be aborted"    
-
-    SubCase4TimeOut = 60
-    SubCase4Desc = "Test if controller return zeros in the LBA field for get Error log"    
-
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -131,40 +121,46 @@ class SMI_Sanitize(NVME):
         self.Flow.Sanitize.SetEventTriggerThreshold(100)
         self.Flow.Sanitize.Start()
         
+    def WaitSanitizeOperationFinish(self, timeout=120):
+    # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout ) 
+        per = self.GetLog.SanitizeStatus.SPROG
+        finish=True
+        if per != 65535:
+            # self.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 120s)", "w")
+            WaitCnt=0
+            while per != 65535:
+                #print ("Sanitize Progress: %s"%per)
+                per = self.GetLog.SanitizeStatus.SPROG
+                WaitCnt = WaitCnt +1
+                if WaitCnt ==timeout:
+                    #self.Print("Time out!", "f")  
+                    finish=False
+                    break
+                sleep(1)
+            #print "Recent sanitize operation was completed"
+   
+        return finish            
+        
     # override PreTest()
     def PreTest(self):
-        ret_code=0
         print "Check Sanitize Capabilities (SANICAP)"
         self.Print("Crypto Erase sanitize operation is Supported", "p")  if self.CryptoEraseSupport else self.Print("Crypto Erase sanitize operation is not Supported", "f") 
         self.Print("Block Erase sanitize operation is Supported", "p")  if self.BlockEraseSupport else self.Print("Block Erase sanitize operation is not Supported", "f") 
         self.Print("Overwrite sanitize operation is Supported", "p")  if self.OverwriteSupport else self.Print("Overwrite sanitize operation is not Supported", "f") 
         
         if self.SANACT==0:
-            self.Print("Any sanitize operation is not supported, quit the test!","w")
+            self.Print("All sanitize operation is not supported, quit the test!","w")
             print ""    
-            ret_code =255
-            return ret_code
+            return False
         
         print ""
-        print "Check if there is any sanitize operation in progress or not"
-        per = self.GetLog.SanitizeStatus.SPROG
-        if per != 65535:
-            self.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 120s)", "w")
-            WaitCnt=0
-            while per != 65535:
-                print ("Sanitize Progress: %s"%per)
-                per = self.GetLog.SanitizeStatus.SPROG
-                WaitCnt = WaitCnt +1
-                if WaitCnt ==120:
-                    print ""
-                    self.Print("Time out!, exit all test ", "f")  
-                    ret_code =1
-                    return ret_code
-                sleep(1)
-            print "Recent sanitize operation was completed"
+        print "Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)"
+        if self.WaitSanitizeOperationFinish(120):
+            return True
         else:
-            print "All sanitize operation was completed"      
-        return True if ret_code==0 else False
+            self.Print("Time out!, exit all test ", "f")  
+            return False
+        
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     def __init__(self, argv):
@@ -186,6 +182,8 @@ class SMI_Sanitize(NVME):
             self.SANACT=0
         
     # <sub item scripts>
+    SubCase1TimeOut = 60
+    SubCase1Desc = "Test Command Completion Queue"      
     def SubCase1(self):
         ret_code=0
         print "When the command is complete, the controller shall post a completion queue entry to the "
@@ -206,6 +204,8 @@ class SMI_Sanitize(NVME):
             ret_code=1 
         return ret_code
     
+    SubCase2TimeOut = 180
+    SubCase2Desc = "Test if only process the Admin commands listed in Figure 287"    
     def SubCase2(self):
         print "Test While a sanitize operation is in progress"
         print "Shall only process the Admin commands listed in Figure 287"       
@@ -320,6 +320,8 @@ class SMI_Sanitize(NVME):
 
         return ret_code
     
+    SubCase3TimeOut = 180
+    SubCase3Desc = "Test All I/O Commands shall be aborted"    
     def SubCase3(self):
         print "Test While a sanitize operation is in progress"
         print "All I/O Commands shall be aborted with a status of Sanitize In Progress"        
@@ -360,9 +362,9 @@ class SMI_Sanitize(NVME):
         self.TestCommandAllowed("io", 0x15, "Deny")
 
         return ret_code
-        
-    # </sub item scripts>
-    
+            
+    SubCase4TimeOut = 60
+    SubCase4Desc = "Test if controller return zeros in the LBA field for get Error log command"    
     def SubCase4(self):    
         print "Test While a sanitize operation is in progress and check if controller return zeros in the LBA field for get Error Information log command"
         ret_code=0   
@@ -371,7 +373,7 @@ class SMI_Sanitize(NVME):
         print "Set uncorrectable block, start block=0, block count=127"
         self.write_unc(SLB=0, BlockCnt=127)
         
-        print "read uncorrectable block where is 5th block"
+        print "Generate error log by reading uncorrectable block where is 5th block"
         self.shell_cmd("  buf=$(nvme read %s -s 5 -z 1024 -c 1 2>&1 > /dev/null) "%(self.dev)) 
         
         print "Check if error log was created with 0x5 in LBA field or not"
@@ -398,8 +400,100 @@ class SMI_Sanitize(NVME):
                 self.Print("Fail", "f")
                 ret_code=1      
         return ret_code
+
+    SubCase5TimeOut = 60
+    SubCase5Desc = "Test hot reset while sanitize operation is in progress"    
+    def SubCase5(self):    
+        print "Test Issue hot reset while a sanitize operation is in progress, and check if controller resume the sanitize operation after reset or not"
+        ret_code=0   
+        
+        print ""
+        print "Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)"
+        if not self.WaitSanitizeOperationFinish(120):
+            self.Print("Time out!, exit all test ", "f")  
+            ret_code=1
+        else:   
+            print ""
+            print "Start to test hot reset while Sanitize Progress(SPROG)>=0x1FFF, Time out=120s"     
+            self.Flow.Sanitize.ShowProgress=True   
+            self.Flow.Sanitize.SetEventTrigger(self.nvme_reset)
+            self.Flow.Sanitize.SetOptions("-a %s"%self.SANACT)
+            # 0< Threshold <65535
+            self.Flow.Sanitize.SetEventTriggerThreshold(0x1FFF)      
+            self.Flow.Sanitize.Mode=FlowSanitizeMode.Normal
+            self.Flow.Sanitize.TimeOut=120
+            FlowStatus = self.Flow.Sanitize.Start()       
+            
+            if  FlowStatus==0:
+                self.Print("Pass", "p")
+            elif FlowStatus==2:
+                self.Print("Fail", "f")
+                print "Do POR(power off reset) to reset controller"
+                self.por_reset()
+                ret_code=1
+            else:
+                self.Print("Pass", "p")
+
+        return ret_code    
     
+    SubCase6TimeOut = 60
+    SubCase6Desc = "Test Get Log Page – Sanitize Status Log"    
+    def SubCase6(self):    
+
+        ret_code=0           
+        print ""
+        print "Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)"
+        if not self.WaitSanitizeOperationFinish(120):
+            self.Print("Time out!, exit all test ", "f")  
+            ret_code=1
+        else:   
+            print ""
+            print "Issue sanitize command"     
+            self.Flow.Sanitize.ShowProgress=True   
+            self.Flow.Sanitize.SetEventTrigger(None)
+            self.Flow.Sanitize.SetOptions("-a %s"%self.SANACT)
+            # 0< Threshold <65535   
+            self.Flow.Sanitize.Mode=FlowSanitizeMode.Normal
+            self.Flow.Sanitize.TimeOut=120
+            FlowStatus = self.Flow.Sanitize.Start()       
+            
+            print ""
+            print "Check if SPROG was counting from 0 to 0xFFFF"                
+            if  FlowStatus!=2:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")
+                ret_code=1
+
+            print ""
+            print "Check if SSTAT is 0x1(The most recent sanitize operation completed successfully)  " 
+            if self.GetLog.SanitizeStatus.SSTAT & 0x1 > 0:  
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")
+                ret_code=1 
+
+            print ""
+            print "Check if GlobalDataErased = 1 after sanitize"             
+            if self.GetLog.SanitizeStatus.SSTAT & 0x0100 >0:  
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")
+                ret_code=1
+
+            print ""
+            print "Check if SCDW10 is euqal to the Command Dword 10 field of the Sanitize command" 
+            print "Expect value: %s"%self.SANACT            
+            if self.GetLog.SanitizeStatus.SCDW10 ==self.SANACT:  
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")
+                ret_code=1
+                
+        return ret_code    
+        
     
+    # </sub item scripts>    
     
 if __name__ == "__main__":
     DUT = SMI_Sanitize(sys.argv )     
