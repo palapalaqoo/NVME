@@ -122,7 +122,12 @@ class SMI_FeatureTimeStamp(NVME):
         self.nvme_reset()
         self.Print ("")
         self.Print ("Synch = %s"%self.Synch)
-        if self.Synch==1:    
+        if self.Synch==1:  
+            KeepWakeUp=True
+        else:
+            KeepWakeUp=False
+            
+        if KeepWakeUp:    
             self.Print ("Becouse Synch=1, In case of the controller may have stopped counting during vendor specific")
             self.Print ("Create a thread of compare operation to avoid controller enter non-operational power states")
             DWUATT=DevWakeUpAllTheTime(self)
@@ -153,7 +158,7 @@ class SMI_FeatureTimeStamp(NVME):
         
         
         
-        if self.Synch==1: 
+        if KeepWakeUp: 
             self.Print ("")
             self.Print ("Delete thread of compare operation")
             DWUATT.Stop()
@@ -205,7 +210,12 @@ class SMI_FeatureTimeStamp(NVME):
         ret_code=0
         self.Print ("If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 ")
         
-        if self.Synch==1:    
+        if self.Synch==1:  
+            KeepWakeUp=True
+        else:
+            KeepWakeUp=False
+                    
+        if KeepWakeUp:    
             self.Print ("")
             self.Print ("Becouse Synch=1, In case of the controller may have stopped counting during vendor specific")
             self.Print ("Create a thread of compare operation to avoid controller enter non-operational power states")
@@ -233,7 +243,7 @@ class SMI_FeatureTimeStamp(NVME):
             self.Print("Fail", "f")
             ret_code=1  
         
-        if self.Synch==1: 
+        if KeepWakeUp: 
             self.Print ("")
             self.Print ("Delete thread of compare operation")
             DWUATT.Stop()        

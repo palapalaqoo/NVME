@@ -20,6 +20,7 @@ from lib_vct.NVMECom import TimedOutExc
 from lib_vct.NVMECom import deadline
 import re
 import time
+from shutil import copyfile
 
 def foo1():
     pass
@@ -31,8 +32,10 @@ class NVME(object, NVMECom):
     
     def __init__(self, argv):
         
+        # init sub case
+        self.CreateAbstractFuncAndVariablesForSonClassToOverride()
         # self.dev = /dev/nvme0n1
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv()
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(self.CreateSubCaseListForParser())
         # self.dev_port = /dev/nvme0
         self.dev_port=self.dev[0:self.dev.find("nvme")+5]
         # self.dev_ns = 1
@@ -41,6 +44,9 @@ class NVME(object, NVMECom):
         
         # final return code
         self.rtCode=0
+        # Start Local Time
+        self.StartLocalTime=time.time()
+        self.SubCasePoint=0
         
               
         # the start 1G start block, middle and last, 
@@ -122,8 +128,7 @@ class NVME(object, NVMECom):
         NVME.Version="Null"
                  
     def init_parameters(self):        
-        
-        self.CreateAbstractFuncAndVariablesForSonClassToOverride()        
+                
         self.CR = ControllerRegister.CR_()        
         self.IdNs = IdNs.IdNs_()
         self.GetLog = GetLog.GetLog_(self)
@@ -131,7 +136,7 @@ class NVME(object, NVMECom):
         
         self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev_port))         
         self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port))
-
+        
         # get valume of ssd
         ncap=self.IdNs.NCAP.int
         # the start 1G start block
@@ -146,12 +151,27 @@ class NVME(object, NVMECom):
         
         # get System Bus (PCI Express) Registers, int format
         self.PMCAP, self.MSICAP, self.PXCAP, self.MSIXCAP, self.AERCAP=self.GetPCIERegBase()
+        self.PCIHeader=0
         # Initiate Function Level Reset value        
         self.IFLRV= self.read_pcie(self.PXCAP, 0x9) + (1<<7)
         # Initial Commands Supported and Effects Log
         self._StrCSAEL=self.get_CSAEL() 
+        
+        # Controller registers are located in the MLBAR/MUBAR registers (PCI BAR0 and BAR1) that shall be mapped to a memory space that supports in-order access and variable access widths.
+        self.MemoryRegisterBaseAddress=self.GetMRBA()        
 
-
+    def GetMRBA(self):
+        # Memory Register Base Address
+        MRBA=0x0
+        # MLBAR start from 0x10
+        for i in range(4):
+            MRBA=MRBA+(self.read_pcie(self.PCIHeader, 0x10+i)<<(8*i))
+        # mask lower 13bits
+        MRBA = MRBA & 0xFFFFC000
+        # MUBAR start from 0x14
+        for i in range(4):
+            MRBA=MRBA+(self.read_pcie(self.PCIHeader, 0x14+i)<<(8*i))     
+        return MRBA   
 
     def IsMethodOverride (self, mtehodName):
     # check if mtehod is override by sun class
@@ -176,7 +196,21 @@ class NVME(object, NVMECom):
         elif Type=="timeout":
             return  getattr(self, "SubCase%sTimeOut"%Num)        
                 
-       
+    def CreateSubCaseListForParser(self):
+        mStr="Case List:\n"
+
+        for SubCaseNum in range(1, self.SubCaseMaxNum+1):
+            if self.IsMethodOverride("SubCase%s"%SubCaseNum):    
+                # get subcase content
+                SubCaseFunc = self.GetAbstractFunctionOrVariable(SubCaseNum, "subcase")
+                Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
+                SpecKeyWord=self.GetAbstractFunctionOrVariable(SubCaseNum, "keyword") 
+                Timeout=self.GetAbstractFunctionOrVariable(SubCaseNum, "timeout")  
+                mStr = mStr + "  Case %s : %s "%(SubCaseNum, Description) +"\n"
+
+        return mStr
+                
+                          
     def RunScript(self):
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
@@ -219,6 +253,8 @@ class NVME(object, NVMECom):
                 Timeout=600 if Timeout=="" else Timeout
                 # if find subitem and PreTestIsPass=true, e.g. user assign it to run, then run it with time out=  timeOut, else return skip
                 if SubCaseNum in self.UserSubItems and PreTestIsPass:
+                    # set SubCasePoint for consol prefix
+                    self.SubCasePoint=SubCaseNum
                     # print sub case titles
                     self.Print ("")
                     self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout))
@@ -275,6 +311,9 @@ class NVME(object, NVMECom):
         # print ColorBriefReport
         self.PrintColorBriefReport()
         
+        # copy log to ./Case_Summary.log
+        copyfile(self.LogName, "Case_Summary.log")
+        
     def WriteSubCaseResultToLog(self, Code, SubCaseNum, Description): 
         # get return code and print to log file
         if Code==0:
@@ -291,7 +330,8 @@ class NVME(object, NVMECom):
             # if rtCode = 0, then set rtCode = 255
             self.rtCode = 255 if self.rtCode==0 else self.rtCode
         else:
-            rtMsg="Unknow"                    
+            rtMsg="Unknow"     
+            color="No"               
         
         mStr = "CASE %s : %s : %s"%(SubCaseNum, Description, rtMsg)
         #print to default log
@@ -301,12 +341,12 @@ class NVME(object, NVMECom):
         
     def PrintColorBriefReport(self):
         self.Print ("")
-        self.Print ("== Brief report ================================")
+        self.Print ("== Brief report ================================", "p")
         print self.ReadLogFile(mfile="color")
-        self.Print ("---------------------------------------------------------------------")
+        self.Print ("----------------------------------------------------------", "p")
         self.Print ("Overall return code: %s" %self.rtCode)
         self.Print ("Finish..")
-        self.Print ("=========================================")
+        self.Print ("================================================",  "p")
         
     def Finish(self):
         sys.exit(self.rtCode)  
@@ -874,13 +914,14 @@ class DevWakeUpAllTheTime():
         self._NVME = nvme
         self._Start = 0
         
-    def _Compare(self):
+    def _Read(self):
         while self._Start == 1:
-            self._NVME.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 51200 -c 99 2>&1 > /dev/null) "%(self._NVME.dev)) 
-        
+            CMD="nvme read %s -s 0 -z 256000 -c 499  2>&1 >/dev/null "%self._NVME.dev         
+            self._NVME.shell_cmd(CMD)            
+                    
     def Start(self):
         self._Start = 1
-        self._Thread = threading.Thread(target = self._Compare)  
+        self._Thread = threading.Thread(target = self._Read)  
         self._Thread.start() 
             
     def Stop(self):    

@@ -264,11 +264,11 @@ class SMI_Format(NVME):
         self.Print ("Cryptographic erase is supported" if self.SecureEraseSupported else "Cryptographic erase is not supported" )
         self.Print ("-----------------------------------------------------------------------------------"       )
         self.Print ("")
-        return 0
+        return True
                                         
     # <sub item scripts>
     SubCase1TimeOut = 600
-    SubCase1Desc = "Check if self.NLBAF <=15 or not"   
+    SubCase1Desc = "Check if NLBAF <=15 or not"   
     SubCase1KeyWord = "The maximum number of LBA formats that may be indicated as supported is 16"
     def SubCase1(self):
         ret_code=0
@@ -280,7 +280,7 @@ class SMI_Format(NVME):
         return ret_code
     
     SubCase2TimeOut = 600
-    SubCase2Desc = "Check self.LBAF0"
+    SubCase2Desc = "Check LBAF0"
     SubCase2KeyWord = "LBA formats shall be allocated in order (starting with 0) and packed sequentially"
     def SubCase2(self): 
         ret_code=0
@@ -473,7 +473,7 @@ class SMI_Format(NVME):
     SubCase8KeyWord = "format Progress Indicator (FPI)"
     def SubCase8(self): 
         ret_code=0
-        self.Print ("Check if the comtroller support the format Progress Indicator or not(format Progress Indicator (FPI) bit 7 )")
+        self.Print ("Check if the controller support the format Progress Indicator or not(format Progress Indicator (FPI) bit 7 )")
         FPI_bit7=self.IdNs.FPI.bit(7)
         if FPI_bit7=="1":
             self.Print( "Support", "p")
@@ -520,7 +520,7 @@ class SMI_Format(NVME):
         return ret_code
 
     SubCase9TimeOut = 600
-    SubCase9Desc = "Test format command for all self.LBAF"
+    SubCase9Desc = "Test format command for all LBAF"
     SubCase9KeyWord = ""
     def SubCase9(self): 
         ret_code=0
@@ -586,12 +586,12 @@ class SMI_Format(NVME):
         if self.IdCtrl.OACS.bit(4)=="0":
             self.Print ("Controller does not support the DST operation, quit this test!")
         else:
-            self.Flow.DST.EventTriggeredMessage="Send format command as DST execution >= 1% "
+            self.Flow.DST.EventTriggeredMessage="Send format command as DST percentage  >= 1% "
             self.Flow.DST.ShowProgress=True   
                 
             for DST_Format in DST_Format_ID:      
                 # mDstType = 1, Short device self-test operation
-                # mDstType = 2, 
+                # mDstType = 2, extended device self-test operation
                 for mDstType in [0x1, 0x2]:
                     IdDST=DST_Format[0]
                     IdFormat=DST_Format[1]

@@ -482,7 +482,7 @@ class SMI_Sanitize(NVME):
                 ret_code=1
 
             self.Print ("")
-            self.Print ("Check if SCDW10 is euqal to the Command Dword 10 field of the Sanitize command" )
+            self.Print ("Check if SCDW10 is equal to the Command Dword 10 field of the Sanitize command" )
             self.Print ("Expect value: %s"%self.SANACT            )
             if self.GetLog.SanitizeStatus.SCDW10 ==self.SANACT:  
                 self.Print("Pass", "p")

@@ -70,8 +70,8 @@ class SMI_Read(NVME):
     
     def testDW10_DW11(self, SLBA, msg0, msg1 , ExpectCommandSuccess):  
         self.Print ("")
-        print msg0
-        print msg1   
+        self.Print( msg0 )
+        self.Print( msg1 )   
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
         mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l 16 -r --cdw10=%s --cdw11=%s 2>&1"%(self.dev, cdw10, cdw11))
@@ -98,8 +98,8 @@ class SMI_Read(NVME):
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      
         self.Print ("")
-        print msg0
-        print msg1   
+        self.Print( msg0 )
+        self.Print( msg1 )   
     
         mStr=self.shell_cmd("nvme read %s -s 0 -z 512 -c %s 2>&1"%(self.dev, NLB))
         retCommandSueess=bool(re.search("read: Success", mStr))

@@ -33,7 +33,7 @@ class SMI_TelemetryExample(NVME):
     SubCase1Desc = "Test host-initiated data collection"    
     
     SubCase2TimeOut = 180
-    SubCase2Desc = "Test Attribute - Deallocate (AD), single name spaces"
+    SubCase2Desc = "Test Async event with Telemetry Controller-Initiated Log"
 
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -150,7 +150,7 @@ class SMI_TelemetryExample(NVME):
     def SubCase1(self):
         ret_code=0
         self.Print ("The host proceeds with a host-initiated data collection ")
-        self.Print ("by submitting the Get Log Page command for the Telemetry Host-Initiated log page with the Create Telemetry Host-Initiated Data bitset to '1'.")
+        self.Print ("by submitting the Get Log Page command for the Telemetry Host-Initiated log page with the Create Telemetry Host-Initiated Data bit set to '1'.")
         self.Print ("Check if get log page command success")
         
         LOG07=self.get_log_passthru(7, 512, 0, 1)
@@ -265,6 +265,10 @@ class SMI_TelemetryExample(NVME):
             else:
                 self.Print("Fail", "f")
                 ret_code=1    
+
+            self.Print ("")
+            self.Print ("Get Reason Identifier ")
+            self.Print ("Reason Identifier: %s"%self.getReasonIdentifier(0x8)            )
                 
             self.Print (""    )
             self.Print ("Check if Telemetry Controller-Initiated Data Available in log 0x8 = 0 after get log command with RAE=0")
@@ -276,7 +280,7 @@ class SMI_TelemetryExample(NVME):
                 ret_code=1          
             
             self.Print (""    )
-            self.Print ("Check if Telemetry Controller-Initiated Data Generation Number changed")
+            self.Print ("Check if Telemetry Controller-Initiated Data Generation Number was changed")
             self.Print ("before: %s"%LOG08_383_old)
             self.Print ("after   : %s"%LOG08[383])
             if not LOG08_383_old==LOG08[383]:
@@ -285,9 +289,7 @@ class SMI_TelemetryExample(NVME):
                 self.Print("Fail", "f")      
                 ret_code=1  
                  
-            self.Print ("")
-            self.Print ("Get Reason Identifier ")
-            self.Print ("Reason Identifier: %s"%self.getReasonIdentifier(0x8)            )
+
 
 
 

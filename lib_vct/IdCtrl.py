@@ -33,7 +33,7 @@ class IdCtrl_(object, NVMECom):
     NPSS=RegDescriptor("id-ctrl", "npss", nsSpec=False)
     AVSCC=RegDescriptor("id-ctrl", "avscc", nsSpec=False)
     APSTA=RegDescriptor("id-ctrl", "apsta", nsSpec=False)
-    WCTEMP=RegDescriptor("id-ctrl", "wctemp", nsSpec=False)
+    WCTEMP=RegDescriptor("id-ctrl", "wctemp", nsSpec=False, regType=RegType.decimal)
     CCTEMP=RegDescriptor("id-ctrl", "cctemp", nsSpec=False)
     MTFA=RegDescriptor("id-ctrl", "mtfa", nsSpec=False)
     HMPRE=RegDescriptor("id-ctrl", "hmpre", nsSpec=False)

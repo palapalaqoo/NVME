@@ -30,9 +30,18 @@ def my_decorator(func):
     return wrapped_func
 '''
 
+# Memory Register Base Address
+MRBA=0x0
+# MLBAR start from 0x10
+for i in range(4):
+    MRBA=MRBA+(mNVME.read_pcie(mNVME.PCIHeader, 0x10+i)<<(8*i))
+# mask lower 13bits
+MRBA = MRBA & 0xFFFFC000
+# MUBAR start from 0x14
+for i in range(4):
+    MRBA=MRBA+(mNVME.read_pcie(mNVME.PCIHeader, 0x14+i)<<(8*i))
 
-print ""
-
+print hex(MRBA)
 
 
 

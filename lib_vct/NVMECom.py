@@ -3,11 +3,11 @@
 import os
 from time import sleep
 from argparse import ArgumentParser
+from argparse import RawTextHelpFormatter
 import re
 import sys
 import signal
 import time
-from scipy.weave.converters import default
 import shutil
 
 
@@ -71,6 +71,8 @@ class NVMECom():
         NVMECom.device=son.dev
         NVMECom.device_port=son.dev[0:son.dev.find("nvme")+5]
         NVMECom.mTestModeOn=son.TestModeOn
+        NVMECom.StartLocalTime=son.StartLocalTime
+        NVMECom.SubCasePoint=son.SubCasePoint
         
         self.InitLogFile()
         
@@ -240,17 +242,31 @@ class NVMECom():
         
         # consol
         if Ctype=="p" or Ctype=="P":    
-            print  self.color.GREEN +"%s" %(msg)  +self.color.RESET
+            mStr =  self.color.GREEN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="f" or Ctype=="F":  
-            print  self.color.RED +"%s" %(msg)  +self.color.RESET
+            mStr =  self.color.RED +"%s" %(msg)  +self.color.RESET
         elif Ctype=="w" or Ctype=="W":  
-            print  self.color.YELLOW +"%s" %(msg)  +self.color.RESET            
+            mStr =  self.color.YELLOW +"%s" %(msg)  +self.color.RESET            
         elif Ctype=="t" or Ctype=="T":  
             if NVMECom.mTestModeOn:
-                print  self.color.CYAN +"%s" %(msg)  +self.color.RESET
+                mStr =  self.color.CYAN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="d" or Ctype=="D":  
-            print "%s" %(msg)
+            mStr = "%s" %(msg)
             
+        print self.PrefixString()+mStr
+            
+    def PrefixString(self):
+        # local time
+        Ltime=time.strftime("%Y%m%d_%H:%M:%S", time.localtime())
+        # duration
+        StartT=self.StartLocalTime
+        StopT=time.time()
+        TimeDiv=time.strftime("%H:%M:%S", time.gmtime(int(StopT-StartT)))
+        DT="DT: %s"%TimeDiv
+        # case number
+        Case="Case: %s"%self.SubCasePoint
+        
+        return Ltime+" "+DT+" "+Case+"| "
     
     def Logger(self, msg, mfile="default", color="No"):
         # color: define at self.color or no color       
@@ -260,18 +276,22 @@ class NVMECom():
             mStr = msg
         else:
             mStr = color + msg  +self.color.RESET
-
+        
+        if mfile=="default":
+            pass
+        else:
+            mStr=self.PrefixString()+mStr
         # writ to Log file    
         self.WriteLogFile(  mStr, mfile=mfile )
         
             
-    def ParserArgv(self):
+    def ParserArgv(self, SubCaseList=""):
         # argv[1]: device path, ex, '/dev/nvme0n1'
-        # argv[2]: subitems, ex, '1,4,5,7'
+        # argv[2]: subcases, ex, '1,4,5,7'
         # argv[3]: script test mode on, ex, '-t'
-        parser = ArgumentParser()
-        parser.add_argument("dev", help="device", type=str)
-        parser.add_argument("subitems", help="sub items that will be tested", type=str, nargs='?')
+        parser = ArgumentParser(description=SubCaseList, formatter_class=RawTextHelpFormatter)
+        parser.add_argument("dev", help="device, e.g. /dev/nvme0n1", type=str)
+        parser.add_argument("subcases", help="sub cases that will be tested, e.g. '1 2 3'", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")
         
@@ -280,11 +300,11 @@ class NVMECom():
         mDev=args.dev
         mTestModeOn=True if args.t else False
         mScriptDoc=True if args.d else False
-        if args.subitems==None:
+        if args.subcases==None:
             mSubItems=[]
         else:
             # split ',' and return int[]
-            mSubItems = [int(x) for x in args.subitems.split(',')]        
+            mSubItems = [int(x) for x in args.subcases.split(',')]        
         
         return mDev, mSubItems, mTestModeOn, mScriptDoc
         

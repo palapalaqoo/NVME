@@ -28,41 +28,7 @@ class SMI_Telemetry(NVME):
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    SubCase1TimeOut = 60
-    SubCase1Desc = "Test Data Blocks are 512 bytes in size or not, Log ID=07"    
-    
-    SubCase2TimeOut = 60
-    SubCase2Desc = "Test Command Dword 10 -- Log Specific Field, Log ID=07"
 
-    SubCase3TimeOut = 120
-    SubCase3Desc = "Test Log Identifier in log byte0, Log ID=07"    
-
-    SubCase4TimeOut = 60
-    SubCase4Desc = "Test if IEEE OUI Identifier = identify.IEEE, Log ID=07"    
-
-    SubCase5TimeOut = 60
-    SubCase5Desc = "Test if Data Area 1 Last Block <= 2 Last Block<= 3 Last Block, Log ID=07"    
-    
-    SubCase6TimeOut = 60
-    SubCase6Desc = "Test Telemetry Controller-Initiated Data Available"    
-    
-    SubCase7TimeOut = 60
-    SubCase7Desc = "Test Telemetry Controller-Initiated Data Generation Number"
-
-    SubCase8TimeOut = 120
-    SubCase8Desc = "Test Data Blocks are 512 bytes in size or not, Log ID=08"       
-
-    SubCase9TimeOut = 60
-    SubCase9Desc = "Test Log Identifier in log byte0, Log ID=08"     
-
-    SubCase10TimeOut = 60
-    SubCase10Desc = "Test if IEEE OUI Identifier = identify.IEEE, Log ID=08"     
-
-    SubCase11TimeOut = 60
-    SubCase11Desc = "Test if Data Area 1 Last Block <= 2 Last Block<= 3 Last Block, Log ID=08"   
-    
-    SubCase12TimeOut = 60
-    SubCase12Desc = "Test TCIDA value is persistent across power states and reset or not, Log ID=08"
 
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -76,11 +42,13 @@ class SMI_Telemetry(NVME):
         # initial parent class
         super(SMI_Telemetry, self).__init__(argv)
         
+        self.NSSRSupport=True if self.CR.CAP.NSSRS.int==1 else False
         self.ResetItem=[]
         self.ResetItem.append(["NVME reset", self.nvme_reset])
         self.ResetItem.append(["Hot reset", self.hot_reset])
         self.ResetItem.append(["Link reset", self.link_reset])
-        self.ResetItem.append(["Subsystem reset", self.subsystem_reset])    
+        if self.NSSRSupport:
+            self.ResetItem.append(["NVM Subsystem Reset", self.subsystem_reset])        
         
         self.SupportTelemetry=True if self.IdCtrl.LPA.bit(3)!="0" else False
         # Create Telemetry Host-Initiated Data bit = 0
@@ -90,7 +58,11 @@ class SMI_Telemetry(NVME):
         # Create Telemetry Host-Initiated Data bit = 0
         self.LOG08_0=self.get_log_passthru(8, 512, 0, 0)
         # Create Telemetry Host-Initiated Data bit = 1
-        self.LOG08_1=self.get_log_passthru(8, 512, 0, 1)        
+        self.LOG08_1=self.get_log_passthru(8, 512, 0, 1)  
+        
+        self.LOG07=self.LOG07_0
+        self.LOG08=self.LOG08_0
+          
 
     # override PreTest()
     def PreTest(self):
@@ -99,14 +71,16 @@ class SMI_Telemetry(NVME):
         else:
             self.Print( "Controller do not support telemetry in Log Page Attributes (LPA)", "w")
         return DUT.SupportTelemetry
-        
+
+    SubCase1TimeOut = 60
+    SubCase1Desc = "Test Data Blocks are 512 bytes in size or not, Log ID=07"           
     # <override sub item scripts>
     def SubCase1(self):
         ret_code = 0
         self.Print ("Test if get log page command is not a multiple of 512 bytes for this log, then the controller shall return an error of Invalid Field in Command")
         
         for DataBlock in range(12, 513, 50):
-            self.Print ("Send Get Log Page command for %s byte datas of Data Blocks "%DataBlock)
+            self.Print ("Send Get Log Page command for %s byte data of Data Blocks "%DataBlock)
             
             mStr = self.shell_cmd("nvme get-log %s --log-id=0x7 --log-len=%s 2>&1"%(self.dev, DataBlock))
             self.Print(mStr, 't')
@@ -119,6 +93,9 @@ class SMI_Telemetry(NVME):
                 ret_code=1       
         return ret_code
     
+    
+    SubCase2TimeOut = 60
+    SubCase2Desc = "Test Command Dword 10 -- Log Specific Field, Log ID=07"    
     def SubCase2(self):
         ret_code = 0
         self.Print ("check Command Dword 10 -- Log Specific Field for 'Create Telemetry Host-Initiated Data'"                )
@@ -130,6 +107,8 @@ class SMI_Telemetry(NVME):
             
         return ret_code
     
+    SubCase3TimeOut = 120
+    SubCase3Desc = "Test Log Identifier in log byte0, Log ID=07"        
     def SubCase3(self):
         ret_code = 0        
         
@@ -152,6 +131,8 @@ class SMI_Telemetry(NVME):
             ret_code=1 
         return ret_code  
 
+    SubCase4TimeOut = 60
+    SubCase4Desc = "Test if IEEE OUI Identifier = identify.IEEE, Log ID=07"    
     def SubCase4(self):
         ret_code = 0          
         self.Print ("Check if IEEE OUI Identifier = identify.IEEE or not")
@@ -165,6 +146,9 @@ class SMI_Telemetry(NVME):
             ret_code=1       
         return ret_code
     
+
+    SubCase5TimeOut = 60
+    SubCase5Desc = "Test if Data Area 1 Last Block <= 2 Last Block<= 3 Last Block, Log ID=07"        
     def SubCase5(self):
         ret_code = 0    
         self.Print ("check if (Telemetry Host-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not"      )
@@ -179,28 +163,34 @@ class SMI_Telemetry(NVME):
             ret_code=1       
         return ret_code
 
+    SubCase6TimeOut = 60
+    SubCase6Desc = "Test Telemetry Controller-Initiated Data Available"    
     def SubCase6(self):
         ret_code = 0          
         self.Print ("check if Telemetry Controller-Initiated Data Available in log ID 07h = Telemetry Controller-Initiated Data Available in log ID 08h  or not")
         self.Print ("TCIDA in 0x7h: %s, TCIDA in 0x8h: %s" %(self.LOG07[382], self.LOG08[382])      )
-        if self.LOG07[382]<=self.LOG08[382]:
+        if self.LOG07[382]==self.LOG08[382]:
             self.Print("PASS", "p")
         else:
             self.Print("Fail", "f")
             ret_code=1         
         return ret_code
 
+    SubCase7TimeOut = 60
+    SubCase7Desc = "Test Telemetry Controller-Initiated Data Generation Number"
     def SubCase7(self):
         ret_code = 0          
         self.Print ("check if Telemetry Controller-Initiated Data Generation Number in log ID 07h = Telemetry Controller-Initiated Data Generation Number in log ID 08h  or not")
         self.Print ("TCIDGN in 0x7h: %s, TCIDGN in 0x8h: %s" %(self.LOG07[383], self.LOG08[383]))
-        if self.LOG07[383]<=self.LOG08[383]:
+        if self.LOG07[383]==self.LOG08[383]:
             self.Print("PASS", "p")
         else:
             self.Print("Fail", "f")
             ret_code=1       
         return ret_code
 
+    SubCase8TimeOut = 120
+    SubCase8Desc = "Test Data Blocks are 512 bytes in size or not, Log ID=08"       
     def SubCase8(self):
         ret_code = 0          
         self.Print ("Test if get log page command is not a multiple of 512 bytes for this log, then the controller shall return an error of Invalid Field in Command")
@@ -218,6 +208,8 @@ class SMI_Telemetry(NVME):
                 ret_code=1               
         return ret_code
 
+    SubCase9TimeOut = 60
+    SubCase9Desc = "Test Log Identifier in log byte0, Log ID=08"    
     def SubCase9(self):
         ret_code = 0          
         self.Print ("Check Log Identifier in log byte0"      )
@@ -232,6 +224,8 @@ class SMI_Telemetry(NVME):
             ret_code=1 
         return ret_code
 
+    SubCase10TimeOut = 60
+    SubCase10Desc = "Test if IEEE OUI Identifier = identify.IEEE, Log ID=08"   
     def SubCase10(self):
         ret_code = 0          
         self.Print ("Check if IEEE OUI Identifier = identify.IEEE or not")
@@ -244,6 +238,8 @@ class SMI_Telemetry(NVME):
             ret_code=1       
         return ret_code
 
+    SubCase11TimeOut = 60
+    SubCase11Desc = "Test if Data Area 1 Last Block <= 2 Last Block<= 3 Last Block, Log ID=08"   
     def SubCase11(self):
         ret_code = 0          
         self.Print ("check if (Telemetry Controller-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not")
@@ -258,6 +254,8 @@ class SMI_Telemetry(NVME):
             ret_code=1       
         return ret_code
     
+    SubCase12TimeOut = 60
+    SubCase12Desc = "Test TCIDA value is persistent across power states and reset or not"    
     def SubCase12(self):
         ret_code = 0          
         self.Print ("check if Telemetry Controller-Initiated Data Available(TCIDA) value is persistent across power states and reset or not")
@@ -291,7 +289,7 @@ class SMI_Telemetry(NVME):
                 self.Print("Fail", "f")
                 ret_code=1
                 
-        self.Print ("-- start test TCIDA for reset  --"        )
+        self.Print ("-- start test TCIDA for Controller Level Reset --"        )
         for Item in self.ResetItem:
             print Item[0]
         
