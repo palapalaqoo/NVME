@@ -263,38 +263,39 @@ class NVME(object, NVMECom):
 
                     # enable RecordCmdToLogFile to recode command
                     NVMECom.RecordCmdToLogFile=True             
-                    self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")   
-                                      
-                    # timeout execption
-                    try:
-                        # run script, 3th,4th line equal 1,2 line statements
-                        #    @deadline(Timeout)
-                        #    Code=SubCaseFunc()
-                        SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
-                        Code=None
-                        
-                        # sub case execption
-                        try:
-                            Code = SubCaseFuncWithTimeOut()                        
-                        except Exception, error:
-                            self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%NVMECom.LogNameCmd, "f" )
-                            self.Print( "Exception message as below", "f" )
-                            self.Print ("")
-                            self.Print( "=====================================", "f" )
-                            self.Print(str(error), "f" )
-                            self.Print( "=====================================", "f" )
-                            Code = 1
+                    self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")                                         
 
-                        #  prevent coding no return code, eg. 0/1/255
-                        if Code ==None:
-                            Code = 0
+                    # run script, 3th,4th line equal 1,2 line statements
+                    #    @deadline(Timeout)
+                    #    Code=SubCaseFunc()
+                    SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
+                    Code=None
+                    
+                    # sub case execption
+                    try:
+                        Code = SubCaseFuncWithTimeOut()    
                         
+                    # timeout execption     
                     except TimedOutExc as e:              
                         self.Print ("")
-                        self.Print( "Timeout!: %ss, quit Case %s test!"%(e, SubCaseNum), "f" )
+                        self.Print( "Timeout!(%s seconds), quit Case %s test!"%(e, SubCaseNum), "f" )
                         self.Print( "Fail", "f" )
+                        Code = 1               
+                    # other execption
+                    except Exception, error:
+                        self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%NVMECom.LogNameCmd, "f" )
+                        self.Print( "Exception message as below", "f" )
+                        self.Print ("")
+                        self.Print( "=====================================", "f" )
+                        self.Print(str(error), "f" )
+                        self.Print( "=====================================", "f" )
                         Code = 1
-                    # end of timeout execption    
+                    
+                    #  prevent coding no return code, eg. 0/1/255
+                    if Code ==None:
+                        Code = 0
+                        
+
                          
                     # disable RecordCmdToLogFile to recode command
                     NVMECom.RecordCmdToLogFile=True             

@@ -189,7 +189,7 @@ class SMI_Sanitize(NVME):
         self.Print ("When the command is complete, the controller shall post a completion queue entry to the ")
         self.Print ("Admin Completion Queue indicating the status for the command.")
         self.Print ("")
-        
+        '''
         # Sanitize command 
         CMD="nvme sanitize %s %s 2>&1"%(self.dev_port, "-a %s"%self.SANACT)  
         self.Print ("Issue sanitize command: %s"%CMD)
@@ -202,6 +202,7 @@ class SMI_Sanitize(NVME):
         else:
             self.Print("Fail", "f")
             ret_code=1 
+        '''
         return ret_code
     
     SubCase2TimeOut = 180

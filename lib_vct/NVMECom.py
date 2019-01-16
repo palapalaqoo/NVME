@@ -9,7 +9,7 @@ import sys
 import signal
 import time
 import shutil
-
+import csv
 
 class TimedOutExc(Exception):
     pass
@@ -154,25 +154,29 @@ class NVMECom():
         #cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=0x007F0008 -l 512 2>&1 "%mNVME.dev
         cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(NVMECom.device, CDW10, NUMDU, LPOL, LPOU, size)
         mbuf=self.shell_cmd(cmd)
-        line="0"
-        # if command success
-        if re.search("NVMe command result:00000000", mbuf):
-            patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", mbuf)            
-            patten1= ''.join(patten)
-            line=patten1.replace(" ", "")
-    
-        if ReturnType==0:
-            # return list
-            # put patten in to list type
-            n=2
-            return [line[i:i+n] for i in range(0, len(line), n)]    
-        elif ReturnType==1:
-            # return string
-            return line
-        else:
-            return 0
+        return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType)
             
-        
+    def AdminCMDDataStrucToListOrString(self, strIn, ReturnType=0):
+    # input admin-passthru command Returned Data Structure, not that command must have '2>&1' to check if command success or not
+    # output list or string
+    #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0 where byte[] is string type
+    #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1 where byte[] is string type      
+        # if command success
+        if re.search("NVMe command result:00000000", strIn):
+            line="0"        
+            patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", strIn)            
+            patten1= ''.join(patten)
+            line=patten1.replace(" ", "")    
+            if ReturnType==0:
+                # return list
+                # put patten in to list type
+                n=2
+                return [line[i:i+n] for i in range(0, len(line), n)]    
+            elif ReturnType==1:
+                # return string
+                return line
+        else:
+            return None
     
      
     def str2int(self, strin):
@@ -241,6 +245,7 @@ class NVMECom():
         # t/T: test mode, will not print anything
         
         # consol
+        mStr=""
         if Ctype=="p" or Ctype=="P":    
             mStr =  self.color.GREEN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="f" or Ctype=="F":  
@@ -398,6 +403,18 @@ class NVMECom():
         else:
             return True
 
+    def ReadCSVFile(self, mFile):
+    # return identifys in csv file
+        l =  list()
+        try:
+            csvfile = open(mFile, 'rt')
+            csvReader = csv.reader(csvfile, delimiter=",")
+            for row in csvReader:
+                l.append(row)            
+        except:
+            self.Print("File not found","f")
+            return None
+        return l        
 #== end NVMECom =================================================
 
 class LBARangeDataStructure_():
@@ -454,3 +471,5 @@ class LBARangeDataStructure_():
         Pat = Pat + self._CreateZeroPattern(16)
         
         self.Pattern=Pat
+        
+
