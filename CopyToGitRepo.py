@@ -16,7 +16,7 @@ def copyDir(root_src_dir, root_dst_dir):
             os.makedirs(dst_dir)
         for file_ in files:
             src_file = os.path.join(src_dir, file_)
-            # no need to copy files
+            # no need to copy the files with extension name as belowing
             RE=".pyc"
             if not re.search(RE, src_file):       
                 
@@ -31,8 +31,8 @@ def copyDir(root_src_dir, root_dst_dir):
 def mCopy(name):
     srcDir="/root/sam/eclipse/pytest/"
 
-    dstPath="/root/sam/share/Git/Linux/Linux_regress/Script/" 
-    # dstPath="/root/sam/buf/" 
+    #dstPath="/root/sam/share/Git/Linux/Linux_regress/Script/" 
+    dstPath="/root/sam/git/Git/Linux/Linux_regress/Script/" 
     
        
     # copy lib_vct
@@ -48,7 +48,7 @@ def mCopy(name):
         copyfile(srcDir+fileName, dstDir+fileName)    
     
 
-
+'''
 Name="SMI_DSM"
 mCopy(Name)
 Name="SMI_FeatureHCTM"
@@ -75,9 +75,10 @@ Name="SMI_TelemetryExample"
 mCopy(Name)
 Name="SMI_Write"
 mCopy(Name)
+'''
 
-
-
+Name="SMI_Identify"
+mCopy(Name)
 
 
 

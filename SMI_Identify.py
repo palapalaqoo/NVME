@@ -153,10 +153,7 @@ class SMI_IdentifyCommand(NVME):
         # write
         with open(fileNameFullPath, 'a') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([name, value])
-            
-   
-    
+            writer.writerow([name, value])               
     
     def convert(self, lists, stopByte, startByte, mtype):   
         # return is string , eg, '0x1A' or 'SMI2262'
