@@ -16,4 +16,5 @@ encoding/SMI_SmartHealthLog.py=utf-8
 encoding/SMI_Telemetry.py=utf-8
 encoding/SMI_TelemetryExample.py=utf-8
 encoding/SMI_Write.py=utf-8
+encoding/mtest.py=utf-8
 encoding/mtest1.py=utf-8

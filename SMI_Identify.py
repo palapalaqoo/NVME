@@ -32,8 +32,11 @@ class SMI_IdentifyCommand(NVME):
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     InPath = "./CSV/In/"
     OutPath = "./CSV/Out/"    
+    File_BuildIn_Identify_CNS00 = "./lib_vct/CSV/CNS00_IdentifyNamespacedatastructure.csv"    
+    File_Identify_CNS00 = "Identify_CNS00.csv" 
+    
     File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure.csv"    
-    File_Identify_CNS01 = "Identify_CNS01.csv" 
+    File_Identify_CNS01 = "Identify_CNS01.csv"    
     
     TypeInt=0x0
     TypeStr=0x1
@@ -49,20 +52,12 @@ class SMI_IdentifyCommand(NVME):
                     value=mItem[1]
                     break
         return value    
-    
-    def GetIdentifyController(self):
-        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x1 2>&1"%self.dev
-        # returnd data structure
-        rTDS=self.shell_cmd(CMD)
-        # format data structure to list 
-        DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)         
-        
-        return DS
-    
+       
     def GetCliCommandByBuileInFileName(self, BuileInFileName):
-        if BuileInFileName==self.File_BuildIn_Identify_CNS01:
-            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x1 2>&1"%self.dev
-            
+        if BuileInFileName==self.File_BuildIn_Identify_CNS00:
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=0x1 2>&1"%self.dev
+        elif BuileInFileName==self.File_BuildIn_Identify_CNS01:
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x1 2>&1"%self.dev            
         return CMD     
     
     def PrintAlignString(self,S0, S1, S2, PF="default"):            
@@ -139,7 +134,7 @@ class SMI_IdentifyCommand(NVME):
                         # save to csv file
                         self.SaveToCSVFile(mUserFileName, Name, ValueC)
                 self.Print("----------------------------------------------------------------------")     
-                self.Print("Finish")
+                self.Print("")
                 # end of for mItem in BuileInFile:    
                 return subRt                                          
 
@@ -246,8 +241,89 @@ class SMI_IdentifyCommand(NVME):
             shutil.rmtree(self.OutPath) 
         # Create dir
         if not os.path.exists(self.OutPath):
-            os.makedirs(self.OutPath)                        
+            os.makedirs(self.OutPath)    
+            
+    def CeckCorrectness(self, mUserFileName):
+    # read /Out/UserFileName and check correctness of value
+        UserFileNameFullPath=self.OutPath+mUserFileName
+        subRt=0
+        UserFile=self.ReadCSVFile(UserFileNameFullPath)
+        # if can't find file, then pass and return
+        if UserFile==None:
+            return True
+        else:  
+            for mItem in UserFile:            
+                Name=mItem[0]       
+                ValueC=mItem[1]
+                # if start char=0x means it is a interger, and quit it
+                mStr="0x"
+                if re.search(mStr, ValueC):
+                    Type=self.TypeInt
+                else:     
+                    Type=self.TypeStr
+
+                if Name == "VID":
+                    self.Print("Check %s"%Name)
+                    self.Print("    Is the same value as reported in the ID register")
+                    value=self.read_pcie(self.PCIHeader, 0)+(self.read_pcie(self.PCIHeader, 1)<<8)
+                    self.Print("    %s : %s  | VID_FromPCIHeader : %s"%(Name,ValueC, hex(value)))
+                    if value== int(ValueC, 16):
+                        self.Print("    Pass", "p")
+                    else:
+                        self.Print("    Fail", "f")
+                        subRt=1
+
+
+                if Name == "SSVID":
+                    self.Print("Check %s"%Name)
+                    self.Print("    Is the same value as reported in the SS register")
+                    value=self.read_pcie(self.PCIHeader, 0x2C)+(self.read_pcie(self.PCIHeader, 0x2D)<<8)
+                    self.Print("    %s : %s  | SSVID_FromPCIHeader : %s"%(Name,ValueC, hex(value)))
+                    if value== int(ValueC, 16):
+                        self.Print("    Pass", "p")
+                    else:
+                        self.Print("    Fail", "f")
+                        subRt=1
+                        
+                if Name == "FR":
+                    self.Print("Check %s"%Name)
+                    self.Print("    Is the same revision information that may be retrieved with the Get Log Page command")
+                    value=self.RemoveSpaces(self.GetFWVer())
+                    self.Print("    %s : %s  | Value from Get Log Page : %s"%(Name,ValueC, value))
+                    if value== ValueC:
+                        self.Print("    Pass", "p")
+                    else:
+                        self.Print("    Fail", "f")
+                        subRt=1
+
+                if Name == "VER":
+                    self.Print("Check %s"%Name)
+                    self.Print("    Is the same value as reported in the Version register")
+                    value=self.CR.VS.TER.int
+                    value=value+(self.CR.VS.MNR.int << 8)
+                    value=value+(self.CR.VS.MJR.int << 16)                    
+
+                    self.Print("    %s : %s  | VER from Controller Registers : %s"%(Name,ValueC, hex(value)))    
+                    if value== int(ValueC, 16):
+                        self.Print("    Pass", "p")
+                    else:
+                        self.Print("    Fail", "f")
+                        subRt=1
+
+                                                                  
+        return True if subRt==0 else False
     
+
+    def GetFWVer(self):
+        FirmwareSlotInformationLog = self.get_log2byte(3, 64)
+        AFI=FirmwareSlotInformationLog[0]
+        ActiveFirmwareSlot= int(AFI, 16)&0b00000111
+        FWVer=""
+        for i in range(8):
+            FWVer=FWVer+chr(int(FirmwareSlotInformationLog[i+ActiveFirmwareSlot*8], 16))
+            
+        return FWVer
+        
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
@@ -264,22 +340,23 @@ class SMI_IdentifyCommand(NVME):
             
     # <sub item scripts>
     SubCase1TimeOut = 60
-    SubCase1Desc = "Test Identify Controller Data Structure"        
-    SubCase1KeyWord = "Synch"
+    SubCase1Desc = "Test CNS=0x00, Identify Namespace data structure"        
     def SubCase1(self):
         ret_code=0
-        ret_code=self.CheckBuildInWithUserFiles(self.File_BuildIn_Identify_CNS01, self.File_Identify_CNS01)
+        # check if value from contrller is the same with file 'In/File_Identify_CNS00', and save value from contrller to csv file 'Out/File_Identify_CNS00'
+        ret_code=self.CheckBuildInWithUserFiles(self.File_BuildIn_Identify_CNS00, self.File_Identify_CNS00)
         
+        # check the correctness of value from contrller
         return ret_code
 
     
     SubCase2TimeOut = 60
-    SubCase2Desc = "Test Identify Controller Data Structure" 
-    SubCase2KeyWord="The Timestamp field was initialized with a Timestamp value using a Set Features command."
+    SubCase2Desc = "Test CNS=0x01, Identify Controller Data Structure" 
     def SubCase2(self): 
         ret_code=0
-
-
+        ret_code=self.CheckBuildInWithUserFiles(self.File_BuildIn_Identify_CNS01, self.File_Identify_CNS01)
+        ret_code=ret_code if self.CeckCorrectness(self.File_Identify_CNS01) else 1
+        
         return ret_code
         
     SubCase3TimeOut = 60
@@ -289,11 +366,7 @@ class SMI_IdentifyCommand(NVME):
         ret_code=0
         self.Print ("If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 ")
         
-
-
         return ret_code
-
-
 
 
 

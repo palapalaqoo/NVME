@@ -1,37 +1,47 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-
-from lib_vct import NVME
-from lib_vct import NVMECom
+# Import python built-ins
 import sys
-from time import sleep
-import threading
-import re
-import random
 import time
+from time import sleep
+import re
+import os
+import csv
+import shutil
+# Import VCT modules
+from lib_vct.NVME import NVME
 
-
-import signal
-import subprocess
-from lib_vct.NVMECom import deadline
-from lib_vct.NVMECom import TimedOutExc
-from gtk.keysyms import seconds
-from lib_vct import NVMEAsyncEventRequest
-import struct
-def GetPS():
-    return int(mNVME.get_feature(2)[-1:])
-
-
-mNVME = NVME.NVME(sys.argv )
 '''
 def my_decorator(func):
     def wrapped_func(*args,**kwargs):
         return func("I've been decorated!",*args,**kwargs)
     return wrapped_func
 '''
-aa=chr(int(0x48)) 
+class Test(NVME):
 
-print int('0x144D',16)
+
+    def GetFWVer(self):
+        FirmwareSlotInformationLog = self.get_log2byte(3, 64)
+        AFI=FirmwareSlotInformationLog[0]
+        ActiveFirmwareSlot= int(AFI, 16)&0b00000111
+        FWVer=""
+        for i in range(8):
+            FWVer=FWVer+chr(int(FirmwareSlotInformationLog[i+ActiveFirmwareSlot*8], 16))
+            
+        return FWVer
+        
+    def __init__(self, argv):
+        # initial parent class
+        super(Test, self).__init__(argv)
+             
+        print self.CR.VS.TER.int
+        print self.CR.VS.MNR.int
+        print self.CR.VS.MJR.int
+        
+            
+
+
 '''
 
 mNVME.LBARangeDataStructure.Type=0x2
@@ -68,5 +78,16 @@ def stopwatch(seconds):
 stopwatch(20)
     
 '''
+if __name__ == "__main__":
+    DUT = Test(sys.argv ) 
 
 
+
+    
+    
+    
+    
+    
+    
+    
+    

@@ -25,10 +25,10 @@ class CR_(object,NVMECom):
     CAP.MPSMIN=RegDescriptor("show-regs", "cap", 48, 51)
     CAP.MPSMAX=RegDescriptor("show-regs", "cap", 52, 55)
     
-    VS=RegDescriptor("show-regs", "vs")
-    VS.TER=RegDescriptor("show-regs", "vs", 0, 7)
-    VS.MNR=RegDescriptor("show-regs", "vs", 8, 15)
-    VS.MJR=RegDescriptor("show-regs", "vs", 16, 31)
+    VS=RegDescriptor("show-regs", "version")
+    VS.TER=RegDescriptor("show-regs", "version", 0, 7)
+    VS.MNR=RegDescriptor("show-regs", "version", 8, 15)
+    VS.MJR=RegDescriptor("show-regs", "version", 16, 31)
     
     INTMS=RegDescriptor("show-regs", "intms")
     INTMS.IVMS=RegDescriptor("show-regs", "intms", 0, 31)
