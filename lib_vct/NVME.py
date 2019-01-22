@@ -257,7 +257,7 @@ class NVME(object, NVMECom):
                     self.SubCasePoint=SubCaseNum
                     # print sub case titles
                     self.Print ("")
-                    self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout))
+                    self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout), "b")
                     self.Print ("-- %s"%Description)
                     self.Print ("-- Keyword: %s"%SpecKeyWord)
 

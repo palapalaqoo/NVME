@@ -1,4 +1,4 @@
-
+#-*- coding: utf-8 -*-
 
 import os
 from time import sleep
@@ -200,6 +200,57 @@ class NVMECom():
         CYAN    = '\033[36m'
         WHITE   = '\033[37m'
         RESET = '\033[0m'
+        
+    StringStyle = {
+            'fore':
+            {   # 前景色
+                'black'    : 30,   #  黑色
+                'red'      : 31,   #  红色
+                'green'    : 32,   #  绿色
+                'yellow'   : 33,   #  黄色
+                'blue'     : 34,   #  蓝色
+                'purple'   : 35,   #  紫红色
+                'cyan'     : 36,   #  青蓝色
+                'white'    : 37,   #  白色
+            },
+     
+            'back' :
+            {   # 背景
+                'black'     : 40,  #  黑色
+                'red'       : 41,  #  红色
+                'green'     : 42,  #  绿色
+                'yellow'    : 43,  #  黄色
+                'blue'      : 44,  #  蓝色
+                'purple'    : 45,  #  紫红色
+                'cyan'      : 46,  #  青蓝色
+                'white'     : 47,  #  白色
+            },
+     
+            'mode' :
+            {   # 显示模式
+                'mormal'    : 0,   #  终端默认设置
+                'bold'      : 1,   #  高亮显示
+                'underline' : 4,   #  使用下划线
+                'blink'     : 5,   #  闪烁
+                'invert'    : 7,   #  反白显示
+                'hide'      : 8,   #  不可见
+            },
+     
+            'default' :
+            {
+                'end' : 0,
+            },
+    }
+    def UseStringStyle(self, string, mode = '', fore = '', back = ''):
+     
+        mode = '%s' % self.StringStyle['mode'][mode] if self.StringStyle['mode'].has_key(mode) else ''
+        fore = '%s' % self.StringStyle['fore'][fore] if self.StringStyle['fore'].has_key(fore) else ''
+        back = '%s' % self.StringStyle['back'][back] if self.StringStyle['back'].has_key(back) else ''
+        style = ';'.join([s for s in [mode, fore, back] if s])
+        style = '\033[%sm' % style if style else ''
+        end = '\033[%sm' % self.StringStyle['default']['end'] if style else ''
+        return '%s%s%s' % (style, string, end)     
+       
     class lbafds:
     # LBA Format Data Structure    
         ID   = 0
@@ -246,7 +297,7 @@ class NVMECom():
         
         # consol
         mStr=""
-        if Ctype=="p" or Ctype=="P":    
+        if Ctype=="p" or Ctype=="P":   
             mStr =  self.color.GREEN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="f" or Ctype=="F":  
             mStr =  self.color.RED +"%s" %(msg)  +self.color.RESET
@@ -257,7 +308,16 @@ class NVMECom():
                 mStr =  self.color.CYAN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="d" or Ctype=="D":  
             mStr = "%s" %(msg)
-            
+        elif Ctype=="u" or Ctype=="U":
+            # underline
+            mStr = self.UseStringStyle(msg, mode="underline")
+        elif Ctype=="i" or Ctype=="I":
+            # invert
+            mStr = self.UseStringStyle(msg, mode="invert")
+        elif Ctype=="b" or Ctype=="B":
+            # bold
+            mStr = self.UseStringStyle(msg, mode="bold")            
+                        
         print self.PrefixString()+mStr
             
     def PrefixString(self):
