@@ -25,13 +25,17 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190125"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     Status_InvalidFormat = "INVALID_FORMAT"
-    Status_Success = "Success formatting namespace"
+    Status_InvalidField = "INVALID_FIELD"
     Status_InvalidNS = "INVALID_NS"
+    Status_Success = "Success formatting namespace"
+    
+    Expected_Success = 0
+    Expected_Fail = 1
     
     CryptographicErasePass_0 = "SMI2260"
     CryptographicErasePass_1 = "SMI2262"
@@ -86,21 +90,27 @@ class SMI_Format(NVME):
         aa= self.IdNs.FPI.bit(6,0)
         return int(aa, 2)
     
-    def CheckResult(self, Result, ExpectedResult, ShowMsg=True):
+    def CheckResult(self, ResultStr, ExpectedResult, ShowMsg=True):
     # Success:     Success Formatting namespace
-    # Fail:            Invalid Format(0AH)
-        showmsg=ShowMsg
-        CompareStr=ExpectedResult    
+    # Fail:            Invalid Format(0AH) or others
+    # ExpectedResult: 0= success, 1= fail
+    
+        showmsg=ShowMsg        
+        Result=0 # 0= success, 1= fail
+        
+        CompareStr=self.Status_Success
+        if not re.search(CompareStr, ResultStr):
+            Result=1
             
-        if re.search(CompareStr, Result):
+        if Result==ExpectedResult:
             if showmsg:
                 self.Print("PASS", "p")  
             return True
         else:
             if showmsg:
                 self.Print("Fail", "f")
-                self.Print("Sataus Value: %s"%Result, "f")  
-            return False
+                self.Print("Sataus Value: %s"%ResultStr, "f")  
+            return False              
     
     def ResetNameSpaces(self):
         rtc=0
@@ -313,7 +323,7 @@ class SMI_Format(NVME):
             self.Print ("set lbaf=15 and send command, then check the status code")
             mStr=self.Format(1, 15, 0);
             self.Print ("status code: %s"%mStr)
-            if not self.CheckResult(mStr, self.Status_InvalidFormat):
+            if not self.CheckResult(mStr, self.Expected_Fail):
                 ret_code=1
         else:
             self.Print ("last lbaf is available(lbaf15), i.e. from lbaf0 to lbaf15 are all available, quite this test item!")
@@ -330,13 +340,13 @@ class SMI_Format(NVME):
         self.Print ("Send format command with SES=000b (No secure erase operation requested)")
         mStr=self.Format(1, 0, 0);
         self.Print ("Check return code, expected returned status code: Success")
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         
         self.Print (""   )
         self.Print ("Send format command with SES=001b (User Data Erase)")
         mStr=self.Format(1, 0, 1);
         self.Print ("Check return code, expected returned status code: Success")
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         
         self.Print (""   )
         
@@ -346,9 +356,9 @@ class SMI_Format(NVME):
         mStr=self.Format(1, 0, 2);
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.SecureEraseSupported else "Fail"))
         if self.SecureEraseSupported:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         else:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1        
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1        
         
         
         self.Print (""       )
@@ -373,12 +383,12 @@ class SMI_Format(NVME):
         self.Print ("Send format command with PIL = 0")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0);
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         self.Print ("")
         self.Print ("Send format command with PIL = 1")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 1);
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         
         return ret_code
 
@@ -400,7 +410,7 @@ class SMI_Format(NVME):
         self.Print ("Send format command with PI = 000b")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0);
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         
         # find self.LBAF that support Protection Information that if lbafds.MS > 0
         # if find, then send command with PI_Supportedself.LBAF else self.LBAF=0
@@ -415,18 +425,18 @@ class SMI_Format(NVME):
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type1Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 1);
         if self.Type1Supported:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         else:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
         
         self.Print ("")
         self.Print ("Send format command with PI = 010b")
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type2Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 2);
         if self.Type1Supported:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         else:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
             
                     
         self.Print ("")
@@ -434,9 +444,9 @@ class SMI_Format(NVME):
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type3Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 3);
         if self.Type1Supported:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         else:
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1        
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1        
         
         
         self.Print (""       )
@@ -460,12 +470,12 @@ class SMI_Format(NVME):
         self.Print ("Send format command with MSET = 0")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0, 0);
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         self.Print ("")
         self.Print ("Send format command with MSET = 1")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0, 1);
-        ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         return ret_code
 
     SubCase8TimeOut = 600
@@ -540,9 +550,9 @@ class SMI_Format(NVME):
             mStr=self.Format(1, i, 0);    
             self.Print ("Check return code, expected returned status code: %s"%("Success" if IsValid else "Invalid format"))
             if IsValid:
-                ret_code = ret_code if self.CheckResult(mStr, self.Status_Success) else 1
+                ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
             else:
-                ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+                ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
                 
         return ret_code
 
@@ -556,13 +566,13 @@ class SMI_Format(NVME):
         
         if not self.Type1Supported:
             mStr=self.Format(1, 0, 0, 0, 1);
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
         elif not self.Type2Supported:
             mStr=self.Format(1, 0, 0, 0, 2);
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
         elif not self.Type3Supported:
             mStr=self.Format(1, 0, 0, 0, 3);
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
         else:
             self.Print("All Protection Information type is support, quite this test item!", "w")
         
@@ -571,7 +581,7 @@ class SMI_Format(NVME):
         self.Print ("Check return code, expected returned status code: Invalid format")
         if self.LBAF15_LBADS < 9:
             mStr=self.Format(1, 15, 0);
-            ret_code = ret_code if self.CheckResult(mStr, self.Status_InvalidFormat) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
         else:
             self.Print("All lbaf is available, quite this test item!", "w")
         return ret_code
@@ -780,7 +790,7 @@ class SMI_Format(NVME):
         self.Print ("Send format command with SES=000b (No secure erase operation requested)")
         mStr=self.Format(1, 0, 0);
         self.Print ("Check return code, expected returned status code: Success")
-        CmdSuccess = self.CheckResult(mStr, self.Status_Success)
+        CmdSuccess = self.CheckResult(mStr, self.Expected_Success)
         
         if not CmdSuccess:
             self.Print ("Becouse format command fail, quit this test item!")

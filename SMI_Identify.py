@@ -90,7 +90,7 @@ class SMI_IdentifyCommand(NVME):
         OutUserFile=self.ReadCSVFile(OUT_UserFileFullPath)
         if OutUserFile==None:
             self.Print("Can't find file at %s"%OUT_UserFileFullPath, "w")
-            return 1
+            return False
         else:  
             self.Print("File %s exist"%OUT_UserFileFullPath, "p")  
             self.Print( "" )          
@@ -168,7 +168,7 @@ class SMI_IdentifyCommand(NVME):
         else:
             self.Print( "Success to get data structure")
 
-            self.Print( "Parse and save to csv file(%s)"%OUT_UserFileFullPath )
+            self.Print( "Parse and save data structure to csv file(%s)"%OUT_UserFileFullPath )
             ParseFunc(ParseCfg, OUT_UserFileFullPath, DS)
             
             return True       
@@ -205,17 +205,25 @@ class SMI_IdentifyCommand(NVME):
             writer = csv.writer(csvfile)
             writer.writerow([name, value])               
     
-    def convert(self, lists, stopByte, startByte, mtype):   
+    def convert(self, lists, stopByte, startByte, mtype, endian="little-endian"):   
         # return is string , eg, '0x1A' or 'SMI2262'
+        
+        # if error
+        if startByte>stopByte and mtype==self.TypeInt:
+            return "0"
+        if startByte>stopByte and mtype==self.TypeStr:
+            return ""
+                    
         # sub bytes
         subList=lists[startByte : stopByte+1]
         mStr=""
         if mtype==self.TypeInt:
-            # reverse it and combine
-            lists_R=subList[::-1]
-            lists_R_Str="".join(lists_R)
+            if endian=="little-endian":
+                # reverse it and combine
+                subList=subList[::-1]
+            subList_Str="".join(subList)
             # Converting string to int
-            mStr = hex(int(lists_R_Str, 16))
+            mStr = hex(int(subList_Str, 16))
         elif mtype==self.TypeStr: 
             for byte in subList:
                 mStr=mStr+chr(int(byte,16))    
@@ -394,7 +402,23 @@ class SMI_IdentifyCommand(NVME):
         
         CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 2>&1"%self.dev
         self.IdentifyLists.append([ None, self.File_Identify_CNS03, CMD, self.ParseFuncCNS_0x0_0x1 ])
-    
+    def TryToCreateNS(self, ns):
+    # try to create namespace and return number of namespaes
+        NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
+        MaxNs=1
+        if NsSupported:
+            self.Print ("Namespace Management supported: Yes")
+            self.Print (  "try to create namespace" )
+            # function CreateMultiNs() will create namespace less then 8 NS
+            MaxNs = self.CreateMultiNs(ns)
+        else:
+            self.Print ("Namespace Management supported: No")
+        if MaxNs ==1:
+            self.Print ("Number of namespaes: 1")
+        else:
+            self.Print ("Number of namespaes: from 1 to %s"%MaxNs)     
+        return   MaxNs                 
+        
     def TestFlow0(self, CNS):
     # return True/False       
     # test with  ParseCfg file
@@ -428,28 +452,17 @@ class SMI_IdentifyCommand(NVME):
         
             
         
-    # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    
-    def TestFlowCNS_0x2(self, CNS):
-        # check if controller supports the Namespace Management and Namespace Attachment commands or not
-        NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
-        MaxNs=1
-        if NsSupported:
-            self.Print ("controller supports the Namespace Management and Namespace Attachment commands")
-            print  "try to create namespace" 
-            # function CreateMultiNs() will create namespace less then 8 NS
-            MaxNs = self.CreateMultiNs(NumOfNS=4)
-            if MaxNs ==1:
-                self.Print ("only namespace 1 has been created" ,"w")
-            else:
-                self.Print ("namespaces nsid from 1 to %s have been created"%MaxNs)                         
-        
-        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 --namespace-id=0x1 2>&1"%self.dev
-        
+
+    # return True/False       
+    def TestFlowCNS_0x2(self):
+        subRt=True
+        # try to create 4 namespaces and get number of namespaces that was created
+        MaxNs=self.TryToCreateNS(4)                    
         self.Print("")
+        
         for nsid in range(MaxNs+1):
         # nsid from 0
-            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 --namespace-id=%s 2>&1"%(nsid, self.dev)
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 --namespace-id=%s 2>&1"%(self.dev, nsid)
             # returnd data structure
             self.Print( "Issue identify command with CNS=0x2 and CDW1.NSID=%s"%nsid )
             rTDS=self.shell_cmd(CMD)
@@ -457,7 +470,7 @@ class SMI_IdentifyCommand(NVME):
             DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
             if DS==None:
                 self.Print( "Fail to get data structure, quit !","f")
-                return False
+                subRt = False
             else:
                 # self.Print( "Success to get data structure")  
                 
@@ -465,16 +478,24 @@ class SMI_IdentifyCommand(NVME):
                 # according Figure 37: Namespace List Format, save id to IDs where id lenght is 4 bytes
                 for i in range(9):
                     ID=self.convert(lists=DS, stopByte=(i*4+3), startByte=(i*4), mtype=self.TypeInt)
+                    ID=int(ID, 16)
                     IDs.append(ID)
                     
-                self.Print( "Get data structure and check if NSIDs is in increasing order start from %s"%nsid )
+                if nsid<MaxNs:
+                    self.Print( "Get data structure and check if NSIDs is in increasing order from %s to %s"%(nsid+1, MaxNs) )
+                else:
+                    self.Print( "Get data structure and check if all NSIDs is 0" )
                 mStr=""
                 nsidPoint = nsid +1
                 Success=True
                 for ID in IDs:
-                    mStr = mStr + ID + " "
-                    if nsidPoint!=ID:
+                    mStr = mStr + str(ID) + " "
+                    if nsidPoint<=MaxNs and nsidPoint!=ID:
                         Success=False
+                    if nsidPoint>MaxNs and ID!=0:
+                        Success=False            
+                        
+                    nsidPoint = nsidPoint +1  
                                     
                 self.Print( "Namespace List: %s"%mStr )
                 if Success:
@@ -482,13 +503,99 @@ class SMI_IdentifyCommand(NVME):
                     self.Print("")
                 else:
                     self.Print("Fail", "f")
-                    return False
+                    subRt = False
             
+        if MaxNs!=1:
+            self.Print("Reset all namespaces to namespace 1 and kill other namespaces")
+            self.ResetNS()
+            
+        return subRt    
+         
+    def TestFlowCNS_0x3(self):
+        subRt=True
+        # try to create 4 namespaces and get number of namespaces that was created
+        MaxNs=self.TryToCreateNS(4)                    
+        self.Print("")
         
+        for nsid in range(1, MaxNs+1):
+        # nsid from 0
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 --namespace-id=%s 2>&1"%(self.dev, nsid)
+            # returnd data structure
+            self.Print( "Issue identify command with CNS=0x3 and CDW1.NSID=%s"%nsid )
+            rTDS=self.shell_cmd(CMD)
+            # format data structure to list 
+            DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
+            if DS==None:
+                self.Print( "Fail to get data structure, quit !","f")
+                subRt = False
+            else:
+                # self.Print( "Success to get data structure")  
+                # according to Figure 116: Identify – Namespace Identification Descriptor, check the descriptor
+                NIDT=int(self.convert(lists=DS, stopByte=0, startByte=0, mtype=self.TypeInt), 16)
+                NIDL=int(self.convert(lists=DS, stopByte=1, startByte=1, mtype=self.TypeInt), 16)
+                NID=int(self.convert(lists=DS, stopByte=(NIDL+3), startByte=4, mtype=self.TypeInt, endian="big-endian"), 16)
+                self.Print( "Check Namespace Identification Descriptor")
+                self.Print( "")
+                
+                NIDTDefinition="Reserved"
+                if NIDT==1:
+                    NIDTDefinition="IEEE Extended Unique Identifier"
+                if NIDT==2:
+                    NIDTDefinition="Namespace Globally Unique Identifier"
+                if NIDT==3:
+                    NIDTDefinition="Namespace UUID"                
+                        
+                self.Print( "NIDT: %s ( %s )"%(NIDT, NIDTDefinition))
+                self.Print( "NIDL: %s"%NIDL)
+                self.Print( "NID: %s"%hex(NID))
+                
+                
+                if NIDT==0x1:
+                    EUI64 = self.IdNs.EUI64.int
+                    self.Print( "")
+                    self.Print( "EUI64 from Identify Namespace structure: %s"%hex(EUI64))
+                    self.Print( "Check if NID = EUI64 from Identify Namespace structure")
+                    self.Print("Pass", "p") if (NID==EUI64) else self.Print("Fail", "f")
+                    subRt = subRt if (NID==EUI64) else False
+                                                           
+                    self.Print( "Check if the EUI64 field of the Identify Namespace structure is supported")
+                    self.Print("Pass", "p") if (EUI64!=0) else self.Print("Fail", "f")
+                    subRt = subRt if (EUI64!=0) else False
+                                        
+                    self.Print( "Check if NIDL= 8")
+                    self.Print("Pass", "p") if (NIDL==0x8) else self.Print("Fail", "f")
+                    subRt = subRt if (NIDL==0x8) else False       
+                    
+                if NIDT==0x2:
+                    NGUID = self.IdNs.NGUID.int
+                    self.Print( "")
+                    self.Print( "NGUID from Identify Namespace structure: %s"%hex(NGUID))
+                    self.Print( "Check if NID = NGUID from Identify Namespace structure")
+                    self.Print("Pass", "p") if (NID==NGUID) else self.Print("Fail", "f")
+                    subRt = subRt if (NID==NGUID) else False
+                                                           
+                    self.Print( "Check if the NGUID field of the Identify Namespace structure is supported")
+                    self.Print("Pass", "p") if (NGUID!=0) else self.Print("Fail", "f")
+                    subRt = subRt if (NGUID!=0) else False
+                                        
+                    self.Print( "Check if NIDL= 0x10")
+                    self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
+                    subRt = subRt if (NIDL==0x10) else False                                 
 
-        
-    # return True/False       
-    
+                if NIDT==0x3:                                        
+                    self.Print( "Check if NIDL= 0x10")
+                    self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
+                    subRt = subRt if (NIDL==0x10) else False                           
+                                           
+
+            
+        if MaxNs!=1:
+            self.Print("Reset all namespaces to namespace 1 and kill other namespaces")
+            self.ResetNS()
+            
+        return subRt    
+
+    # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<           
     def __init__(self, argv):
         # initial parent class
         super(SMI_IdentifyCommand, self).__init__(argv)
@@ -516,7 +623,7 @@ class SMI_IdentifyCommand(NVME):
         return ret_code
 
     
-    SubCase2TimeOut = 600
+    SubCase2TimeOut = 60
     SubCase2Desc = "Test CNS=0x01, Identify Controller Data Structure" 
     def SubCase2(self): 
         ret_code=0
@@ -530,19 +637,22 @@ class SMI_IdentifyCommand(NVME):
     SubCase3Desc = "Test CNS=0x02, A list of 1024 namespace IDs"
     def SubCase3(self): 
         ret_code=0
-        self.Print ("If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 ")
+        #self.Print ("If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 ")
+        
+        if not self.TestFlowCNS_0x2():
+            ret_code=1
         
         return ret_code
 
 
 
-    SubCase4TimeOut = 60
+    SubCase4TimeOut = 600
     SubCase4Desc = "Test CNS=0x03, Namespace Identification Descriptor structures" 
     def SubCase4(self): 
-        ret_code=0
-        self.Print ("If the sum of the Timestamp value set by the host and the elapsed time exceeds 2^48, the value returned should be reduced modulo 2^48 ")
+        ret_code= 0
         
-        self
+        if not self.TestFlowCNS_0x3():
+            ret_code=1
         
         return ret_code
 

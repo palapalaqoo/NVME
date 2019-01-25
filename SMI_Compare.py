@@ -25,7 +25,7 @@ class SMI_Compare(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Compare.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190125"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -46,8 +46,8 @@ class SMI_Compare(NVME):
     
     def testDW10_DW11(self, SLBA, msg0, msg1 , ExpectCommandSuccess):  
         self.Print ("")
-        print msg0
-        print msg1   
+        self.Print( msg0 )
+        self.Print( msg1  )
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
         mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1 "%(self.dev, cdw10, cdw11))
@@ -75,8 +75,8 @@ class SMI_Compare(NVME):
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      
         self.Print ("")
-        print msg0
-        print msg1   
+        self.Print( msg0 )
+        self.Print( msg1  ) 
         cdw12=NLB
         mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, 0, 0, cdw12))
         retCommandSueess=self.CMDisSuccess(mStr)
@@ -240,8 +240,7 @@ class SMI_Compare(NVME):
         
         return ret_code
 
-    SubCase2TimeOut = 60
-    SubCase2Desc = ""
+
 
 
         

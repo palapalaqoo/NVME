@@ -24,7 +24,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190125"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -166,7 +166,7 @@ class SMI_NVMeReset(NVME):
         self.Print ("Test if device self-test operation(admin command) was aborted due to the reset commands"  )
         self.Print ("test Loop = 10 ")
         self.Print ("")
-        
+        ret_code=0
         if self.IdCtrl.OACS.bit(4)=="0":
             self.Print ("Controller does not support the DST operation, quit this test item!")
             return 0        

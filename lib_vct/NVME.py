@@ -809,7 +809,7 @@ class NVME(object, NVMECom):
             #self.Print ("controller supports the Namespace Management and Namespace Attachment commands"            )
             # set max test namespace <=8(default)
             MaxNs=NumOfNS if NN>NumOfNS else NN
-            print  "create namespcaes form nsid 1 to nsid %s, size 1G, and attach to the controller"%MaxNs       
+            self.Print(  "create namespcaes form nsid 1 to nsid %s, size 1G, and attach to the controller"%MaxNs )
             error=0            
             for i in range(1, NN+1):        
                 # delete NS

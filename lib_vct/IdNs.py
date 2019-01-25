@@ -43,7 +43,7 @@ class IdNs_(object, NVMECom):
     NOIOB=RegDescriptor("id-ns", "noiob")
     NVMCAP=RegDescriptor("id-ns", "nvmcap")
     NGUID=RegDescriptor("id-ns", "nguid")
-    EUI64=RegDescriptor("id-ns", "nseui64feat")
+    EUI64=RegDescriptor("id-ns", "eui64")
 
 
     

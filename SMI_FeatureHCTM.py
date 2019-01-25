@@ -51,7 +51,7 @@ class SMI_SmartHealthLog(NVME):
     SubCase6TimeOut = 60
     SubCase6Desc = "Test set TMT2 > MXTMT"    
 
-    SubCase7TimeOut = 60
+    SubCase7TimeOut = 600
     SubCase7Desc = "Test HCTM functionality"    
     
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -258,6 +258,11 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Warning! If the Composite Temperature is above 35 °C now, it may fail this test  ", "w")
         self.Print("Please cool down the controller and try it later, expected temperature < 35 °C", "w")
         self.Print ("")
+        
+        LiveT = self.GetLog.SMART.CompositeTemperature
+        self.Print ("CompositeTemperature now: %s °C"%self.KelvinToC(LiveT))        
+        
+        
         self.Print ("Reset HCTM function")
         self.ClearHCTMFunc()
         self.Print ("")

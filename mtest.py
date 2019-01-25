@@ -35,9 +35,7 @@ class Test(NVME):
         # initial parent class
         super(Test, self).__init__(argv)
              
-        print self.CR.VS.TER.int
-        print self.CR.VS.MNR.int
-        print self.CR.VS.MJR.int
+        self.write_unc(SLB=0, BlockCnt=127)
         
             
 

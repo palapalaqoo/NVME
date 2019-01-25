@@ -1,4 +1,4 @@
 CASE 1 : Test CNS=0x00, Identify Namespace data structure : Pass
 CASE 2 : Test CNS=0x01, Identify Controller Data Structure : Skip
-CASE 3 : Test time exceeds 2^48 : Skip
+CASE 3 : Test CNS=0x02, A list of 1024 namespace IDs : Skip
 CASE 4 : Test CNS=0x03, Namespace Identification Descriptor structures : Skip

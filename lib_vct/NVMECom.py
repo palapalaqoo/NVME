@@ -65,7 +65,9 @@ class NVMECom():
         f = open(NVMECom.LogNameCmd, "w")
         f.close()          
             
-
+    def __init__(self):
+        pass
+        
     def set_NVMECom_par(self, son):
         # set NVMECom parameters from subclass
         NVMECom.device=son.dev
@@ -241,7 +243,7 @@ class NVMECom():
                 'end' : 0,
             },
     }
-    def UseStringStyle(self, string, mode = '', fore = '', back = ''):
+    def UseStringStyle(self, string, mode = '', fore = '', back = '', Identation = 0):
      
         mode = '%s' % self.StringStyle['mode'][mode] if self.StringStyle['mode'].has_key(mode) else ''
         fore = '%s' % self.StringStyle['fore'][fore] if self.StringStyle['fore'].has_key(fore) else ''
@@ -249,7 +251,9 @@ class NVMECom():
         style = ';'.join([s for s in [mode, fore, back] if s])
         style = '\033[%sm' % style if style else ''
         end = '\033[%sm' % self.StringStyle['default']['end'] if style else ''
-        return '%s%s%s' % (style, string, end)     
+        strIdent = ""
+        strIdent += " "* Identation
+        return '%s%s%s%s' % (strIdent, style, string, end)     
        
     class lbafds:
     # LBA Format Data Structure    
@@ -298,16 +302,17 @@ class NVMECom():
         # consol
         mStr=""
         if Ctype=="p" or Ctype=="P":   
-            mStr =  self.color.GREEN +"%s" %(msg)  +self.color.RESET
+            mStr = self.UseStringStyle(msg, fore="green")
+            #mStr =  self.color.GREEN +"%s" %(msg)  +self.color.RESET
         elif Ctype=="f" or Ctype=="F":  
-            mStr =  self.color.RED +"%s" %(msg)  +self.color.RESET
-        elif Ctype=="w" or Ctype=="W":  
-            mStr =  self.color.YELLOW +"%s" %(msg)  +self.color.RESET            
+            mStr = self.UseStringStyle(msg, fore="red")
+        elif Ctype=="w" or Ctype=="W":   
+            mStr = self.UseStringStyle(msg, fore="yellow")       
         elif Ctype=="t" or Ctype=="T":  
             if NVMECom.mTestModeOn:
-                mStr =  self.color.CYAN +"%s" %(msg)  +self.color.RESET
+                mStr = self.UseStringStyle(msg, fore="cyan")
         elif Ctype=="d" or Ctype=="D":  
-            mStr = "%s" %(msg)
+            mStr = self.UseStringStyle(msg)
         elif Ctype=="u" or Ctype=="U":
             # underline
             mStr = self.UseStringStyle(msg, mode="underline")
