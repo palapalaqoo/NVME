@@ -43,25 +43,44 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     
-    def GetValueFromUserFile(self, UserFile, idName):
-        value=None
+    def GetValueFromUserFile(self, UserFile, admin_io, opcode):
+        # return mItem[3] to mItem[8] if file exist
+        # InitLogPage05Lists = [ admin/io, opcode, CommandName, CSE, CCC, NIC, NCC, LBCC, CSUPP ]
+        value=[None,None,None,None,None,None]
         if UserFile!=None:
             for mItem in UserFile:
-                if self.RemoveSpaces(mItem[0].upper()) == self.RemoveSpaces(idName.upper()):
-                    value=mItem[1]
-                    break
+                # if start char=# means it is a comment, and quit it
+                mStr = "^#"
+                if re.search(mStr, mItem[0]):
+                    pass  
+                else:               
+                    admin_ioC=self.mFormatString(mItem[0], self.TypeStr)
+                    opcodeC=self.mFormatString(mItem[1], self.TypeInt)
+                    admin_ioU=self.mFormatString(admin_io, self.TypeStr)
+                    opcodeU=self.mFormatString(opcode, self.TypeInt)                    
+                    
+                    
+                    admin_ioMatch= True if admin_ioC == admin_ioU else False
+                    opcodeMatch= True if opcodeC == opcodeU else False
+                    if admin_ioMatch and opcodeMatch:
+                        value=mItem[3:9]
+                        break
         return value    
     
-    def PrintAlignString(self,S0, S1, S2, PF="default"):            
-        mStr = "{:<8}\t{:<30}\t{:<30}".format(S0, S1, S2)
-        if PF=="pass":
+    def PrintAlignString(self,S0='', S1='', S2='', S3='', S4='', S5='', S6='', S7='', S8='', S3_u='', S4_u='', S5_u='', S6_u='', S7_u='', S8_u='', mode="default"):            
+        if mode!="printInfo":
+            mStr = "{:<6}{:<7}{:<30}|{:<4}{:<4}{:<4}{:<4}{:<5}{:<6}|{:<4}{:<4}{:<4}{:<4}{:<5}{:<6}".format(S0, S1, S2, S3, S4, S5, S6, S7, S8, S3_u, S4_u, S5_u, S6_u, S7_u, S8_u)
+        else:
+            mStr = "{:<6}{:<7}{:<30}|{:<27}|{:<20}".format(S0, S1, S2, S3, S3_u)
+                    
+        if mode=="pass":
             self.Print( mStr , "p")        
-        elif PF=="fail":
+        elif mode=="fail":
             self.Print( mStr , "f")      
         else:
             self.Print( mStr )  
             
-    def CheckValuesFromControllerWithCsvFile(self, CNS):
+    def CheckValuesFromControllerWithCsvFile(self):
     # return True/False
 
         OUT_UserFileFullPath=self.OutPath+self.File_GetLog05
@@ -86,9 +105,10 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
 
             self.Print( "")
             self.Print( "Start to check values ..")
-            self.Print("----------------------------------------------------------------------")   
-            self.PrintAlignString("Name", "Controller", IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)")
-            self.Print("----------------------------------------------------------------------")   
+            self.Print("-----------------------------------------------------------------------------------------------------------")   
+            self.PrintAlignString(S3="Contrller", S3_u=IN_UserFileFullPath if InUserFile!=None else (IN_UserFileFullPath+'(missing)'), mode="printInfo")
+            self.PrintAlignString("Type", "Opcode", "Desc", "CSE", "CCC","NIC", "NCC", "LBCC", "CSUPP", "CSE", "CCC","NIC", "NCC", "LBCC", "CSUPP")
+            self.Print("-----------------------------------------------------------------------------------------------------------")   
 
             for mItem in OutUserFile:
                 # if start char=# means it is a comment, and quit it
@@ -97,30 +117,38 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
                     pass   
                 else:                 
                     # InitLogPage05Lists = [ admin/io, opcode, CommandName, CSE, CCC, NIC, NCC, LBCC, CSUPP ]
-                    # read name and value from csv file that was created by get log command
-                    Name=mItem[3]
-                    ValueC=mItem[1]
                     
-                    # check value type, 0= int, 1= string
-                    mStr="^0x"
-                    if re.search(mStr, ValueC):  
-                        mType = 0
-                    else:
-                        mType = 1
+                    # read values from csv file that was created by get log command
+                    admin_io=self.mFormatString(mItem[0], self.TypeStr)
+                    opcode=self.mFormatString(mItem[1], self.TypeInt)
+                    CommandName = self.mFormatString(mItem[2], self.TypeStr)
+                    CSE = self.mFormatString(mItem[3], self.TypeInt)        
+                    CCC = self.mFormatString(mItem[4], self.TypeInt)      
+                    NIC = self.mFormatString(mItem[5], self.TypeInt)      
+                    NCC = self.mFormatString(mItem[6], self.TypeInt)      
+                    LBCC = self.mFormatString(mItem[7], self.TypeInt)      
+                    CSUPP = self.mFormatString(mItem[8], self.TypeInt)    
+                    ValueC =[CSE, CCC, NIC, NCC, LBCC, CSUPP ]      
+
+                    # read values from user input csv file
+                    CSE_u, CCC_u, NIC_u, NCC_u, LBCC_u, CSUPP_u = self.GetValueFromUserFile(InUserFile, admin_io, opcode)
+                    # format that
+                    CSE_u = self.mFormatString(CSE_u, self.TypeInt)        
+                    CCC_u = self.mFormatString(CCC_u, self.TypeInt)      
+                    NIC_u = self.mFormatString(NIC_u, self.TypeInt)      
+                    NCC_u = self.mFormatString(NCC_u, self.TypeInt)      
+                    LBCC_u = self.mFormatString(LBCC_u, self.TypeInt)      
+                    CSUPP_u = self.mFormatString(CSUPP_u, self.TypeInt)                                  
+                    ValueU =[CSE_u, CCC_u, NIC_u, NCC_u, LBCC_u, CSUPP_u]      
                     
-                    # value from controller,  and format it
-                    ValueC = self.mFormatString(ValueC, mType)
-                    # value from user,  and format it
-                    ValueU = self.GetValueFromUserFile(InUserFile, Name)
-                    ValueU = self.mFormatString(ValueU, mType)                                        
                     
                     # check if value is the same from controller and user file    
-                    if ValueU==None:                                
-                        self.PrintAlignString(Name, ValueC, "N/A")
+                    if InUserFile==None:                
+                        self.PrintAlignString(admin_io, opcode, CommandName, CSE, CCC, NIC, NCC, LBCC, CSUPP, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A")
                     elif ValueU==ValueC:        
-                        self.PrintAlignString(Name, ValueC, ValueU, "pass")                            
+                        self.PrintAlignString(admin_io, opcode, CommandName, CSE, CCC, NIC, NCC, LBCC, CSUPP, CSE_u, CCC_u, NIC_u, NCC_u, LBCC_u, CSUPP_u, "pass")                            
                     elif ValueU!=ValueC:      
-                        self.PrintAlignString(Name, ValueC, ValueU, "fail")   
+                        self.PrintAlignString(admin_io, opcode, CommandName, CSE, CCC, NIC, NCC, LBCC, CSUPP, CSE_u, CCC_u, NIC_u, NCC_u, LBCC_u, CSUPP_u, "fail")   
                         subRt=False
                     
         self.Print("----------------------------------------------------------------------")     
@@ -191,26 +219,6 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
         self.SaveToCSVFile(mlist)
         mlist = ["# admin/io", "opcode", "CommandName", "CSE", "CCC", "NIC", "NCC", "LBCC", "CSUPP" ]
         self.SaveToCSVFile(mlist)
-        
-    def ParseFuncCNS_0x0_0x1(self, ParseCfg, UserFile, DataStructIn):
-        DS = DataStructIn
-        ParseCfgList = self.ReadCSVFile(ParseCfg)
-        for mItem in ParseCfgList:
-            # if start char=# means it is a comment, and quit it
-            mStr = "^#"
-            if re.search(mStr, mItem[0]):
-                pass   
-            else:                 
-                Name=mItem[0]                  
-                StopByte=int(mItem[1])
-                StartByte=int(mItem[2])                
-                mType=int(mItem[3])
-                # value from controller,  and format it
-                ValueC =self.convert(DS, StopByte, StartByte, mType)
-                ValueC = self.mFormatString(ValueC, mType)
-                    
-                # save to csv file
-                self.SaveToCSVFile(UserFile, Name, ValueC)
 
     def SaveToCSVFile(self, ValueList):
         fileNameFullPath = self.OutPath + self.File_GetLog05
@@ -280,31 +288,7 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
            
             
         return valueIn
-    
-    def GetIdentifyDataStructure(self, CNS, CNTID):
-        if CNS == 0x0:
-            pass
-        elif CNS == 0x1:
-            pass
-        elif CNS == 0x2:
-            pass
-        elif CNS == 0x3:            
-            pass
-        elif CNS == 0x10: 
-            pass           
-        elif CNS == 0x11:
-            pass
-        elif CNS == 0x12:
-            pass
-        elif CNS == 0x13:            
-            pass
-        elif CNS == 0x14:              
-            pass
-        elif CNS == 0x15:              
-            pass        
-        
-    def CreateIDFileFromController(self):
-        pass     
+
     
     def InitDirs(self):
         # If ./CSV not exist, Create it
@@ -324,89 +308,7 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
         # Create dir
         if not os.path.exists(self.OutPath):
             os.makedirs(self.OutPath)    
-            
-    def CheckCorrectness(self, CNS):
-    # read /Out/UserFileName and check correctness of value
-        UserFileName = self.LogPage05List[CNS][1]
-        OUT_UserFileFullPath = self.OutPath + UserFileName    
-    
-        subRt=0
-        UserFile=self.ReadCSVFile(OUT_UserFileFullPath)
-        # if can't find file, then pass and return
-        if UserFile==None:
-            return True
-        else:  
-            for mItem in UserFile:            
-                Name=mItem[0]       
-                ValueC=mItem[1]
-                # if start char=0x means it is a interger, and quit it
-                mStr="0x"
-                if re.search(mStr, ValueC):
-                    Type=self.TypeInt
-                else:     
-                    Type=self.TypeStr
 
-                if Name == "VID":
-                    self.Print("Check %s"%Name)
-                    self.Print("    Is the same value as reported in the ID register")
-                    value=self.read_pcie(self.PCIHeader, 0)+(self.read_pcie(self.PCIHeader, 1)<<8)
-                    self.Print("    %s : %s  | VID_FromPCIHeader : %s"%(Name,ValueC, hex(value)))
-                    if value== int(ValueC, 16):
-                        self.Print("    Pass", "p")
-                    else:
-                        self.Print("    Fail", "f")
-                        subRt=1
-
-
-                if Name == "SSVID":
-                    self.Print("Check %s"%Name)
-                    self.Print("    Is the same value as reported in the SS register")
-                    value=self.read_pcie(self.PCIHeader, 0x2C)+(self.read_pcie(self.PCIHeader, 0x2D)<<8)
-                    self.Print("    %s : %s  | SSVID_FromPCIHeader : %s"%(Name,ValueC, hex(value)))
-                    if value== int(ValueC, 16):
-                        self.Print("    Pass", "p")
-                    else:
-                        self.Print("    Fail", "f")
-                        subRt=1
-                        
-                if Name == "FR":
-                    self.Print("Check %s"%Name)
-                    self.Print("    Is the same revision information that may be retrieved with the Get Log Page command")
-                    value=self.RemoveSpaces(self.GetFWVer())
-                    self.Print("    %s : %s  | Value from Get Log Page : %s"%(Name,ValueC, value))
-                    if value== ValueC:
-                        self.Print("    Pass", "p")
-                    else:
-                        self.Print("    Fail", "f")
-                        subRt=1
-
-                if Name == "VER":
-                    self.Print("Check %s"%Name)
-                    self.Print("    Is the same value as reported in the Version register")
-                    value=self.CR.VS.TER.int
-                    value=value+(self.CR.VS.MNR.int << 8)
-                    value=value+(self.CR.VS.MJR.int << 16)                    
-
-                    self.Print("    %s : %s  | VER from Controller Registers : %s"%(Name,ValueC, hex(value)))    
-                    if value== int(ValueC, 16):
-                        self.Print("    Pass", "p")
-                    else:
-                        self.Print("    Fail", "f")
-                        subRt=1
-
-                                                                  
-        return True if subRt==0 else False
-    
-
-    def GetFWVer(self):
-        FirmwareSlotInformationLog = self.get_log2byte(3, 64)
-        AFI=FirmwareSlotInformationLog[0]
-        ActiveFirmwareSlot= int(AFI, 16)&0b00000111
-        FWVer=""
-        for i in range(8):
-            FWVer=FWVer+chr(int(FirmwareSlotInformationLog[i+ActiveFirmwareSlot*8], 16))
-            
-        return FWVer
     
     def InitLogPage05Lists(self):
         # InitLogPage05Lists = [ admin/io, opcode, CommandName, CSE, CCC, NIC, NCC, LBCC, CSUPP ]
@@ -452,199 +354,6 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
         self.LogPage05List.append([ "io", 0x11 , "Reservation Acquire", None, None, None, None, None, None ])
         self.LogPage05List.append([ "io", 0x15 , "Reservation Release", None, None, None, None, None, None ])        
 
-    def TryToCreateNS(self, ns):
-    # try to create namespace and return number of namespaes
-        NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
-        MaxNs=1
-        if NsSupported:
-            self.Print ("Namespace Management supported: Yes")
-            self.Print (  "try to create namespace" )
-            # function CreateMultiNs() will create namespace less then 8 NS
-            MaxNs = self.CreateMultiNs(ns)
-        else:
-            self.Print ("Namespace Management supported: No")
-        if MaxNs ==1:
-            self.Print ("Number of namespaes: 1")
-        else:
-            self.Print ("Number of namespaes: from 1 to %s"%MaxNs)     
-        return   MaxNs                 
-        
-    def TestFlow0(self, CNS):
-    # return True/False       
-    # test with  ParseCfg file
-        subRt=True
-        self.Print ("Try to Save Log 05 From Controller To CSVFile")
-        Success = self.SaveIdentifyFromControllerToCSVFile(CNS)
-        if Success:
-            self.Print( "Success !","p")
-        else:            
-            self.Print( "Fail !","f")
-            return False
-            
-        if Success:
-            self.Print ("")
-            self.Print ("Check values From Controller with csv file")
-            if self.CheckValuesFromControllerWithCsvFile(CNS):
-                self.Print( "Pass !","p")
-            else:            
-                self.Print( "Fail !","f")
-                subRt = False
-                
-            self.Print ("")    
-            self.Print ("Check Correctness")
-            if self.CheckCorrectness(CNS):
-                self.Print( "Pass !","p")
-            else:            
-                self.Print( "Fail !","f")
-                subRt = False
-                        
-        return subRt
-        
-            
-        
-
-    # return True/False       
-    def TestFlowCNS_0x2(self):
-        subRt=True
-        # try to create 4 namespaces and get number of namespaces that was created
-        MaxNs=self.TryToCreateNS(4)                    
-        self.Print("")
-        
-        for nsid in range(MaxNs+1):
-        # nsid from 0
-            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 --namespace-id=%s 2>&1"%(self.dev, nsid)
-            # returnd data structure
-            self.Print( "Issue identify command with CNS=0x2 and CDW1.NSID=%s"%nsid )
-            rTDS=self.shell_cmd(CMD)
-            # format data structure to list 
-            DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
-            if DS==None:
-                self.Print( "Fail to get data structure, quit !","f")
-                subRt = False
-            else:
-                # self.Print( "Success to get data structure")  
-                
-                IDs = []
-                # according Figure 37: Namespace List Format, save id to IDs where id lenght is 4 bytes
-                for i in range(9):
-                    ID=self.convert(lists=DS, stopByte=(i*4+3), startByte=(i*4), mtype=self.TypeInt)
-                    ID=int(ID, 16)
-                    IDs.append(ID)
-                    
-                if nsid<MaxNs:
-                    self.Print( "Get data structure and check if NSIDs is in increasing order from %s to %s"%(nsid+1, MaxNs) )
-                else:
-                    self.Print( "Get data structure and check if all NSIDs is 0" )
-                mStr=""
-                nsidPoint = nsid +1
-                Success=True
-                for ID in IDs:
-                    mStr = mStr + str(ID) + " "
-                    if nsidPoint<=MaxNs and nsidPoint!=ID:
-                        Success=False
-                    if nsidPoint>MaxNs and ID!=0:
-                        Success=False            
-                        
-                    nsidPoint = nsidPoint +1  
-                                    
-                self.Print( "Namespace List: %s"%mStr )
-                if Success:
-                    self.Print("Pass", "p")
-                    self.Print("")
-                else:
-                    self.Print("Fail", "f")
-                    subRt = False
-            
-        if MaxNs!=1:
-            self.Print("Reset all namespaces to namespace 1 and kill other namespaces")
-            self.ResetNS()
-            
-        return subRt    
-         
-    def TestFlowCNS_0x3(self):
-        subRt=True
-        # try to create 4 namespaces and get number of namespaces that was created
-        MaxNs=self.TryToCreateNS(4)                    
-        self.Print("")
-        
-        for nsid in range(1, MaxNs+1):
-        # nsid from 0
-            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 --namespace-id=%s 2>&1"%(self.dev, nsid)
-            # returnd data structure
-            self.Print( "Issue identify command with CNS=0x3 and CDW1.NSID=%s"%nsid )
-            rTDS=self.shell_cmd(CMD)
-            # format data structure to list 
-            DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
-            if DS==None:
-                self.Print( "Fail to get data structure, quit !","f")
-                subRt = False
-            else:
-                # self.Print( "Success to get data structure")  
-                # according to Figure 116: Identify – Namespace Identification Descriptor, check the descriptor
-                NIDT=int(self.convert(lists=DS, stopByte=0, startByte=0, mtype=self.TypeInt), 16)
-                NIDL=int(self.convert(lists=DS, stopByte=1, startByte=1, mtype=self.TypeInt), 16)
-                NID=int(self.convert(lists=DS, stopByte=(NIDL+3), startByte=4, mtype=self.TypeInt, endian="big-endian"), 16)
-                self.Print( "Check Namespace Identification Descriptor")
-                self.Print( "")
-                
-                NIDTDefinition="Reserved"
-                if NIDT==1:
-                    NIDTDefinition="IEEE Extended Unique Identifier"
-                if NIDT==2:
-                    NIDTDefinition="Namespace Globally Unique Identifier"
-                if NIDT==3:
-                    NIDTDefinition="Namespace UUID"                
-                        
-                self.Print( "NIDT: %s ( %s )"%(NIDT, NIDTDefinition))
-                self.Print( "NIDL: %s"%NIDL)
-                self.Print( "NID: %s"%hex(NID))
-                
-                
-                if NIDT==0x1:
-                    EUI64 = self.IdNs.EUI64.int
-                    self.Print( "")
-                    self.Print( "EUI64 from Identify Namespace structure: %s"%hex(EUI64))
-                    self.Print( "Check if NID = EUI64 from Identify Namespace structure")
-                    self.Print("Pass", "p") if (NID==EUI64) else self.Print("Fail", "f")
-                    subRt = subRt if (NID==EUI64) else False
-                                                           
-                    self.Print( "Check if the EUI64 field of the Identify Namespace structure is supported")
-                    self.Print("Pass", "p") if (EUI64!=0) else self.Print("Fail", "f")
-                    subRt = subRt if (EUI64!=0) else False
-                                        
-                    self.Print( "Check if NIDL= 8")
-                    self.Print("Pass", "p") if (NIDL==0x8) else self.Print("Fail", "f")
-                    subRt = subRt if (NIDL==0x8) else False       
-                    
-                if NIDT==0x2:
-                    NGUID = self.IdNs.NGUID.int
-                    self.Print( "")
-                    self.Print( "NGUID from Identify Namespace structure: %s"%hex(NGUID))
-                    self.Print( "Check if NID = NGUID from Identify Namespace structure")
-                    self.Print("Pass", "p") if (NID==NGUID) else self.Print("Fail", "f")
-                    subRt = subRt if (NID==NGUID) else False
-                                                           
-                    self.Print( "Check if the NGUID field of the Identify Namespace structure is supported")
-                    self.Print("Pass", "p") if (NGUID!=0) else self.Print("Fail", "f")
-                    subRt = subRt if (NGUID!=0) else False
-                                        
-                    self.Print( "Check if NIDL= 0x10")
-                    self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
-                    subRt = subRt if (NIDL==0x10) else False                                 
-
-                if NIDT==0x3:                                        
-                    self.Print( "Check if NIDL= 0x10")
-                    self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
-                    subRt = subRt if (NIDL==0x10) else False                           
-                                           
-
-            
-        if MaxNs!=1:
-            self.Print("Reset all namespaces to namespace 1 and kill other namespaces")
-            self.ResetNS()
-            
-        return subRt    
-
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<           
     def __init__(self, argv):
         # initial parent class
@@ -662,7 +371,7 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
             
             
     # <sub item scripts>
-    SubCase1TimeOut = 60
+    SubCase1TimeOut = 600
     SubCase1Desc = "Test Save Get Log page 0x5 To CSVFile(./CSV/Out/GetLog_05.csv)"        
     def SubCase1(self):
         ret_code=0
@@ -684,20 +393,8 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
                 self.Print( "Fail !","f")
                 ret_code=1
 
-
-
         return ret_code
 
-    
-    SubCase2TimeOut = 60
-    SubCase2Desc = "Check if value from contrller is the same with file(./CSV/In/GetLog_05.csv)"
-    def SubCase2(self): 
-        ret_code=0
-        # check if value from contrller is the same with file 'In/File_Identify_CNS00', and save value from contrller to csv file 'Out/File_Identify_CNS00'    
-        if not self.TestFlow0(0x1):
-            ret_code=1
-
-        return ret_code
         
 
 

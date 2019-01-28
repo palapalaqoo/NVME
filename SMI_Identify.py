@@ -295,18 +295,27 @@ class SMI_IdentifyCommand(NVME):
         # If ./CSV/In not exist, Create it
         if not os.path.exists(self.InPath):
             os.makedirs(self.InPath)
-            
+        # If ./CSV/Out not exist, Create it       
         if not os.path.exists(self.OutPath):
             os.makedirs(self.OutPath)  
-        
+        '''
         # remove all file in /CSV/Out
         if os.path.exists(self.OutPath):
             shutil.rmtree(self.OutPath) 
         # Create dir
         if not os.path.exists(self.OutPath):
             os.makedirs(self.OutPath)    
-            
-    def CheckCorrectness(self, CNS):
+        '''
+        if os.path.exists(self.OutPath+self.File_Identify_CNS00):
+            os.remove(self.OutPath+self.File_Identify_CNS00)    
+        if os.path.exists(self.OutPath+self.File_Identify_CNS01):
+            os.remove(self.OutPath+self.File_Identify_CNS01)               
+        if os.path.exists(self.OutPath+self.File_Identify_CNS02):
+            os.remove(self.OutPath+self.File_Identify_CNS02)               
+        if os.path.exists(self.OutPath+self.File_Identify_CNS03):
+            os.remove(self.OutPath+self.File_Identify_CNS03)   
+                                    
+    def CheckCorrectness(self, CNS): 
     # read /Out/UserFileName and check correctness of value
         UserFileName = self.IdentifyLists[CNS][1]
         OUT_UserFileFullPath = self.OutPath + UserFileName    

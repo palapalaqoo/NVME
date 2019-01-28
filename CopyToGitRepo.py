@@ -16,36 +16,42 @@ def copyDir(root_src_dir, root_dst_dir):
             os.makedirs(dst_dir)
         for file_ in files:
             src_file = os.path.join(src_dir, file_)
-            # no need to copy the files with extension name as belowing
-            RE=".pyc"
-            if not re.search(RE, src_file):       
-                
-                dst_file = os.path.join(dst_dir, file_)
-                if os.path.exists(dst_file):
-                    # in case of the src and dst are the same file
-                    if os.path.samefile(src_file, dst_file):
-                        continue
-                    os.remove(dst_file)
-                shutil.copy2(src_file, dst_dir)
+   
+            dst_file = os.path.join(dst_dir, file_)
+            copyDiffFile(src_file, dst_file)
+
+def copyDiffFile(src_file, dst_file):
+   
+        # no need to copy the files with extension name as belowing
+        RE=".pyc"
+        if re.search(RE, src_file):                  
+            return 0
+        # in case of the src and dst are the same file
+        if os.path.exists(dst_file):
+            if os.path.samefile(src_file, dst_file):
+                return 0
+        # copy file
+        shutil.copy2(src_file, dst_file)    
+        return 0
 
 def mCopy(name):
     srcDir="/root/sam/eclipse/pytest/"
 
     #dstPath="/root/sam/share/Git/Linux/Linux_regress/Script/" 
-    dstPath="/root/sam/git/Git/Linux/Linux_regress/Script/" 
-    
+    #dstPath="/root/sam/git/Git/Linux/Linux_regress/Script/" 
+    dstPath="/root/sam/buf/"
        
     # copy lib_vct
     dstDir=dstPath+name+"/"
     copyDir(srcDir+"lib_vct", dstDir+"lib_vct")
     # copy main py
     fileName=name+".py"
-    copyfile(srcDir+fileName, dstDir+fileName)
+    copyDiffFile(srcDir+fileName, dstDir+fileName)
     
     if name=="SMI_TelemetryExample":
         # copy other py
         fileName="SMI_AsynchronousEventRequest"+".py"
-        copyfile(srcDir+fileName, dstDir+fileName)    
+        copyDiffFile(srcDir+fileName, dstDir+fileName)    
     
 
 '''
@@ -79,6 +85,9 @@ mCopy(Name)
 
 Name="SMI_Identify"
 mCopy(Name)
+
+
+print "Done"
 
 
 

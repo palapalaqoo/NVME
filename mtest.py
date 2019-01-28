@@ -34,8 +34,10 @@ class Test(NVME):
     def __init__(self, argv):
         # initial parent class
         super(Test, self).__init__(argv)
-             
-        self.write_unc(SLB=0, BlockCnt=127)
+        self.Print("1234567890")
+        mStr = "{:>7}{:>7}".format("123456","123456")
+        self.Print(mStr)
+        
         
             
 

@@ -1,6 +1,7 @@
 eclipse.preferences.version=1
 encoding//lib_vct/NVMECom.py=utf-8
 encoding/SMI_AsynchronousEventRequest.py=utf-8
+encoding/SMI_CommandsSupportedAndEffectsLog.py=utf-8
 encoding/SMI_Compare.py=utf-8
 encoding/SMI_DSM.py=utf-8
 encoding/SMI_FeatureHCTM.py=utf-8
