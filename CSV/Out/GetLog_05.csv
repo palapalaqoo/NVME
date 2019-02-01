@@ -12,7 +12,7 @@ admin,9,Set Features,0,0,0,0,0,1
 admin,10,Get Features,0,0,0,0,0,1
 admin,12,Asynchronous Event Request,0,0,0,0,0,1
 admin,13,Namespace Management,0,0,0,0,0,0
-admin,16,Firmware Commit,0,0,0,0,0,1
+admin,16,Firmware Commit,0,1,0,0,0,1
 admin,17,Firmware Image Download,0,0,0,0,0,1
 admin,20,Device Self-test,0,0,0,0,0,1
 admin,21,Namespace Attachment,0,0,0,0,0,0
@@ -23,17 +23,17 @@ admin,28,Virtualization Management,0,0,0,0,0,0
 admin,29,NVMe-MI Send,0,0,0,0,0,0
 admin,14,NVMe-MI Receive,0,0,0,0,0,0
 admin,124,Doorbell Buffer Config,0,0,0,0,0,0
-admin,128,Format NVM,2,0,0,0,1,1
-admin,129,Security Send,2,0,0,0,1,1
-admin,130,Security Receive,1,0,0,0,0,1
-admin,132,Sanitize,0,0,0,0,0,0
-io,0,Flush,1,0,0,0,0,1
+admin,128,Format NVM,1,0,0,0,1,1
+admin,129,Security Send,0,0,0,0,1,1
+admin,130,Security Receive,0,0,0,0,0,1
+admin,132,Sanitize,1,0,0,0,1,1
+io,0,Flush,0,0,0,0,1,1
 io,1,Write,0,0,0,0,1,1
 io,2,Read,0,0,0,0,0,1
 io,4,Write Uncorrectable,0,0,0,0,1,1
 io,5,Compare,0,0,0,0,0,1
 io,8,Write Zeroes,0,0,0,0,1,1
-io,9,Dataset Management,1,0,0,0,1,1
+io,9,Dataset Management,0,0,0,0,1,1
 io,13,Reservation Register,0,0,0,0,0,0
 io,14,Reservation Report,0,0,0,0,0,0
 io,17,Reservation Acquire,0,0,0,0,0,0
