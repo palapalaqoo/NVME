@@ -1,5 +1,0 @@
-20190131_13:24:20 DT: 00:00:00 Case: 0| [33mCASE 1 : Test CNS=0x00, Identify Namespace data structure : Skip[0m
-20190131_13:24:20 DT: 00:00:00 Case: 0| [33mCASE 2 : Test CNS=0x01, Identify Controller Data Structure : Skip[0m
-20190131_13:24:20 DT: 00:00:00 Case: 0| [33mCASE 3 : Test CNS=0x02, A list of 1024 namespace IDs containing active NSIDs : Skip[0m
-20190131_13:24:20 DT: 00:00:00 Case: 4| [32mCASE 4 : Test CNS=0x03, Namespace Identification Descriptor structures : Pass[0m
-20190131_13:24:20 DT: 00:00:00 Case: 4| [33mCASE 5 : Test CNS=0x10, A list of 1024 namespace IDs containing allocated NSIDs : Skip[0m

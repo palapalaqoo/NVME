@@ -1,5 +1,0 @@
-CASE 1 : Test CNS=0x00, Identify Namespace data structure : Skip
-CASE 2 : Test CNS=0x01, Identify Controller Data Structure : Skip
-CASE 3 : Test CNS=0x02, A list of 1024 namespace IDs containing active NSIDs : Skip
-CASE 4 : Test CNS=0x03, Namespace Identification Descriptor structures : Pass
-CASE 5 : Test CNS=0x10, A list of 1024 namespace IDs containing allocated NSIDs : Skip
