@@ -8,6 +8,9 @@ import shutil,os
 import re
 from shutil import copyfile
 
+# copyType = 0, copy
+# copyType = 1, simulate
+copyType=1
 
 def copyDir(root_src_dir, root_dst_dir):
     for src_dir, dirs, files in os.walk(root_src_dir):
@@ -30,16 +33,25 @@ def copyDiffFile(src_file, dst_file):
         if os.path.exists(dst_file):
             if os.path.samefile(src_file, dst_file):
                 return 0
+            
+        RE="t/NVME.py"
+        if not re.search(RE, src_file):                  
+            return 0            
+            
         # copy file
-        shutil.copy2(src_file, dst_file)    
+        print "%s  ->  %s"%(src_file, dst_file)
+        if copyType==0:
+            shutil.copy2(src_file, dst_file)
+        else:    
+            pass
         return 0
 
 def mCopy(name):
-    srcDir="/root/sam/eclipse/pytest/"
+    srcDir="/root/sam/Eclipse/NVME/"
 
     #dstPath="/root/sam/share/Git/Linux/Linux_regress/Script/" 
-    #dstPath="/root/sam/git/Git/Linux/Linux_regress/Script/" 
-    dstPath="/root/sam/buf/"
+    dstPath="/root/sam/Git/test/Linux/Linux_regress/Script/" 
+    #dstPath="/root/sam/buf/"
        
     # copy lib_vct
     dstDir=dstPath+name+"/"
@@ -54,7 +66,7 @@ def mCopy(name):
         copyDiffFile(srcDir+fileName, dstDir+fileName)    
     
 
-'''
+
 Name="SMI_DSM"
 mCopy(Name)
 Name="SMI_FeatureHCTM"
@@ -63,10 +75,19 @@ Name="SMI_FeatureNumberofQueues"
 mCopy(Name)
 Name="SMI_FeatureTimestamp"
 mCopy(Name)
+
 Name="SMI_Format"
 mCopy(Name)
 Name="SMI_NVMEReset"
 mCopy(Name)
+Name="SMI_Compare"
+mCopy(Name)
+Name="SMI_CommandsSupportedAndEffectsLog"
+mCopy(Name)
+
+Name="SMI_Identify"
+mCopy(Name)
+
 Name="SMI_Read"
 mCopy(Name)
 Name="SMI_Sanitize"
@@ -81,10 +102,9 @@ Name="SMI_TelemetryExample"
 mCopy(Name)
 Name="SMI_Write"
 mCopy(Name)
-'''
 
-Name="SMI_Identify"
-mCopy(Name)
+
+
 
 
 print "Done"

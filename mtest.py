@@ -35,8 +35,8 @@ class Test(NVME):
         # initial parent class
         super(Test, self).__init__(argv)
         self.Print("1234567890")
-        mStr = "{:>7}{:>7}".format("123456","123456")
-        self.Print(mStr)
+        DS = self.get_log_passthru(LID=0x2, size=16, BytesOfElement=4)
+        self.Print("1234567890")
         
         
             

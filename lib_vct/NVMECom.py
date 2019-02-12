@@ -136,8 +136,9 @@ class NVMECom():
         n=2
         return [line[i:i+n] for i in range(0, len(line), n)]       
     
-    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0):
+    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1):
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0
+    #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] ,if ReturnType=0
     #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1   
     #-- size, size in bytes
     #-- usage: mStr=get_log_passthru(7, 512, rae, lsp, lpo)=[01, 23, 45, 67, 89]
@@ -156,13 +157,14 @@ class NVMECom():
         #cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=0x007F0008 -l 512 2>&1 "%mNVME.dev
         cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(NVMECom.device, CDW10, NUMDU, LPOL, LPOU, size)
         mbuf=self.shell_cmd(cmd)
-        return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType)
+        return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType, BytesOfElement)
             
-    def AdminCMDDataStrucToListOrString(self, strIn, ReturnType=0):
+    def AdminCMDDataStrucToListOrString(self, strIn, ReturnType=0, BytesOfElement=1):
     # input admin-passthru command Returned Data Structure, not that command must have '2>&1' to check if command success or not
     # output list or string
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0 where byte[] is string type
     #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1 where byte[] is string type      
+    #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] 
         # if command success
         if re.search("NVMe command result:00000000", strIn):
             line="0"        
@@ -173,7 +175,15 @@ class NVMECom():
                 # return list
                 # put patten in to list type
                 n=2
-                return [line[i:i+n] for i in range(0, len(line), n)]    
+                listBuf= [line[i:i+n] for i in range(0, len(line), n)] 
+                
+                # set bytes of element, ex. [0, 1, 2, 3, 4..] , BytesOfElement= 3, -> [210, 543, 876..]
+                if BytesOfElement!=1:
+                    n=BytesOfElement                    
+                    listBuf=["".join(list(reversed(listBuf[i:i+n]))) for i in range(0, len(listBuf), n)]
+                    
+                return listBuf
+                    
             elif ReturnType==1:
                 # return string
                 return line

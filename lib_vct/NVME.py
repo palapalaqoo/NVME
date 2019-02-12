@@ -90,6 +90,8 @@ class NVME(object, NVMECom):
         #                                                                                :return true or false
         #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
         #                                                                                :return 0=pass, 1=fals, 255=skip/notSupport
+        #     PostTest()                                                         :Override it for post test, ex. check controll status, etc.
+        #                                                                                :return true or false        
         # abstract  variables
         #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
         #     SubCase1KeyWord to SubCase32KeyWord   :Override it for sub case 1 keyWord to sub case32 keyWord
@@ -99,6 +101,9 @@ class NVME(object, NVMECom):
         
         # PreTest()
         exec("NVME.PreTest=self._function")
+        
+        # PostTest()
+        exec("NVME.PostTest=self._function")        
         
         # generate dynamic function for SubCase1() to SubCase32() for sun class to override
         # e.g. 
@@ -159,6 +164,9 @@ class NVME(object, NVMECom):
         
         # Controller registers are located in the MLBAR/MUBAR registers (PCI BAR0 and BAR1) that shall be mapped to a memory space that supports in-order access and variable access widths.
         self.MemoryRegisterBaseAddress=self.GetMRBA()        
+        
+        # save parameters for reset controller to the beginning state
+        self.initial_FLBAS=self.IdNs.FLBAS.int
 
     def GetMRBA(self):
         # Memory Register Base Address
@@ -189,6 +197,8 @@ class NVME(object, NVMECom):
             return  getattr(self, "SubCase%s"%Num)
         elif Type=="pretest":
             return  getattr(self, "PreTest")        
+        elif Type=="posttest":
+            return  getattr(self, "PostTest")           
         elif Type=="description":
             return  getattr(self, "SubCase%sDesc"%Num)
         elif Type=="keyword":
@@ -308,6 +318,22 @@ class NVME(object, NVMECom):
                 # write to log file    
                 self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
         # </for function from SubCase1 to SubCaseX   >     
+
+        # if override Posttest(), then run it, or PreTestIsPass= true
+        if self.IsMethodOverride( "PostTest"):
+            # enable RecordCmdToLogFile to recode command
+            NVMECom.RecordCmdToLogFile=True             
+            self.Logger("<PostTest> ----------------------------", mfile="cmd") 
+                
+            PostTest = self.GetAbstractFunctionOrVariable(0, "posttest")
+            PostTestIsPass = PostTest()
+            
+            # disable RecordCmdToLogFile to recode command
+            NVMECom.RecordCmdToLogFile=True             
+            self.Logger("</PostTest> ----------------------------", mfile="cmd")       
+            self.Logger("", mfile="cmd")            
+        else:
+            PostTestIsPass = True
                 
         # print ColorBriefReport
         self.PrintColorBriefReport()
@@ -442,7 +468,8 @@ class NVME(object, NVMECom):
     #-- Create name space, default size = 1G
     #-- return created nsid
         SIB=SizeInBlock
-        buf=self.shell_cmd("nvme create-ns %s -s %s -c %s -f 0 -d 0 -m 0 2>&1" %(self.dev_port, SIB, SIB))
+        LBAx=0
+        buf=self.shell_cmd("nvme create-ns %s -s %s -c %s -f %s -d 0 -m 0 2>&1" %(self.dev_port, SIB, SIB, LBAx))
         # create-ns: Success, created nsid:5
         mStr="created nsid:(\d+)"
         nsid=-1
@@ -792,11 +819,19 @@ class NVME(object, NVMECom):
         if CreatedNSID != i:
             self.Print ("create namespace error!"    )
             return False  
-        else:
+        else:            
             sleep(0.2)
             self.AttachNs(i)
             sleep(0.2)
             self.shell_cmd("  nvme reset %s " % (self.dev_port))
+            
+            # if initial_FLBAS !=0, format nsid 1 to initial_FLBAS
+            FLBAS=self.initial_FLBAS if hasattr(self, 'initial_FLBAS') else 0
+            if FLBAS!=0:                
+                    LBAFx=FLBAS&0xF        
+                    nsid=1
+                    self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1" % (self.dev_port, nsid, LBAFx, 0, 0, 0, 0))
+                                
             return True     
                
     def CreateMultiNs(self, NumOfNS=8, SizeInBlock=2097152):        

@@ -825,17 +825,21 @@ class SMI_Format(NVME):
                 ret_code=1 
         return ret_code
 
-
-
-
-
-
-
-
-
     # </sub item scripts>
     
-    
+    # override PostTest  
+    def PostTest(self):  
+        Now_FLBAS=self.IdNs.FLBAS.int
+        if Now_FLBAS!=self.FLBAS:
+            self.Print ("")
+            self.Print (" == Post Test =====================================")
+            self.Print ("FLBAS = %s, format to previous format(%s)"%(Now_FLBAS, self.FLBAS))
+            lbaf=self.FLBAS&0xF
+            mStr=self.Format(1, lbaf, 0);
+            self.Print ("Check format command success or not, expected returned status code: Success")
+            return self.CheckResult(mStr, self.Expected_Success)         
+            
+        return True    
     
     
 if __name__ == "__main__":
