@@ -34,7 +34,10 @@ class SMI_Sanitize(NVME):
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
+    def Block0IsEqual(self, value, nsid=1):
+        # check if block 0 is equal pattern or not
+        return self.fio_isequal(0, 512, value, nsid, 512)
+    
     def SendTestCommand(self, *args): 
         global CMD_Result
         
@@ -156,6 +159,7 @@ class SMI_Sanitize(NVME):
         self.Print ("")
         self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
         if self.WaitSanitizeOperationFinish(120):
+            self.Print("Done", "p")
             return True
         else:
             self.Print("Time out!, exit all test ", "f")  
@@ -180,6 +184,8 @@ class SMI_Sanitize(NVME):
             self.SANACT=3
         else:
             self.SANACT=0
+    
+              
         
     # <sub item scripts>
     SubCase1TimeOut = 60
@@ -189,20 +195,21 @@ class SMI_Sanitize(NVME):
         self.Print ("When the command is complete, the controller shall post a completion queue entry to the ")
         self.Print ("Admin Completion Queue indicating the status for the command.")
         self.Print ("")
-        '''
+        
         # Sanitize command 
-        CMD="nvme sanitize %s %s 2>&1"%(self.dev_port, "-a %s"%self.SANACT)  
+        #CMD="nvme sanitize %s %s 2>&1"%(self.dev_port, "-a %s"%self.SANACT)  
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
         self.Print ("Issue sanitize command: %s"%CMD)
                      
         mStr=self.shell_cmd(CMD)
         self.Print ("Get return code: %s"%mStr)
         self.Print ("Check return code is success or not, expected SUCCESS")
-        if re.search("SUCCESS", mStr):
+        if re.search("NVMe command result:00000000", mStr):
             self.Print("PASS", "p")  
         else:
             self.Print("Fail", "f")
             ret_code=1 
-        '''
+        
         return ret_code
     
     SubCase2TimeOut = 180
@@ -495,6 +502,44 @@ class SMI_Sanitize(NVME):
         
     
     # </sub item scripts>    
+    '''
+    SubCase7TimeOut = 60
+    SubCase7Desc = "Test CDW10 - No Deallocate After Sanitize"      
+    def SubCase7(self):
+        ret_code=0
+        
+        DSMSupported= True if self.IdCtrl.ONCS.bit(2)="1" else False
+        
+        if DSMSupported:
+
+            self.Print ("CDW10 - No Deallocate After Sanitize, If set to ‘1’ then the controller shall not deallocate any logical blocks ")
+            self.Print ("Start to deallocate the first block at nsid= 1")
+            self.shell_cmd("nvme dsm %s -s 0 -b 1 -n 1 -d" % (self.device))                     
+            #self.Print ("Check the value read from the first block, expected value: 0x5A")
+            if self.Block0IsEqual(0x5A):
+                self.Print("Done", "p")
+            else:
+                self.Print("Can't deallocate block 0, exit", "f")
+                ret_code=1  
+                return 1            
+            self.Print ("")           
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
+            self.Print ("Issue sanitize command with 'No Deallocate After Sanitize' = 0")
+            self.shell_cmd(CMD)
+            
+            self.Print ("")
+            self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
+            if self.WaitSanitizeOperationFinish(120):
+                self.Print("Done", "p")
+                return True
+            else:
+                self.Print("Time out!, exit all test ", "f")  
+                return 1
+            
+            nvme admin-passthru /dev/nvme0n1 --opcode=0x84 --cdw10=0x3 --cdw11=0xae
+        
+        return ret_code
+    '''
     
 if __name__ == "__main__":
     DUT = SMI_Sanitize(sys.argv )     

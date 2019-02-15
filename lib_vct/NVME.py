@@ -334,12 +334,58 @@ class NVME(object, NVMECom):
             self.Logger("", mfile="cmd")            
         else:
             PostTestIsPass = True
+        
+        # reset controller to initial status
+        self.ResetToInitStatus()
                 
         # print ColorBriefReport
         self.PrintColorBriefReport()
         
         # copy log to ./Case_Summary.log
         copyfile(self.LogName, "Case_Summary.log")
+
+
+    def ResetToInitStatus(self):
+        success=True
+        self.Print("")
+        printTag=True
+        # if not only namespace 1 exist, e.g. /dev/nvmexn2 exist, then reset ns to namespace 1
+        if self.dev_exist(2):
+            if printTag:
+                self.Print("== ResetToInitStatus ===========================", "p")
+                printTag=False                
+            self.Print("Reset all namespaces to namespace 1 and kill other namespaces")
+            
+            self.ResetNS()
+            if not self.dev_exist(2):
+                self.Print("Success", "p")
+            else:    
+                self.Print("Fail", "f")
+                success=False
+        
+        # if initial_FLBAS !=0, format nsid 1 to initial_FLBAS, e.g. 512 or 4k etc.. 
+        Init_lbaf=self.initial_FLBAS&0xF        
+        Now_lbaf=self.IdNs.FLBAS.int&0xF        
+        if Init_lbaf!=Now_lbaf:                
+            LBAFx=Init_lbaf        
+            nsid=1
+
+            if printTag:
+                self.Print("== ResetToInitStatus ===========================", "p")
+                printTag=False                            
+            self.Print("Format namespace 1 to previous format(LBAF%s)"%(self.FLBAS))
+            
+            self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1" % (self.dev_port, nsid, LBAFx, 0, 0, 0, 0))
+            Now_lbaf=self.IdNs.FLBAS.int&0xF 
+            if Init_lbaf==Now_lbaf:  
+                self.Print("Success", "p")
+            else:    
+                self.Print("Fail", "f")
+                success=False        
+                
+        return success
+
+
         
     def WriteSubCaseResultToLog(self, Code, SubCaseNum, Description): 
         # get return code and print to log file
@@ -823,15 +869,7 @@ class NVME(object, NVMECom):
             sleep(0.2)
             self.AttachNs(i)
             sleep(0.2)
-            self.shell_cmd("  nvme reset %s " % (self.dev_port))
-            
-            # if initial_FLBAS !=0, format nsid 1 to initial_FLBAS
-            FLBAS=self.initial_FLBAS if hasattr(self, 'initial_FLBAS') else 0
-            if FLBAS!=0:                
-                    LBAFx=FLBAS&0xF        
-                    nsid=1
-                    self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1" % (self.dev_port, nsid, LBAFx, 0, 0, 0, 0))
-                                
+            self.shell_cmd("  nvme reset %s " % (self.dev_port))                              
             return True     
                
     def CreateMultiNs(self, NumOfNS=8, SizeInBlock=2097152):        

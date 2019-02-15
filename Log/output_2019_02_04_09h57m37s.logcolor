@@ -1,8 +1,0 @@
-20190204_09:57:37 DT: 00:00:00 Case: 0| [33mCASE 1 : Test CNS=0x00, Identify Namespace data structure : Skip[0m
-20190204_09:57:37 DT: 00:00:00 Case: 0| [33mCASE 2 : Test CNS=0x01, Identify Controller Data Structure : Skip[0m
-20190204_09:57:37 DT: 00:00:00 Case: 0| [33mCASE 3 : Test CNS=0x02, A list of 1024 namespace IDs containing active NSIDs : Skip[0m
-20190204_09:57:37 DT: 00:00:00 Case: 0| [33mCASE 4 : Test CNS=0x03, Namespace Identification Descriptor structures : Skip[0m
-20190204_09:57:37 DT: 00:00:00 Case: 0| [33mCASE 5 : Test CNS=0x10, A list of 1024 namespace IDs containing allocated NSIDs : Skip[0m
-20190204_09:57:37 DT: 00:00:00 Case: 6| [32mCASE 6 : Test CNS=0x11, Identify Namespace data structure for the namespace specified NSID : Pass[0m
-20190204_09:57:37 DT: 00:00:00 Case: 6| [33mCASE 7 : Test CNS=0x12, Controller List for specified Namespace : Skip[0m
-20190204_09:57:37 DT: 00:00:00 Case: 6| [33mCASE 8 : Test CNS=0x13, Controller List of NVM subsystem : Skip[0m

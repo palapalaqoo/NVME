@@ -35,8 +35,10 @@ class Test(NVME):
         # initial parent class
         super(Test, self).__init__(argv)
         self.Print("1234567890")
-        DS = self.get_log_passthru(LID=0x2, size=16, BytesOfElement=4)
+        #DS = self.get_log_passthru(LID=0x2, size=16, BytesOfElement=4)
         self.Print("1234567890")
+        per = self.GetLog.SanitizeStatus.SPROG
+        print per
         
         
             

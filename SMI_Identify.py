@@ -915,7 +915,7 @@ class SMI_IdentifyCommand(NVME):
         return ret_code  
 
     
-    SubCase7TimeOut = 60
+    SubCase7TimeOut = 600
     SubCase7Desc = "Test CNS=0x12, Controller List for specified Namespace" 
     def SubCase7(self): 
         ret_code=0
