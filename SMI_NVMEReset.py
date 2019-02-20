@@ -248,7 +248,7 @@ class SMI_NVMeReset(NVME):
                         reset_cnt=reset_cnt+1
                         sleep(0.5)
                                 
-                print  "send reset command %s times while writing data is in progress"%(reset_cnt)
+                self.Print("send reset command %s times while writing data is in progress"%(reset_cnt))
                 if not self.dev_alive:
                     ret_code=1
                     self.Print("Error! after reset, device is missing, quit test", "f")
@@ -259,7 +259,8 @@ class SMI_NVMeReset(NVME):
                 find_patten = self.shell_cmd("hexdump %s -n %s |grep '5a5a 5a5a' 2>/dev/null"%(self.dev, total_byte_w))        
                 
                 # controller reset can't verify data integrity, so let data integrity test = pass
-                if (find_00 and find_patten) or reset_type_name=="Controller Reset":
+                # if (find_00 and find_patten) or reset_type_name=="Controller Reset":
+                if (find_00 and find_patten) :
                     self.Print("Loop: %s, reset type: %s, PASS"%(loop, reset_type_name), "p")
                 else:
                     self.Print("Loop: %s, reset type: %s, Fail"%(loop, reset_type_name), "f")

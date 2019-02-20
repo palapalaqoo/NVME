@@ -437,8 +437,9 @@ class NVMECom():
         percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
         filledLength = int(length * iteration // total)
         bar = fill * filledLength + '-' * (length - filledLength)
-        mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
-        sys.stdout.write(u"\033[1000D" + mstr)
+        mstr = '%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        #mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        sys.stdout.write(u"\033[1000D" + self.PrefixString()+mstr)
         sys.stdout.flush()    
         # Print New Line on Complete
         if iteration == total: 

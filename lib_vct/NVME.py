@@ -702,6 +702,11 @@ class NVME(object, NVMECom):
 
     def nvme_reset(self):
         self.status="reset"
+        
+        CC= self.MemoryRegisterBaseAddress+0x14
+        CChex=hex(CC)
+        self.shell_cmd("devmem2 %s w 0x00460000"%CChex, 0.1)
+                
         self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
         self.status="normal"
         return 0     
@@ -768,10 +773,13 @@ class NVME(object, NVMECom):
         
         oct_val=oct(value)[-3:]
         #if self.dev_alive and self.status=="normal":  
-        if self.dev_alive :                    
+        #if self.dev_alive :               
+        if self.status=="normal":       
             slba=block
             cdw10=slba&0xFFFFFFFF
             cdw11=slba>>32    
+            # if need to output write command status to output.log, unmark below
+            #mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n %s -l 512 -w --cdw10=%s --cdw11=%s 2>&1 | tee >> output.log"%(oct_val, self.dev, nsid, cdw10, cdw11))
             mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n %s -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(oct_val, self.dev, nsid, cdw10, cdw11))
             #retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
             '''
