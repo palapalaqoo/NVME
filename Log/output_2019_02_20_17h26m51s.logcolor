@@ -1,9 +1,0 @@
-20190220_17:26:51 DT: 00:00:00 Case: 0| [33mCASE 1 : Test Command Completion Queue : Skip[0m
-20190220_17:26:51 DT: 00:00:00 Case: 0| [33mCASE 2 : Test if only process the Admin commands listed in Figure 287 : Skip[0m
-20190220_17:26:51 DT: 00:00:00 Case: 0| [33mCASE 3 : Test All I/O Commands shall be aborted : Skip[0m
-20190220_17:26:51 DT: 00:00:00 Case: 0| [33mCASE 4 : Test if controller return zeros in the LBA field for get Error log command : Skip[0m
-20190220_17:26:51 DT: 00:00:00 Case: 0| [33mCASE 5 : Test hot reset while sanitize operation is in progress : Skip[0m
-20190220_17:26:51 DT: 00:00:00 Case: 0| [33mCASE 6 : Test Get Log Page – Sanitize Status Log : Skip[0m
-20190220_17:29:02 DT: 00:02:10 Case: 7| [32mCASE 7 : Test Overwrite sanitize operation - OIPBP=0, OWPASS=1 : Pass[0m
-20190220_17:29:02 DT: 00:02:10 Case: 7| [33mCASE 8 : Test Overwrite sanitize operation - OIPBP=1, OWPASS=1 : Skip[0m
-20190220_17:29:02 DT: 00:02:10 Case: 7| [33mCASE 9 : Test Overwrite sanitize operation - OIPBP=1, OWPASS=2 : Skip[0m

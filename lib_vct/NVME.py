@@ -720,11 +720,22 @@ class NVME(object, NVMECom):
         return 0         
     def hot_reset(self):
         self.status="reset"
-        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.5) 
-        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 2)     
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.1) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)     
+        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/unbind" %(self.pcie_port), 0.1) 
+        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/bind" %(self.pcie_port), 0.1)         
         self.status="normal"
         return 0         
     def link_reset(self):
+        # Data Link Down
+        # set secondary bus reset bit from 0x10 to 0x50
+        self.status="reset"
+        self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
+        self.hot_reset()       
+        self.status="normal"  
+                
+        '''
         self.status="reset"
         self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
         self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
@@ -732,7 +743,8 @@ class NVME(object, NVMECom):
         self.shell_cmd("  rm -f %s* "%(self.dev_port))
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
         self.hot_reset()
-        self.status="normal"
+        self.status="normal"        
+        '''
         return 0  
     def FunctionLevel_reset(self):
         self.status="reset"        

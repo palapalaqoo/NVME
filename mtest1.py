@@ -62,11 +62,30 @@ class Test(NVME):
         # initial parent class
         super(Test, self).__init__(argv)
         self.Print("1234567890")
-        
-        CC= self.MemoryRegisterBaseAddress+0x14
+        '''
+        CC= self.MemoryRegisterBaseAddress+0x28
         CChex=hex(CC)
         print CChex
-            
+        '''
+        mStr="456578"
+        self.Print ("\n"+mStr) 
+        
+        '''
+        self.status="reset"
+        self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.5)
+        self.shell_cmd("  rm -f %s* "%(self.dev_port))
+        #self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.bridge_port), 0.5) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.5)        
+        self.hot_reset()
+        self.status="normal"
+        '''
+        self.Print("")     
+        self.Print("Done")
+        self.Print("")        
             
 
 

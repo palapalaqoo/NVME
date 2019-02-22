@@ -1,9 +1,0 @@
-CASE 1 : Test Command Completion Queue : Skip
-CASE 2 : Test if only process the Admin commands listed in Figure 287 : Skip
-CASE 3 : Test All I/O Commands shall be aborted : Skip
-CASE 4 : Test if controller return zeros in the LBA field for get Error log command : Skip
-CASE 5 : Test hot reset while sanitize operation is in progress : Skip
-CASE 6 : Test Get Log Page – Sanitize Status Log : Skip
-CASE 7 : Test Overwrite sanitize operation - OIPBP=0, OWPASS=1 : Pass
-CASE 8 : Test Overwrite sanitize operation - OIPBP=1, OWPASS=1 : Skip
-CASE 9 : Test Overwrite sanitize operation - OIPBP=1, OWPASS=2 : Skip

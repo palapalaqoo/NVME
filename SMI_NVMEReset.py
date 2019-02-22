@@ -220,10 +220,11 @@ class SMI_NVMeReset(NVME):
                 reset_type_name=mItem[0]
                 reset_func=mItem[1]                    
              
+                self.Print("Loop: %s, reset type: %s"%(loop, reset_type_name))
                 # start to write and test command was abort or not
                 patten=0x5A
-                thread_w=5
-                block_w=1024 
+                thread_w=32 #5
+                block_w=128 #1024
                 total_byte_w=block_w*thread_w *512
                 
                 # clear SSD data to 0x0
@@ -239,6 +240,7 @@ class SMI_NVMeReset(NVME):
                     for process in mThreads:
                         if process.is_alive():
                             allfinished=0
+                            break
                 
                     # if all process finished then, quit while loop, else  send reset command
                     if allfinished==1:        
@@ -246,9 +248,9 @@ class SMI_NVMeReset(NVME):
                     else:
                         reset_func()
                         reset_cnt=reset_cnt+1
-                        sleep(0.5)
+                        sleep(1)
                                 
-                self.Print("send reset command %s times while writing data is in progress"%(reset_cnt))
+                
                 if not self.dev_alive:
                     ret_code=1
                     self.Print("Error! after reset, device is missing, quit test", "f")
@@ -261,10 +263,18 @@ class SMI_NVMeReset(NVME):
                 # controller reset can't verify data integrity, so let data integrity test = pass
                 # if (find_00 and find_patten) or reset_type_name=="Controller Reset":
                 if (find_00 and find_patten) :
-                    self.Print("Loop: %s, reset type: %s, PASS"%(loop, reset_type_name), "p")
+                    self.Print("PASS, number of reset: %s"%(reset_cnt), "p")
                 else:
-                    self.Print("Loop: %s, reset type: %s, Fail"%(loop, reset_type_name), "f")
+                    self.Print("Fail, number of reset: %s"%(reset_cnt), "f")
                     ret_code=1
+                
+                # if TestModeOn then print pattern, e.g. python SMI_NVMEReset.py /dev/nvme0n1 -t     
+                if self.mTestModeOn:    
+                    print ("==========================================")
+                    print ("Byte = %s"%(hex(total_byte_w)) )
+                    mStr = self.shell_cmd("hexdump %s -n %s"%(self.dev, total_byte_w))
+                    print (mStr)  
+                    print ("==========================================")             
                     
         return ret_code 
                  
