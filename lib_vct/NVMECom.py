@@ -302,13 +302,19 @@ class NVMECom():
         
     
     def Print(self, msg, Ctype="d"):
+        # split by '/n' and print rows one by one
+        MsgList = msg.split("\n")        
+        for mMsg in MsgList:
+            self.Print1Row(mMsg, Ctype)
+    
+    def Print1Row(self, msg, Ctype="d"):
         # Ctype, consol type
         # p/P: pass, print msg with green color
         # f/F: false, print msg with red color
         # w/W: warnning, print msg with yellow color
         # d/D: Default mode, print msg without color
         # t/T: test mode, will not print anything
-        
+                
         # consol
         mStr=""
         if Ctype=="p" or Ctype=="P":   
@@ -334,6 +340,7 @@ class NVMECom():
             mStr = self.UseStringStyle(msg, mode="bold")            
                         
         print self.PrefixString()+mStr
+        
             
     def PrefixString(self):
         # local time
@@ -443,7 +450,7 @@ class NVMECom():
         sys.stdout.flush()    
         # Print New Line on Complete
         if iteration == total: 
-            self.Print ("")
+            print ""
 
     def KMGT(self, size):
     # ex. KMGT(1024), return "1K"

@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+from random import randint
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -68,6 +69,21 @@ class SMI_NVMeReset(NVME):
         # start DST flow and get device self test status 
         DSTS=self.Flow.DST.Start() 
         return DSTS       
+    
+    def FindPatten(self, offset, size, SearchPatten):
+        #return string, if no finding, return ""
+        # example:       '00ba000 cdcd cdcd cdcd cdcd cdcd cdcd cdcd cdcd'  
+        # SearchPatten = 0xcd, and return 0x00ba000
+        find=""
+        HexPatten = format(SearchPatten, '02x')
+        buf=self.shell_cmd("hexdump %s -n %s -s %s 2>/dev/null"%(self.dev, size, offset,  )) 
+        # example:       '00ba000 cdcd cdcd cdcd cdcd cdcd cdcd cdcd cdcd'  
+        mStr="[^\n](\w*)%s"%((" "+HexPatten*2)*8)
+        if re.search(mStr, buf):       
+            find="0x"+re.search(mStr, buf).group(1)   
+        return find  
+              
+    
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
@@ -150,6 +166,7 @@ class SMI_NVMeReset(NVME):
             self.Print ("issue " + reset_type_name)
             self.Print ("Check if controller is working after reset")
             reset_func()
+            sleep(0.5)
             if self.dev_alive:
                 self.Print("PASS", "p")
             else:
@@ -205,6 +222,18 @@ class SMI_NVMeReset(NVME):
     def SubCase4(self):
         self.Print ("Test if reset occur, controller stops processing any outstanding IO command")
         self.Print ("Test if write command was aborted due to the reset commands"  )
+        self.Print ("")
+        TestPatten=randint(0, 0xFF)
+        thread_w=32 #5
+        block_w=16 #1024
+        total_byte_w=block_w*thread_w *512
+        # write data for a reset test= total_byte_w to (total_byte_w*MaxLoopPerResetTest)
+        MaxLoopPerResetTest = 10   
+        MaxAddress= (total_byte_w*MaxLoopPerResetTest)
+        self.Print ("Create %s thread to write data(%s) to controller from 0x0 to %s "%(thread_w, hex(TestPatten), hex(MaxAddress)  ))
+        self.Print ("While data was writing, issue reset operation, if data is missing by read command, then pass this test")
+        
+        self.Print ("")
         self.Print ("test Loop = 10 ")
         self.Print ("")
         
@@ -219,62 +248,84 @@ class SMI_NVMeReset(NVME):
                 #mItem=self.TestItems[3]
                 reset_type_name=mItem[0]
                 reset_func=mItem[1]                    
-             
-                self.Print("Loop: %s, reset type: %s"%(loop, reset_type_name))
+                LoopPass = False                
+                FirstMissingAddr=0
+                             
+                self.Print("Loop: %s, reset type: %s"%(loop, reset_type_name))            
                 # start to write and test command was abort or not
-                patten=0x5A
-                thread_w=32 #5
-                block_w=128 #1024
-                total_byte_w=block_w*thread_w *512
-                
-                # clear SSD data to 0x0
-                self.fio_write(0, total_byte_w, 0x0)        
-                
-                # write data using multy thread
-                mThreads = self.nvme_write_multi_thread(thread_w, 0, block_w, patten)
-                
-                # check if all process finished 
-                reset_cnt=0
-                while True:        
-                    allfinished=1
-                    for process in mThreads:
-                        if process.is_alive():
-                            allfinished=0
+                for i in range(MaxLoopPerResetTest):     
+                    
+                    StartBlockOffSet=(block_w*thread_w*i)
+                    StartAddrOffSet=StartBlockOffSet*512
+                    EndBlockOffSet=(block_w*thread_w*(i+1))
+                    EndAddrOffSet=EndBlockOffSet*512
+
+                    # clear SSD data to 0x0
+                    self.fio_write(StartAddrOffSet, total_byte_w, 0x0)                      
+                    
+                    # show progress
+                    mSuffix="addr: %s - %s"%(hex(StartAddrOffSet),  hex(EndAddrOffSet)    )
+                    self.PrintProgressBar(StartAddrOffSet, MaxAddress, prefix = 'Write area:',suffix=mSuffix, length = 50)
+                    
+                    # write data using multi thread
+                    mThreads = self.nvme_write_multi_thread(thread_w, StartBlockOffSet, block_w, TestPatten)
+                    
+                    # check if all process finished 
+                    reset_cnt=0
+                    while True:        
+                        allfinished=1
+                        for process in mThreads:
+                            if process.is_alive():
+                                allfinished=0
+                                break
+                    
+                        # if all process finished then, quit while loop, else  send reset command
+                        if allfinished==1:        
                             break
-                
-                    # if all process finished then, quit while loop, else  send reset command
-                    if allfinished==1:        
-                        break
-                    else:
-                        reset_func()
-                        reset_cnt=reset_cnt+1
-                        sleep(1)
-                                
-                
-                if not self.dev_alive:
-                    ret_code=1
-                    self.Print("Error! after reset, device is missing, quit test", "f")
-                    break
+                        else:
+                            reset_func()
+                            reset_cnt=reset_cnt+1
+                            sleep(1)                                
+                    
+                    if not self.dev_alive:
+                        ret_code=1
+                        self.Print("Error! after reset, device is missing, quit test", "f")
+                        print ""
+                        return 1
                  
-                # if have 00 and 5a in flash, then pass the test(f_write pattern=0x5a)
-                find_00 = self.shell_cmd("hexdump %s -n %s |grep '0000 0000' 2>/dev/null"%(self.dev, total_byte_w))
-                find_patten = self.shell_cmd("hexdump %s -n %s |grep '5a5a 5a5a' 2>/dev/null"%(self.dev, total_byte_w))        
-                
-                # controller reset can't verify data integrity, so let data integrity test = pass
-                # if (find_00 and find_patten) or reset_type_name=="Controller Reset":
-                if (find_00 and find_patten) :
-                    self.Print("PASS, number of reset: %s"%(reset_cnt), "p")
+                    # if TestModeOn then print pattern, e.g. python SMI_NVMEReset.py /dev/nvme0n1 -t     
+                    if self.mTestModeOn:    
+                        print ("==========================================")
+                        print ("Byte = %s"%(hex(total_byte_w)) )
+                        mStr = self.shell_cmd("hexdump %s -n %s -s %s "%(self.dev, total_byte_w, StartAddrOffSet))
+                        print (mStr)  
+                        print ("==========================================")           
+                                         
+                    # if have 00 and TestPatten in flash, then pass the test(f_write TestPatten)
+                    SearchPatten=0
+                    find_00 = self.FindPatten(StartAddrOffSet, total_byte_w, SearchPatten)
+                    SearchPatten=TestPatten    
+                    find_patten = self.FindPatten(StartAddrOffSet, total_byte_w, SearchPatten)
+                                
+                    # controller reset can't verify data integrity, so let data integrity test = pass
+                    # if (find_00 and find_patten) or reset_type_name=="Controller Reset": then, finish for i in range(MaxLoopPerResetTest):
+                    if (find_00!="" and find_patten!="") :
+                        FirstMissingAddr = find_00
+                        LoopPass = True                             
+                        break
+                    
+                    # <end of for i in range(MaxLoopPerResetTest)>
+                    
+                print ""
+                if LoopPass :         
+                    self.Print("Pass, write command was aborted at %s"%FirstMissingAddr, "p")
                 else:
-                    self.Print("Fail, number of reset: %s"%(reset_cnt), "f")
+                    self.Print("Fail", "f")
                     ret_code=1
                 
-                # if TestModeOn then print pattern, e.g. python SMI_NVMEReset.py /dev/nvme0n1 -t     
-                if self.mTestModeOn:    
-                    print ("==========================================")
-                    print ("Byte = %s"%(hex(total_byte_w)) )
-                    mStr = self.shell_cmd("hexdump %s -n %s"%(self.dev, total_byte_w))
-                    print (mStr)  
-                    print ("==========================================")             
+                self.Print("")
+                
+            
                     
         return ret_code 
                  

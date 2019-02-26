@@ -1,3 +1,0 @@
-CASE 1 : Test The Admin Queue registers (AQA, ASQ, or ACQ) : Skip
-CASE 2 : Test if all supported reset is working : Skip
-CASE 3 : Test if stop processing any outstanding Admin command : Skip

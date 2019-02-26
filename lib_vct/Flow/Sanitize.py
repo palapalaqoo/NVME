@@ -21,6 +21,8 @@ class FlowSanitizeStatus:
     OverWriteCompletedPassesCountCountError = 4    
 
 class Sanitize_():
+    # OverWriteCompletedPassesCount
+    Static_LastOWCPC=0
     def __init__(self, obj):
         self._mNVME = obj
         self._Options = "-a 0x02"
@@ -36,6 +38,7 @@ class Sanitize_():
         self.TimeOut=60
         self.Mode=FlowSanitizeMode.Normal
         self._Threshold=1000
+        self._SANACT=2
          
     def SetEventTrigger(self, EventTrigger=None, *args):    
         self._EventTrigger = EventTrigger
@@ -48,6 +51,14 @@ class Sanitize_():
     def SetOptions(self, Opt):
     # refer to NVME Cli, nvme-sanitize, ex. '-a 2'
         self._Options=Opt
+        
+        # parse Sanitize Action (SANACT)
+        mStr="-a (\w*)"
+        if re.search(mStr, Opt):
+            self._SANACT=int(re.search(mStr, Opt).group(1), 16)    
+        mStr="--sanact=(\w*)"
+        if re.search(mStr, Opt):
+            self._SANACT=int(re.search(mStr, Opt).group(1), 16)           
         
     def WaitRecentSanitizeFinish(self):
     # time out 10s
@@ -119,9 +130,13 @@ class Sanitize_():
                 if per != 65535:
                     break                
                 WaitCnt = WaitCnt +1
-                if WaitCnt ==10:
-                    rtCode = FlowSanitizeStatus.CommandError
-                    return rtCode
+                if WaitCnt ==10:                    
+                    # if is Crypto Erase, SPROG may not count properly, becouse changing the media encryption keys is very fast
+                    if self._SANACT==4:
+                        break
+                    else:
+                        rtCode = FlowSanitizeStatus.SprogCountError
+                        return rtCode
                 sleep(0.1)                
                 
                 
@@ -245,5 +260,8 @@ class Sanitize_():
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
                     rtCode=FlowSanitizeStatus.TimeOut            
                     break
-        # == end for if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress ========================================    
-        return rtCode, rtOWCPC
+        # == end for if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress ========================================  
+        # save rtOWCPC to static valuable
+        Sanitize_.Static_LastOWCPC=rtOWCPC
+          
+        return rtCode

@@ -9,6 +9,7 @@ import re
 import os
 import csv
 import shutil
+from random import randint
 # Import VCT modules
 from lib_vct.NVME import NVME
 
@@ -56,7 +57,18 @@ class Test(NVME):
             #retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         return mStr
 
-         
+    def FindPatten(self, offset, size, SearchPatten):
+        #return string, if no finding, return ""
+        # example:       '00ba000 cdcd cdcd cdcd cdcd cdcd cdcd cdcd cdcd'  
+        # SearchPatten = 0xcd, and return 0x00ba000
+        find=""
+        HexPatten = format(SearchPatten, '02x')
+        buf=self.shell_cmd("hexdump %s -n %s -s %s 2>/dev/null"%(self.dev, size, offset,  )) 
+        # example:       '00ba000 cdcd cdcd cdcd cdcd cdcd cdcd cdcd cdcd'  
+        mStr="[^\n](\w*)%s"%((" "+HexPatten*2)*8)
+        if re.search(mStr, buf):       
+            find="0x"+re.search(mStr, buf).group(1)   
+        return find         
         
     def __init__(self, argv):
         # initial parent class
@@ -67,8 +79,14 @@ class Test(NVME):
         CChex=hex(CC)
         print CChex
         '''
-        mStr="456578"
-        self.Print ("\n"+mStr) 
+        buf=" -L 125 -a 55 -h 123 --sanact=0x58 -kk=0"
+        #find_00 = self.FindPatten(0, 0x40000, SearchPatten)        
+
+        mStr="--sanact=(\w*)"
+        if re.search(mStr, buf):
+            find=re.search(mStr, buf).group(1)   
+            find=int(find, 16)
+            print find
         
         '''
         self.status="reset"

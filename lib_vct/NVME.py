@@ -564,19 +564,17 @@ class NVME(object, NVMECom):
     def Identify_command(self):
         return self.get_reg("id-ctrl", "nn")
         
-    def write_SML_data(self,pattern):    
+    def write_SML_data(self,pattern, size="1M"):    
     #-- write 1G into SSD at start, midde and last address    
         # write data for testing(start, middle, last)
-        size="1M"
         self.fio_write(self.start_SB*512, size, pattern) 
         self.fio_write(self.middle_SB*512, size, pattern)
         self.fio_write(self.last_SB*512, size, pattern)
     
     # check  Logical Block Content Change
-    def isequal_SML_data(self,pattern): 
+    def isequal_SML_data(self,pattern, size="1M"): 
     #-- check 1G data at start, midde and last address
-        ret=False
-        size="1M"
+        ret=False        
         if self.fio_isequal(self.start_SB*512,size, pattern):
             ret=True
         else:

@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+from random import randint
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -165,7 +166,8 @@ class SMI_Sanitize(NVME):
                 self.Flow.Sanitize.SetOptions(OPT)
                 self.Flow.Sanitize.Mode=FlowSanitizeMode.Normal
                 self.Flow.Sanitize.TimeOut=3600
-                FlowStatus, CompletedPassesCount = self.Flow.Sanitize.Start()       
+                FlowStatus = self.Flow.Sanitize.Start()       
+                CompletedPassesCount = self.Flow.Sanitize.Static_LastOWCPC
                 if FlowStatus!=0:
                     self.Print("Fail, FlowStatus: %s"%FlowStatus, "f")
 
@@ -175,7 +177,7 @@ class SMI_Sanitize(NVME):
                 if self.fio_isequal(offset=0, size="1G", pattern=0x5D5C5B5A):
                     self.Print("Pass", "p")
                 else:
-                    self.Print("Fail, data pattern as below", "f")
+                    self.Print("Fail, data from SSD as below", "f")
                     mStr = self.shell_cmd("hexdump %s -n 200M | head"%self.dev)
                     self.Print (mStr)
                     rtCode=1           
@@ -190,6 +192,139 @@ class SMI_Sanitize(NVME):
                     self.Print("Fail", "f")
                     rtCode=1            
         return rtCode 
+
+    def TestBlockEraseMechanism(self):
+        rtCode=0
+        if not self.BlockEraseSupport :
+            self.Print ("Block Erase sanitize not supported, quit this test!")
+        else:
+            self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
+            if not self.WaitSanitizeOperationFinish(120):
+                self.Print("Time out!, exit all test ", "f")  
+                rtCode=1
+            else:   
+                self.Print("Done", "p")
+                self.Print ("")
+                
+                TestPatten=randint(0, 0xFF)
+                self.Print ("Write data to the front, middle and back spaces of the LBA")
+                self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
+                self.write_SML_data(TestPatten, "1G")                
+                self.Print("Done", "p")
+                self.Print ("")                             
+                                
+                self.Print ("Issue Block Erase sanitize operation, timeout=10 minute")
+                self.Flow.Sanitize.ShowProgress=True   
+                self.Flow.Sanitize.SetEventTrigger(None)
+                # CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=0x3 --cdw11=0x5D5C5B5A 2>&1"%(self.dev, self.SANACT)  
+                OPT = "--sanact=2"
+                self.Flow.Sanitize.SetOptions(OPT)
+                self.Flow.Sanitize.Mode=FlowSanitizeMode.Normal
+                self.Flow.Sanitize.TimeOut=360
+                FlowStatus = self.Flow.Sanitize.Start()       
+                if FlowStatus!=0:
+                    self.Print("Fail, FlowStatus: %s"%FlowStatus, "f")
+
+                self.Print ("Done")
+                self.Print ("")
+                self.Print ("Check if data is 0x0 in the front, middle and back spaces of the LBA")
+                if not self.CheckLogicalBlockDataIsPass(0):
+                    rtCode=1           
+
+        return rtCode 
+
+    def TestCryptoEraseMechanism(self):
+        rtCode=0
+        if not self.CryptoEraseSupport :
+            self.Print ("Crypto Erase sanitize not supported, quit this test!")
+        else:
+            self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
+            if not self.WaitSanitizeOperationFinish(120):
+                self.Print("Time out!, exit all test ", "f")  
+                rtCode=1
+            else:   
+                self.Print("Done", "p")
+                self.Print ("")
+                
+                TestPatten=randint(0, 0xFF)
+                self.Print ("Write data to the front, middle and back spaces of the LBA")
+                self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
+                self.write_SML_data(TestPatten, "1G")                
+                self.Print("Done", "p")
+                                           
+                '''
+                self.Print ("")
+                self.Print ("Dump front data for inspection ")
+                mStr = self.shell_cmd("hexdump %s -n 200M | head"%self.dev)
+                self.Print (mStr)      
+                '''                
+                self.Print ("")  
+                self.Print ("Issue Crypto Erase sanitize operation, timeout=10 minute")
+                self.Flow.Sanitize.ShowProgress=True   
+                self.Flow.Sanitize.SetEventTrigger(None)
+                # CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=0x3 --cdw11=0x5D5C5B5A 2>&1"%(self.dev, self.SANACT)  
+                OPT = "--sanact=4"
+                self.Flow.Sanitize.SetOptions(OPT)
+                self.Flow.Sanitize.Mode=FlowSanitizeMode.Normal
+                self.Flow.Sanitize.TimeOut=360
+                FlowStatus = self.Flow.Sanitize.Start()       
+                if FlowStatus!=0:
+                    self.Print("Fail, FlowStatus: %s"%FlowStatus, "f")
+
+                self.Print ("Done", "p")
+                self.Print ("")
+                self.Print ("Check if data is not %s in the front, middle and back spaces of the LBA"%hex(TestPatten))
+                if self.CheckLogicalBlockDataIsPass(Value = TestPatten, ExpectedResult = "dismatch"):
+                    rtCode=1           
+
+                self.Print ("")
+                self.Print ("Check if data is not 0x0 in the front, middle and back spaces of the LBA")
+                if not self.CheckLogicalBlockDataIsPass(Value = 0, ExpectedResult = "dismatch"):
+                    rtCode=1
+                    
+                self.Print ("")
+                self.Print ("Dump front data for inspection ")
+                mStr = self.shell_cmd("hexdump %s -n 200M | head"%self.dev)
+                self.Print (mStr)                
+                  
+                    
+        return rtCode 
+    
+    def CheckLogicalBlockDataIsPass(self, Value, ExpectedResult="match"):
+        mPass=True
+        ExpectMatch = True if ExpectedResult=="match" else False
+        if self.fio_isequal(offset=self.start_SB*512, size="1G", pattern=Value) and ExpectMatch:
+            self.Print("Front: Pass", "p")
+        else:
+            self.Print("Front: Fail, data from SSD as below", "f")
+            CMD = "hexdump %s -n 200M -s %s| head"%(self.dev, self.start_SB*512)
+            self.Print (CMD)
+            mStr = self.shell_cmd(CMD)            
+            self.Print (mStr, "w")
+            mPass=False
+
+        if self.fio_isequal(offset=self.middle_SB*512, size="1G", pattern=Value) and ExpectMatch:
+            self.Print("Middle: Pass", "p")
+        else:
+            self.Print("Middle: Fail, data from SSD as below", "f")
+            CMD="hexdump %s -n 200M -s %s| head"%(self.dev, self.middle_SB*512)
+            self.Print (CMD)
+            mStr = self.shell_cmd(CMD)            
+            self.Print (mStr, "w")
+            mPass=False
+
+        if self.fio_isequal(offset=self.last_SB*512, size="1G", pattern=Value) and ExpectMatch:
+            self.Print("Back: Pass", "p")
+        else:
+            self.Print("Back: Fail, data from SSD as below", "f")
+            CMD="hexdump %s -n 200M -s %s| head"%(self.dev, self.last_SB*512)
+            self.Print (CMD)
+            mStr = self.shell_cmd(CMD)
+            self.Print (mStr, "w")
+            mPass=False
+        
+        return mPass    
+                      
         
     # override PreTest()
     def PreTest(self):
@@ -551,7 +686,7 @@ class SMI_Sanitize(NVME):
 
     # timeout 1.1hr
     SubCase7TimeOut = (4000)
-    SubCase7Desc = "Test Overwrite sanitize operation - OIPBP=0, OWPASS=1"      
+    SubCase7Desc = "Test Logical Block Data - Overwrite sanitize operation, OIPBP=0, OWPASS=1"      
     def SubCase7(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=0, OWPASS=1)      
@@ -560,7 +695,7 @@ class SMI_Sanitize(NVME):
             
     # timeout 1.1hr
     SubCase8TimeOut = (4000)
-    SubCase8Desc = "Test Overwrite sanitize operation - OIPBP=1, OWPASS=1"      
+    SubCase8Desc = "Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=1"      
     def SubCase8(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=1, OWPASS=1)      
@@ -569,13 +704,29 @@ class SMI_Sanitize(NVME):
 
     # timeout 1.1hr
     SubCase9TimeOut = (4000)
-    SubCase9Desc = "Test Overwrite sanitize operation - OIPBP=1, OWPASS=2"      
+    SubCase9Desc = "Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=2"      
     def SubCase9(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=1, OWPASS=2)      
 
         return ret_code
         
+    SubCase10TimeOut = (1200)
+    SubCase10Desc = "Test Logical Block Data - Block Erase sanitize operation"      
+    def SubCase10(self):
+        self.Print("")
+        ret_code=self.TestBlockEraseMechanism()      
+
+        return ret_code
+
+    SubCase11TimeOut = (1200)
+    SubCase11Desc = "Test Logical Block Data - Block Erase sanitize operation"      
+    def SubCase11(self):
+        self.Print("")
+        ret_code=self.TestCryptoEraseMechanism()      
+
+        return ret_code
+                    
     # </sub item scripts>    
     '''
     SubCase7TimeOut = 60

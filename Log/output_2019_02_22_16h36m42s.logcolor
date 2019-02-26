@@ -1,3 +1,0 @@
-20190222_16:36:43 DT: 00:00:00 Case: 0| [33mCASE 1 : Test The Admin Queue registers (AQA, ASQ, or ACQ) : Skip[0m
-20190222_16:36:43 DT: 00:00:00 Case: 0| [33mCASE 2 : Test if all supported reset is working : Skip[0m
-20190222_16:36:43 DT: 00:00:00 Case: 0| [33mCASE 3 : Test if stop processing any outstanding Admin command : Skip[0m
