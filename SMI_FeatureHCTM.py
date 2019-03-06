@@ -115,11 +115,13 @@ class SMI_SmartHealthLog(NVME):
             self.Print ("")
             self.Print ("Reset TMT value")
             self.SetTMT1_TMT2(self.TMT1bk, self.TMT2bk)
+            self.Print ("Done")
             self.Print ("")
 
             self.Print ("")
             self.Print ("NVMe reset controller")
-            self.nvme_reset()          
+            self.nvme_reset()  
+            self.Print ("Done")        
     
     def RaisingTempture(self, TargetTemp, TimeOut):
     # TimeOut = time limit in secend
@@ -389,7 +391,10 @@ class SMI_SmartHealthLog(NVME):
                 self.Print("Warning! never changed", "w")                   
         return ret_code       
 
-
+    # override post test to reset values after test is finish
+    def PostTest(self):
+        self.ResetHCTM()
+    
 
 
     # </sub item scripts> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

@@ -252,12 +252,12 @@ class SMI_Sanitize(NVME):
                 self.write_SML_data(TestPatten, "1G")                
                 self.Print("Done", "p")
                                            
-                '''
-                self.Print ("")
-                self.Print ("Dump front data for inspection ")
-                mStr = self.shell_cmd("hexdump %s -n 200M | head"%self.dev)
-                self.Print (mStr)      
-                '''                
+                if self.TestModeOn:
+                    self.Print ("")
+                    self.Print ("Dump front data for inspection ")
+                    mStr = self.shell_cmd("hexdump %s -n 200M | head"%self.dev)
+                    self.Print (mStr)      
+                               
                 self.Print ("")  
                 self.Print ("Issue Crypto Erase sanitize operation, timeout=10 minute")
                 self.Flow.Sanitize.ShowProgress=True   
@@ -720,7 +720,7 @@ class SMI_Sanitize(NVME):
         return ret_code
 
     SubCase11TimeOut = (1200)
-    SubCase11Desc = "Test Logical Block Data - Block Erase sanitize operation"      
+    SubCase11Desc = "Test Logical Block Data - Crypto Erase sanitize operation"      
     def SubCase11(self):
         self.Print("")
         ret_code=self.TestCryptoEraseMechanism()      

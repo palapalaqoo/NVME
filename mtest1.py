@@ -69,7 +69,23 @@ class Test(NVME):
         if re.search(mStr, buf):       
             find="0x"+re.search(mStr, buf).group(1)   
         return find         
-        
+
+
+    def CreateLBARangeDataStructure(self, NumOfEntrys):
+        # create multi entry of LBARangeDataStructure
+        # return string , ex "\\255\\12\\78\\ .."
+        mStr=""
+        for entry in range(NumOfEntrys):        
+            self.LBARangeDataStructure.Type=0x2
+            self.LBARangeDataStructure.Attributes=0x1
+            self.LBARangeDataStructure.SLBA=entry*8
+            self.LBARangeDataStructure.NLB=7
+            self.LBARangeDataStructure.CreatePattern()
+            # save created string to mStr
+            mStr = mStr + self.LBARangeDataStructure.Pattern
+            
+        return mStr
+            
     def __init__(self, argv):
         # initial parent class
         super(Test, self).__init__(argv)
@@ -79,15 +95,10 @@ class Test(NVME):
         CChex=hex(CC)
         print CChex
         '''
-        buf=" -L 125 -a 55 -h 123 --sanact=0x58 -kk=0"
-        #find_00 = self.FindPatten(0, 0x40000, SearchPatten)        
+        entry=2
+        DS=self.CreateLBARangeDataStructure(entry)
+        print self.set_feature(fid = 3, value = entry-1, nsid = 1, Data=DS)
 
-        mStr="--sanact=(\w*)"
-        if re.search(mStr, buf):
-            find=re.search(mStr, buf).group(1)   
-            find=int(find, 16)
-            print find
-        
         '''
         self.status="reset"
         self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 

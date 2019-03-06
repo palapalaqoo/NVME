@@ -21,6 +21,8 @@ from lib_vct.NVMECom import deadline
 import re
 import time
 from shutil import copyfile
+from __builtin__ import True
+from dnf.util import rtrim
 
 def foo1():
     pass
@@ -44,6 +46,7 @@ class NVME(object, NVMECom):
         
         # final return code
         self.rtCode=0
+        self.SubCase_rtCode=[]
         # Start Local Time
         self.StartLocalTime=time.time()
         self.SubCasePoint=0
@@ -315,6 +318,9 @@ class NVME(object, NVMECom):
                     # if user didn't assign subcase, return skip                              
                     Code = 255
                 
+                # save code to SubCase_rtCode
+                self.SubCase_rtCode.append(Code)
+                
                 # write to log file    
                 self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
         # </for function from SubCase1 to SubCaseX   >     
@@ -335,6 +341,9 @@ class NVME(object, NVMECom):
         else:
             PostTestIsPass = True
         
+        # get rtCode from SubCase_rtCode
+        self.rtCode = self.GetrtCodeFrom_SubCase_rtCode()
+        
         # reset controller to initial status
         self.ResetToInitStatus()
                 
@@ -344,8 +353,30 @@ class NVME(object, NVMECom):
         # copy log to ./Case_Summary.log
         copyfile(self.LogName, "Case_Summary.log")
 
-
+    def GetrtCodeFrom_SubCase_rtCode(self):
+        rt=0
+        findWarnning=False
+        findFail=False
+        findPass=False
+        for srtCode in self.SubCase_rtCode:
+            if srtCode==255:
+                findWarnning=True
+            if srtCode==1:
+                findFail=True                
+            if srtCode==0:
+                findPass=True      
+         
+        if findPass and not findFail:
+            rt=0
+        if not findPass and findWarnning and not findFail:
+            rt=255
+        if findFail:
+            rt=1
+            
+        return rt
+    
     def ResetToInitStatus(self):
+        sleep(0.1)
         success=True
         self.Print("")
         printTag=True

@@ -25,7 +25,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20190125"
+    Version = "20190305"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -36,6 +36,7 @@ class SMI_Format(NVME):
     
     Expected_Success = 0
     Expected_Fail = 1
+    Expected_InvalidFormat = 2
     
     CryptographicErasePass_0 = "SMI2260"
     CryptographicErasePass_1 = "SMI2262"
@@ -95,19 +96,31 @@ class SMI_Format(NVME):
     # Fail:            Invalid Format(0AH) or others
     # ExpectedResult: 0= success, 1= fail
     
-        showmsg=ShowMsg        
-        Result=0 # 0= success, 1= fail
-        
-        CompareStr=self.Status_Success
-        if not re.search(CompareStr, ResultStr):
-            Result=1
-            
-        if Result==ExpectedResult:
-            if showmsg:
+        Pass=0
+        Fail=1
+        Result=Fail
+        # ---------------------------------------------
+        if ExpectedResult==self.Expected_Success:
+            CompareStr=self.Status_Success
+            if re.search(CompareStr, ResultStr):            
+                Result=Pass
+                        
+        elif ExpectedResult==self.Expected_Fail:
+            CompareStr=self.Status_Success
+            if not re.search(CompareStr, ResultStr):            
+                Result=Pass
+
+        elif ExpectedResult==self.Expected_InvalidFormat:
+            CompareStr=self.Status_InvalidFormat
+            if re.search(CompareStr, ResultStr):            
+                Result=Pass
+        # ---------------------------------------------    
+        if Result==Pass:
+            if ShowMsg:
                 self.Print("PASS", "p")  
             return True
         else:
-            if showmsg:
+            if ShowMsg:
                 self.Print("Fail", "f")
                 self.Print("Sataus Value: %s"%ResultStr, "f")  
             return False              
@@ -561,27 +574,28 @@ class SMI_Format(NVME):
     SubCase10KeyWord = "format NVM - Command Specific Status Values"
     def SubCase10(self): 
         ret_code=0
+        '''
         self.Print ("if enabling protection information when there is no sufficient metadata per LBA, then return fail")
         self.Print ("Check return code, expected returned status code: Invalid format"    )
         
         if not self.Type1Supported:
             mStr=self.Format(1, 0, 0, 0, 1);
-            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_InvalidFormat) else 1
         elif not self.Type2Supported:
             mStr=self.Format(1, 0, 0, 0, 2);
-            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_InvalidFormat) else 1
         elif not self.Type3Supported:
             mStr=self.Format(1, 0, 0, 0, 3);
-            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_InvalidFormat) else 1
         else:
             self.Print("All Protection Information type is support, quite this test item!", "w")
-        
+        '''
         self.Print ("")
         self.Print ("If the specified format is not available in the current configuration, then return fail")
         self.Print ("Check return code, expected returned status code: Invalid format")
         if self.LBAF15_LBADS < 9:
             mStr=self.Format(1, 15, 0);
-            ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
+            ret_code = ret_code if self.CheckResult(mStr, self.Expected_InvalidFormat) else 1
         else:
             self.Print("All lbaf is available, quite this test item!", "w")
         return ret_code

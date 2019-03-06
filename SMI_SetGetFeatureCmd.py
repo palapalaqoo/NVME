@@ -337,7 +337,7 @@ class SMI_SetGetFeatureCMD(NVME):
         
         for mItem in self.TestItems:
             self.Print ("=========================================")
-            print mItem[item.description]   
+            self.Print ( mItem[item.description]   )
             self.Print ("Feature ID: %s"%mItem[item.fid]   )
             supported=mItem[item.supported]
             saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
@@ -500,8 +500,22 @@ class SMI_SetGetFeatureCMD(NVME):
                                 else:
                                     self.Print("Fail", "f")
                                     self.ret_code=1         
-                        
-
+                self.Print ("")        
+                self.Print ("-(5)--  Test Set Features if capabilities bit 2 = 0, Feature Identifier is not changeable"        )
+                if changeable:
+                    self.Print( "Feature Identifier is changeable, quit" )
+                else:
+                    self.Print( "Feature Identifier is not changeable" )
+                    self.Print ("Send set feature command with value = %s"%hex(value))                    
+                    # Send set feature command    
+                    CMD_Result = self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
+                    self.Print ("Check set feature command status code, expected code: FEATURE_NOT_CHANGEABLE")
+                    if re.search("FEATURE_NOT_CHANGEABLE", CMD_Result):  
+                        self.Print("PASS", "p")  
+                    else:
+                        self.Print("Fail", "f")
+                        self.ret_code=1                                    
+                    
 
 
         if self.Ns!=1:
