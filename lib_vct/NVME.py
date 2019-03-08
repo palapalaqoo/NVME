@@ -21,8 +21,7 @@ from lib_vct.NVMECom import deadline
 import re
 import time
 from shutil import copyfile
-from __builtin__ import True
-from dnf.util import rtrim
+
 
 def foo1():
     pass
@@ -34,6 +33,8 @@ class NVME(object, NVMECom):
     
     def __init__(self, argv):
         
+        # status
+        self.status="normal"
         # init sub case
         self.CreateAbstractFuncAndVariablesForSonClassToOverride()
         # self.dev = /dev/nvme0n1
@@ -730,12 +731,7 @@ class NVME(object, NVMECom):
         return 0     
 
     def nvme_reset(self):
-        self.status="reset"
-        
-        CC= self.MemoryRegisterBaseAddress+0x14
-        CChex=hex(CC)
-        self.shell_cmd("devmem2 %s w 0x00460000"%CChex, 0.1)
-                
+        self.status="reset"    
         self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
         self.status="normal"
         return 0     

@@ -25,7 +25,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20190125"
+    Version = "20190308"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -40,18 +40,20 @@ class SMI_NVMeReset(NVME):
         return self.CR.CSTS.bit(0)
     
     def initTestItems(self):
-        # self.TestItems=[[description, function],[description, function],..]
+        # self.TestItems=[[description, function, supported],[description, function,supported],..]
         
-        self.TestItems.append(["Controller Reset", self.nvme_reset])
+        self.TestItems.append([self.ControllerReset, self.nvme_reset, True])
         
         if self.NSSRSupport:
-            self.TestItems.append(["NVM Subsystem Reset", self.subsystem_reset])
+            self.TestItems.append([self.NVMESubsystemReset, self.subsystem_reset, True])
+        else:
+            self.TestItems.append([self.NVMESubsystemReset, self.subsystem_reset, False])
             
-        self.TestItems.append(["PCI Express Hot reset", self.hot_reset])    
+        self.TestItems.append([self.PCIExpressHotReset, self.hot_reset, True])    
         
-        self.TestItems.append(["Data Link Down status", self.link_reset]) 
+        self.TestItems.append([self.DataLinkDown, self.link_reset, True]) 
         
-        self.TestItems.append(["Function Level Reset", self.FunctionLevel_reset])
+        self.TestItems.append([self.FunctionLevelReset, self.FunctionLevel_reset, True])
         
     def StartDstAndGetStatus(self, triggerFunc):
         self.Flow.DST.EventTriggeredMessage="Send format command as DST execution >= 1% "
@@ -81,8 +83,168 @@ class SMI_NVMeReset(NVME):
         mStr="[^\n](\w*)%s"%((" "+HexPatten*2)*8)
         if re.search(mStr, buf):       
             find="0x"+re.search(mStr, buf).group(1)   
-        return find  
-              
+        return find 
+     
+    def nvme_reset(self):
+        self.status="reset"
+        #implement in SMI_NVMEReset.py
+        CC= self.MemoryRegisterBaseAddress+0x14
+        CChex=hex(CC)
+        self.shell_cmd("devmem2 %s w 0x00460000"%CChex, 1)
+                
+        self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
+        self.status="normal"
+        return 0                
+    
+    def GetTestItem(self, ResetType):
+        rtResetType=None
+        rtResetFunction=None
+        rtResetSupport=False     
+        for mItem in self.TestItems:  
+            if mItem[0]==ResetType:
+                rtResetType=mItem[0]
+                rtResetFunction=mItem[1]
+                rtResetSupport=mItem[2]
+        return rtResetType, rtResetFunction, rtResetSupport
+ 
+    
+    def TestStopsProcessingAnyOutstandingAdminCommand(self, ResetType):
+        self.Print("Reset type: %s"%( ResetType))
+        self.Print ("Test if reset occur, controller stops processing any outstanding Admin command")
+        self.Print ("Test if device self-test operation(admin command) was aborted due to the reset commands"  )
+        self.Print ("")
+        rtCode=0
+        
+        rtResetType, rtResetFunction, rtResetSupport=self.GetTestItem(ResetType) 
+        
+        if self.IdCtrl.OACS.bit(4)=="0":
+            self.Print ("Controller does not support the DST operation, quit this test item!")
+            return 0   
+        elif not rtResetSupport:
+            self.Print ("Controller does not support the %s, quit this test item!"%ResetType)
+            return 0              
+        else:
+            # start DST, if DST progress>1, issue reset in reset_func, after DST finish, get status code
+            DSTS=self.StartDstAndGetStatus(rtResetFunction)
+            # check status code
+            if DSTS!=-1:        
+                # get bit 3:0        
+                DSTSbit3to0 = DSTS & 0b00001111
+                self.Print ("result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0))
+                self.Print ("Check the result of the device self-test operation , expected result:  0x2(Operation was aborted by a Controller Level Reset)")
+                if DSTSbit3to0==2:
+                    self.Print("Reset type: %s, PASS"%(rtResetType), "p")
+                else:
+                    self.Print("Reset type: %s, Fail"%(rtResetType), "f")
+                    rtCode = 1                         
+            else:
+                self.Print ("Controller does not support the DST operation"     )
+                     
+            return rtCode
+    
+    
+    def TestStopsProcessingAnyOutstandingIOCommand(self, ResetType):
+        rtResetType, rtResetFunction, rtResetSupport=self.GetTestItem(ResetType) 
+        self.Print("Reset type: %s"%( ResetType))
+        self.Print ("Test if reset occur, controller stops processing any outstanding IO command")
+        self.Print ("Test if write command was aborted due to the reset commands"  )
+        self.Print ("")
+        rtCode=0
+        if not rtResetSupport:
+            self.Print ("Controller does not support the %s, quit this test item!"%ResetType)
+            return 0              
+        else:     
+            
+            TestPatten=randint(1, 0xFF)
+            thread_w=32 #5
+            block_w=16 #1024
+            total_byte_w=block_w*thread_w *512
+            # write data for a reset test= total_byte_w to (total_byte_w*MaxLoopPerResetTest)
+            MaxLoopPerResetTest = 100   
+            MaxAddress= (total_byte_w*MaxLoopPerResetTest)
+            self.Print ("Create %s thread to write data(%s) to controller from 0x0 to %s "%(thread_w, hex(TestPatten), hex(MaxAddress)  ))
+            self.Print ("While data was writing, issue reset operation, if data is not matched by read command, then pass this test")            
+            self.Print ("")
+
+            LoopPass = False                
+            FirstMissingAddr=0
+                         
+                        
+            # start to write and test command was abort or not
+            for i in range(MaxLoopPerResetTest):     
+                
+                StartBlockOffSet=(block_w*thread_w*i)
+                StartAddrOffSet=StartBlockOffSet*512
+                EndBlockOffSet=(block_w*thread_w*(i+1))
+                EndAddrOffSet=EndBlockOffSet*512
+            
+                # clear SSD data to 0x0
+                self.fio_write(StartAddrOffSet, total_byte_w, 0x0)                      
+                
+                # show progress
+                mSuffix="addr: %s - %s"%(hex(StartAddrOffSet),  hex(EndAddrOffSet)    )
+                self.PrintProgressBar(StartAddrOffSet, MaxAddress, prefix = 'Write area:',suffix=mSuffix, length = 50)
+                
+                # write data using multi thread
+                mThreads = self.nvme_write_multi_thread(thread_w, StartBlockOffSet, block_w, TestPatten)
+                
+                # check if all process finished 
+                reset_cnt=0
+                while True:        
+                    allfinished=1
+                    for process in mThreads:
+                        if process.is_alive():
+                            allfinished=0
+                            break
+                
+                    # if all process finished then, quit while loop, else  send reset command
+                    if allfinished==1:        
+                        break
+                    else:
+                        sleep(0.1)                                                                
+                        rtResetFunction()
+                        reset_cnt=reset_cnt+1                                
+                        sleep(0.5)                                
+                
+                if not self.dev_alive:
+                    rtCode=1
+                    self.Print("Error! after reset, device is missing, quit test", "f")
+                    print ""
+                    return 1
+             
+                # if TestModeOn then print pattern, e.g. python SMI_NVMEReset.py /dev/nvme0n1 -t     
+                if self.mTestModeOn:    
+                    print ("==========================================")
+                    print "reset_cnt: %s"%reset_cnt
+                    print ("Byte = %s"%(hex(total_byte_w)) )
+                    mStr = self.shell_cmd("hexdump %s -n %s -s %s "%(self.dev, total_byte_w, StartAddrOffSet))
+                    print (mStr)  
+                    print ("==========================================")           
+                                     
+                # if have 00 and TestPatten in flash, then pass the test(f_write TestPatten)
+                SearchPatten=0
+                find_00 = self.FindPatten(StartAddrOffSet, total_byte_w, SearchPatten)
+                SearchPatten=TestPatten    
+                find_patten = self.FindPatten(StartAddrOffSet, total_byte_w, SearchPatten)
+                            
+                # controller reset can't verify data integrity, so let data integrity test = pass
+                # if (find_00 and find_patten) or reset_type_name==self.ControllerReset: then, finish for i in range(MaxLoopPerResetTest):
+                if (find_00!="" and find_patten!="") :
+                    FirstMissingAddr = find_00
+                    LoopPass = True                             
+                    break
+                
+            # <end of for i in range(MaxLoopPerResetTest)>                
+            print ""
+            if LoopPass :         
+                self.Print("Pass, write command was aborted at %s"%FirstMissingAddr, "p")
+            else:
+                self.Print("Fail", "f")
+                rtCode=1            
+            self.Print("")
+            
+        #<end of if not rtResetSupport>           
+        return rtCode         
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
@@ -93,7 +255,14 @@ class SMI_NVMeReset(NVME):
         self.NSSRSupport=True if self.CR.CAP.NSSRS.int==1 else False
         self.TestItems=[]
         # </Parameter>      
-          
+        
+        self.ControllerReset = "Controller Reset"
+        self.NVMESubsystemReset = "NVM Subsystem Reset"
+        self.PCIExpressHotReset = "PCI Express Hot reset"
+        self.DataLinkDown = "Data Link Down"
+        self.FunctionLevelReset = "Function Level Reset"
+        
+        
         self.initTestItems()
         
         
@@ -160,175 +329,86 @@ class SMI_NVMeReset(NVME):
         ret_code=0    
 
         self.Print ("")
-        for mItem in self.TestItems:        
+        for mItem in self.TestItems:     
             reset_type_name=mItem[0]
-            reset_func=mItem[1] 
-            self.Print ("issue " + reset_type_name)
-            self.Print ("Check if controller is working after reset")
-            reset_func()
-            sleep(0.5)
-            if self.dev_alive:
-                self.Print("PASS", "p")
+            reset_func=mItem[1]
+            reset_support= mItem[2]
+            if not reset_support:
+                self.Print("Controller does not support the %s" %reset_type_name)
             else:
-                self.Print("FAIL, exit", "f")
-                ret_code = 1
-            print  ""    
+                self.Print ("issue " + reset_type_name)
+                self.Print ("Check if controller is working after reset")
+                reset_func()
+                sleep(0.5)
+                if self.dev_alive:
+                    self.Print("PASS", "p")
+                else:
+                    self.Print("FAIL, exit", "f")
+                    ret_code = 1
+                self.Print("")
                     
         return ret_code
 
-    SubCase3TimeOut = 3600
-    SubCase3Desc = "Test if stop processing any outstanding Admin command"        
-    def SubCase3(self):
-        self.Print ("Test if reset occur, controller stops processing any outstanding Admin command")
-        self.Print ("Test if device self-test operation(admin command) was aborted due to the reset commands"  )
-        self.Print ("test Loop = 10 ")
-        self.Print ("")
-        ret_code=0
-        if self.IdCtrl.OACS.bit(4)=="0":
-            self.Print ("Controller does not support the DST operation, quit this test item!")
-            return 0        
-        else:
-            # max loopcnt = len(TestItems)* loop
-            loopcnt=0    
-            for loop in range(10):                
-                # loop for every kind of reset
-                for mItem in self.TestItems:        
-                    loopcnt=loopcnt+1
-                    # unmark below to assign reset type for all test, 
-                    #mItem=self.TestItems[3]
-                    reset_type_name=mItem[0]
-                    reset_func=mItem[1] 
-                    
-                    # start DST, if DST progress>1, issue reset in reset_func, after DST finish, get status code
-                    DSTS=self.StartDstAndGetStatus(reset_func)
-                    # check status code
-                    if DSTS!=-1:        
-                        # get bit 3:0        
-                        DSTSbit3to0 = DSTS & 0b00001111
-                        #self.Print ("result of the device self-test operation from Get Log Page : %s" %hex(DSTSbit3to0))
-                        #self.Print ("Check the result of the device self-test operation , expected result:  0x2(Operation was aborted by a Controller Level Reset)")
-                        if DSTSbit3to0==2:
-                            self.Print("Loop: %s, reset type: %s, PASS"%(loop, reset_type_name), "p")
-                        else:
-                            self.Print("Loop: %s, reset type: %s, Fail"%(loop, reset_type_name), "f")
-                            ret_code = 1                         
-                    else:
-                        self.Print ("Controller does not support the DST operation"     )
-                             
-            return ret_code
+    SubCase3TimeOut = 600
+    SubCase3Desc = "Test if stop processing any outstanding Admin command - Controller Reset"        
+    def SubCase3(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingAdminCommand(self.ControllerReset)
+        return ret_code
+    
+    SubCase4TimeOut = 600
+    SubCase4Desc = "Test if stop processing any outstanding Admin command - NVME Subsystem Reset"        
+    def SubCase4(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingAdminCommand(self.NVMESubsystemReset)
+        return ret_code    
+    
+    SubCase5TimeOut = 600
+    SubCase5Desc = "Test if stop processing any outstanding Admin command - PCI Express Hot reset"        
+    def SubCase5(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingAdminCommand(self.PCIExpressHotReset)
+        return ret_code
+    
+    SubCase6TimeOut = 600
+    SubCase6Desc = "Test if stop processing any outstanding Admin command - Data Link Down"        
+    def SubCase6(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingAdminCommand(self.DataLinkDown)
+        return ret_code    
+    
+    SubCase7TimeOut = 600
+    SubCase7Desc = "Test if stop processing any outstanding Admin command - Function Level Reset"        
+    def SubCase7(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingAdminCommand(self.FunctionLevelReset)
+        return ret_code    
+    
 
-    SubCase4TimeOut = 7200
-    SubCase4Desc = "Test if stop processing any outstanding IO command"    
-    def SubCase4(self):
-        self.Print ("Test if reset occur, controller stops processing any outstanding IO command")
-        self.Print ("Test if write command was aborted due to the reset commands"  )
-        self.Print ("")
-        TestPatten=randint(0, 0xFF)
-        thread_w=32 #5
-        block_w=16 #1024
-        total_byte_w=block_w*thread_w *512
-        # write data for a reset test= total_byte_w to (total_byte_w*MaxLoopPerResetTest)
-        MaxLoopPerResetTest = 10   
-        MaxAddress= (total_byte_w*MaxLoopPerResetTest)
-        self.Print ("Create %s thread to write data(%s) to controller from 0x0 to %s "%(thread_w, hex(TestPatten), hex(MaxAddress)  ))
-        self.Print ("While data was writing, issue reset operation, if data is missing by read command, then pass this test")
-        
-        self.Print ("")
-        self.Print ("test Loop = 10 ")
-        self.Print ("")
-        
-        ret_code=0
-        # max loopcnt = len(TestItems)* loop
-        loopcnt=0    
-        for loop in range(10):                
-            # loop for every kind of reset
-            for mItem in self.TestItems:        
-                loopcnt=loopcnt+1
-                # unmark below to assign reset type for all test, 
-                #mItem=self.TestItems[3]
-                reset_type_name=mItem[0]
-                reset_func=mItem[1]                    
-                LoopPass = False                
-                FirstMissingAddr=0
-                             
-                self.Print("Loop: %s, reset type: %s"%(loop, reset_type_name))            
-                # start to write and test command was abort or not
-                for i in range(MaxLoopPerResetTest):     
-                    
-                    StartBlockOffSet=(block_w*thread_w*i)
-                    StartAddrOffSet=StartBlockOffSet*512
-                    EndBlockOffSet=(block_w*thread_w*(i+1))
-                    EndAddrOffSet=EndBlockOffSet*512
-
-                    # clear SSD data to 0x0
-                    self.fio_write(StartAddrOffSet, total_byte_w, 0x0)                      
-                    
-                    # show progress
-                    mSuffix="addr: %s - %s"%(hex(StartAddrOffSet),  hex(EndAddrOffSet)    )
-                    self.PrintProgressBar(StartAddrOffSet, MaxAddress, prefix = 'Write area:',suffix=mSuffix, length = 50)
-                    
-                    # write data using multi thread
-                    mThreads = self.nvme_write_multi_thread(thread_w, StartBlockOffSet, block_w, TestPatten)
-                    
-                    # check if all process finished 
-                    reset_cnt=0
-                    while True:        
-                        allfinished=1
-                        for process in mThreads:
-                            if process.is_alive():
-                                allfinished=0
-                                break
-                    
-                        # if all process finished then, quit while loop, else  send reset command
-                        if allfinished==1:        
-                            break
-                        else:
-                            reset_func()
-                            reset_cnt=reset_cnt+1
-                            sleep(1)                                
-                    
-                    if not self.dev_alive:
-                        ret_code=1
-                        self.Print("Error! after reset, device is missing, quit test", "f")
-                        print ""
-                        return 1
-                 
-                    # if TestModeOn then print pattern, e.g. python SMI_NVMEReset.py /dev/nvme0n1 -t     
-                    if self.mTestModeOn:    
-                        print ("==========================================")
-                        print ("Byte = %s"%(hex(total_byte_w)) )
-                        mStr = self.shell_cmd("hexdump %s -n %s -s %s "%(self.dev, total_byte_w, StartAddrOffSet))
-                        print (mStr)  
-                        print ("==========================================")           
-                                         
-                    # if have 00 and TestPatten in flash, then pass the test(f_write TestPatten)
-                    SearchPatten=0
-                    find_00 = self.FindPatten(StartAddrOffSet, total_byte_w, SearchPatten)
-                    SearchPatten=TestPatten    
-                    find_patten = self.FindPatten(StartAddrOffSet, total_byte_w, SearchPatten)
-                                
-                    # controller reset can't verify data integrity, so let data integrity test = pass
-                    # if (find_00 and find_patten) or reset_type_name=="Controller Reset": then, finish for i in range(MaxLoopPerResetTest):
-                    if (find_00!="" and find_patten!="") :
-                        FirstMissingAddr = find_00
-                        LoopPass = True                             
-                        break
-                    
-                    # <end of for i in range(MaxLoopPerResetTest)>
-                    
-                print ""
-                if LoopPass :         
-                    self.Print("Pass, write command was aborted at %s"%FirstMissingAddr, "p")
-                else:
-                    self.Print("Fail", "f")
-                    ret_code=1
-                
-                self.Print("")
-                
-            
-                    
-        return ret_code 
-                 
+    SubCase8TimeOut = 1200
+    SubCase8Desc = "Test if stop processing any outstanding IO command - Controller Reset"        
+    def SubCase8(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingIOCommand(self.ControllerReset)
+        return ret_code
+    
+    SubCase9TimeOut = 1200
+    SubCase9Desc = "Test if stop processing any outstanding IO command - NVME Subsystem Reset"        
+    def SubCase9(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingIOCommand(self.NVMESubsystemReset)
+        return ret_code    
+    
+    SubCase10TimeOut = 1200
+    SubCase10Desc = "Test if stop processing any outstanding IO command - PCI Express Hot reset"        
+    def SubCase10(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingIOCommand(self.PCIExpressHotReset)
+        return ret_code
+    
+    SubCase11TimeOut = 1200
+    SubCase11Desc = "Test if stop processing any outstanding IO command - Data Link Down"        
+    def SubCase11(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingIOCommand(self.DataLinkDown)
+        return ret_code    
+    
+    SubCase12TimeOut = 1200
+    SubCase12Desc = "Test if stop processing any outstanding IO command - Function Level Reset"        
+    def SubCase12(self):        
+        ret_code = self.TestStopsProcessingAnyOutstandingIOCommand(self.FunctionLevelReset)
+        return ret_code                  
 
     # </sub item scripts> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     

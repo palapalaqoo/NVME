@@ -121,9 +121,9 @@ class NVMECom():
     #-- ex. return string "0123" where byte[0] = 0x01, byte[1] = 0x23
     #-- size, size in bytes
         if (StartByte==-1 and StopByte==-1):
-            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b |xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
         else:
-            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b |xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
             return mStr[StartByte*2:(StopByte+1)*2]
 
 
@@ -555,4 +555,3 @@ class LBARangeDataStructure_():
         
         self.Pattern=Pat
         
-

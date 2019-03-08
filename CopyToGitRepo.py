@@ -12,6 +12,22 @@ from shutil import copyfile
 # copyType = 1, simulate
 copyType=1
 
+copyFileName=[]
+#copyFileName.append("lib_vct/NVMECom")
+#copyFileName.append("Flow/Sanitize")
+#copyFileName.append("SMI_Format.py")
+copyFileName.append("SMI_SetGetFeatureCmd.py")
+copyFileName.append("SMI_FeatureHCTM.py")
+
+
+
+
+
+
+
+
+
+copyCnt=0
 def copyDir(root_src_dir, root_dst_dir):
     for src_dir, dirs, files in os.walk(root_src_dir):
         dst_dir = src_dir.replace(root_src_dir, root_dst_dir, 1)
@@ -33,18 +49,34 @@ def copyDiffFile(src_file, dst_file):
         if os.path.exists(dst_file):
             if os.path.samefile(src_file, dst_file):
                 return 0
+        
+        # if define copyFileName, then copy copyFileName only
+        # else copy all file
+        if len(copyFileName)!=0:
+            # ex, mfileName ="lib_vct.NVMECom"
+            for mfileName in copyFileName:
+                if re.search(mfileName, src_file):     
+                    doCopy(src_file, dst_file)
+        else:
+            doCopy(src_file, dst_file)
+               
             
-        RE="t/NVME.py"
-        if not re.search(RE, src_file):                  
-            return 0            
-            
-        # copy file
-        print "%s  ->  %s"%(src_file, dst_file)
-        if copyType==0:
-            shutil.copy2(src_file, dst_file)
-        else:    
-            pass
+
         return 0
+
+def doCopy(src_file, dst_file):
+    # copy file
+    global copyCnt
+    copyCnt=copyCnt+1
+
+    mStr = "{:<80} ->  {:<80}".format(src_file, dst_file)
+    print mStr
+    if copyType==0:
+        shutil.copy2(src_file, dst_file)
+    else:    
+        pass    
+
+
 
 def mCopy(name):
     srcDir="/root/sam/Eclipse/NVME/"
@@ -103,12 +135,13 @@ mCopy(Name)
 Name="SMI_Write"
 mCopy(Name)
 
+Name="SMI_StatusCode"
+mCopy(Name)
 
 
 
-
+print "copy counter : %s"%copyCnt
 print "Done"
-
 
 
 

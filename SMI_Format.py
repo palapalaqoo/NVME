@@ -79,7 +79,7 @@ class SMI_Format(NVME):
         return mbuf
     
     def FormatNSID_01(self):
-        print self.Format(0x1, 0, 0)
+        self.Print( self.Format(0x1, 0, 0) )
         
     def FormatNSID(self, nsid):
         self.Format(nsid, 0, 0)    
@@ -738,7 +738,7 @@ class SMI_Format(NVME):
             self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
             self.write_SML_data(0xab)
             self.Print ("send format command with SES=0x1(User Data Erase)")
-            print self.Format(1, 0, 1)
+            self.Print( self.Format(1, 0, 1) )
             self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff, then pass the test"%(self.start_SB, self.middle_SB, self.last_SB))
             if self.isequal_SML_data(0x0):
                 self.Print("PASS", "p")
@@ -750,29 +750,29 @@ class SMI_Format(NVME):
         return ret_code
 
     SubCase15TimeOut = 600
-    SubCase15Desc = "Check data After the self.Format NVM command with SES=0x2"
+    SubCase15Desc = "Check data After the format NVM command with SES=0x2"
     SubCase15KeyWord = "Cryptographic Erase"
     def SubCase15(self): 
         ret_code=0
-        self.Print ("Check data After the self.Format NVM command successfully completes with SES=0x2 (Cryptographic Erase )")
+        self.Print ("Check data After the format NVM command successfully completes with SES=0x2 (Cryptographic Erase )")
         self.Print ("This is accomplished by deleting the encryption key.")
-        self.Print ("The data from the controller after self.Format NVM command is encrypted(garbled)")
+        self.Print ("The data from the controller after format NVM command is encrypted(garbled)")
         if not self.SecureEraseSupported:
             self.Print ("Secure Erase is not Supported, quite this test")
         else:
             self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
             self.write_SML_data(0xab)
             self.Print ("send format command with SES=0x2(Cryptographic Erase)")
-            print self.Format(1, 0, 2)
+            self.Print( self.Format(1, 0, 2) )
             self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff or 0xab, then fail the test"%(self.start_SB, self.middle_SB, self.last_SB))
             if self.isequal_SML_data(0x0):
-                self.Print("FAIL", "f")
+                self.Print("FAIL, data is 0x0", "f")
                 ret_code = 1
             elif self.isequal_SML_data(0xff):
-                self.Print("FAIL", "f")
+                self.Print("FAIL, data is 0xff", "f")
                 ret_code = 1
             elif self.isequal_SML_data(0xab):
-                self.Print("FAIL", "f")
+                self.Print("FAIL, data is 0xab", "f")
                 ret_code = 1
             else:
                 self.Print("PASS", "p")  

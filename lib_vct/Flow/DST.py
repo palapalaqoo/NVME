@@ -56,7 +56,7 @@ class DST_():
             
         if self.ShowMessage:    
             self._mNVME.Print ("Starting DST .."  )
-            print self.EventTriggeredMessage 
+            self._mNVME.Print( self.EventTriggeredMessage )
         event_trigged=0
         error=0
         DST_per_old=0

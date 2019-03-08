@@ -1,7 +1,11 @@
-CASE 1 : Test Command Dword 11 : Skip
-CASE 2 : Test Attribute - Deallocate (AD), single name spaces : Skip
-CASE 3 : Test Attribute - Deallocate (AD), multi name spaces : Skip
-CASE 4 : Test Namespace Utilization (NUSE) : Skip
-CASE 5 : Test Attribute – Integral Dataset for Write (IDW) : Skip
-CASE 6 : Test Attribute – Integral Dataset for Read (IDR) : Skip
-CASE 7 : Test Context Attributes : Skip
+CASE 1 : Test Command Completion Queue : Skip
+CASE 2 : Test if only process the Admin commands listed in Figure 287 : Skip
+CASE 3 : Test All I/O Commands shall be aborted : Skip
+CASE 4 : Test if controller return zeros in the LBA field for get Error log command : Skip
+CASE 5 : Test hot reset while sanitize operation is in progress : Skip
+CASE 6 : Test Get Log Page – Sanitize Status Log : Skip
+CASE 7 : Test Logical Block Data - Overwrite sanitize operation, OIPBP=0, OWPASS=1 : Skip
+CASE 8 : Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=1 : Skip
+CASE 9 : Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=2 : Skip
+CASE 10 : Test Logical Block Data - Block Erase sanitize operation : Pass
+CASE 11 : Test Logical Block Data - Crypto Erase sanitize operation : Pass

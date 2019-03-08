@@ -85,7 +85,20 @@ class Test(NVME):
             mStr = mStr + self.LBARangeDataStructure.Pattern
             
         return mStr
-            
+
+    def nvme_reset(self):
+        self.status="reset"
+        #implement in SMI_NVMEReset.py
+        CC= self.MemoryRegisterBaseAddress+0x14
+        CChex=hex(CC)
+        self.shell_cmd("devmem2 %s w 0x00460000"%CChex, 1)
+
+                
+        self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
+        #self.hot_reset() 
+        self.status="normal"
+        return 0    
+                
     def __init__(self, argv):
         # initial parent class
         super(Test, self).__init__(argv)
@@ -95,10 +108,17 @@ class Test(NVME):
         CChex=hex(CC)
         print CChex
         '''
-        entry=2
-        DS=self.CreateLBARangeDataStructure(entry)
-        print self.set_feature(fid = 3, value = entry-1, nsid = 1, Data=DS)
-
+        
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        self.nvme_reset()
+        
         '''
         self.status="reset"
         self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 

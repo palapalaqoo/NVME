@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190306"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -115,7 +115,7 @@ class SMI_Sanitize(NVME):
     
     def GetErrorLog(self):
         global ErrorLog
-        ErrorLog = self.get_log2byte(0x1, 32)
+        ErrorLog = self.get_log2byte(0x1, 64)
     
     def GetErrorInfoWhileSanitizeInProgress(self):    
         self.Flow.Sanitize.ShowProgress=False   
@@ -125,8 +125,12 @@ class SMI_Sanitize(NVME):
         self.Flow.Sanitize.SetEventTriggerThreshold(100)
         self.Flow.Sanitize.Start()
         
-    def WaitSanitizeOperationFinish(self, timeout=120):
-    # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout ) 
+    def WaitSanitizeOperationFinish(self, timeout=120, printInfo=False):
+    # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout )         
+        if printInfo:
+            self.Print ("")
+            self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = %s)"%timeout)
+                        
         per = self.GetLog.SanitizeStatus.SPROG
         finish=True
         if per != 65535:
@@ -143,6 +147,11 @@ class SMI_Sanitize(NVME):
                 sleep(1)
             #self.Print ("Recent sanitize operation was completed")
    
+        if printInfo:
+            if finish:
+                self.Print("Done", "p")
+            else:
+                self.Print("Error, Time out!", "f")  
         return finish            
 
     def TestOverwriteMechanism(self, OIPBP=0, OWPASS=1):
@@ -206,7 +215,7 @@ class SMI_Sanitize(NVME):
                 self.Print("Done", "p")
                 self.Print ("")
                 
-                TestPatten=randint(0, 0xFF)
+                TestPatten=randint(1, 0xFF)
                 self.Print ("Write data to the front, middle and back spaces of the LBA")
                 self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
                 self.write_SML_data(TestPatten, "1G")                
@@ -228,7 +237,7 @@ class SMI_Sanitize(NVME):
                 self.Print ("Done")
                 self.Print ("")
                 self.Print ("Check if data is 0x0 in the front, middle and back spaces of the LBA")
-                if not self.CheckLogicalBlockDataIsPass(0):
+                if not self.CheckLogicalBlockDataIsPass(Value = 0, ExpectedResult = "match"):
                     rtCode=1           
 
         return rtCode 
@@ -246,7 +255,7 @@ class SMI_Sanitize(NVME):
                 self.Print("Done", "p")
                 self.Print ("")
                 
-                TestPatten=randint(0, 0xFF)
+                TestPatten=randint(1, 0xFF)
                 self.Print ("Write data to the front, middle and back spaces of the LBA")
                 self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
                 self.write_SML_data(TestPatten, "1G")                
@@ -274,14 +283,14 @@ class SMI_Sanitize(NVME):
                 self.Print ("Done", "p")
                 self.Print ("")
                 self.Print ("Check if data is not %s in the front, middle and back spaces of the LBA"%hex(TestPatten))
-                if self.CheckLogicalBlockDataIsPass(Value = TestPatten, ExpectedResult = "dismatch"):
+                if not self.CheckLogicalBlockDataIsPass(Value = TestPatten, ExpectedResult = "dismatch"):
                     rtCode=1           
-
+                '''
                 self.Print ("")
                 self.Print ("Check if data is not 0x0 in the front, middle and back spaces of the LBA")
                 if not self.CheckLogicalBlockDataIsPass(Value = 0, ExpectedResult = "dismatch"):
                     rtCode=1
-                    
+                '''    
                 self.Print ("")
                 self.Print ("Dump front data for inspection ")
                 mStr = self.shell_cmd("hexdump %s -n 200M | head"%self.dev)
@@ -293,7 +302,7 @@ class SMI_Sanitize(NVME):
     def CheckLogicalBlockDataIsPass(self, Value, ExpectedResult="match"):
         mPass=True
         ExpectMatch = True if ExpectedResult=="match" else False
-        if self.fio_isequal(offset=self.start_SB*512, size="1G", pattern=Value) and ExpectMatch:
+        if self.fio_isequal(offset=self.start_SB*512, size="1G", pattern=Value) == ExpectMatch:
             self.Print("Front: Pass", "p")
         else:
             self.Print("Front: Fail, data from SSD as below", "f")
@@ -303,7 +312,7 @@ class SMI_Sanitize(NVME):
             self.Print (mStr, "w")
             mPass=False
 
-        if self.fio_isequal(offset=self.middle_SB*512, size="1G", pattern=Value) and ExpectMatch:
+        if self.fio_isequal(offset=self.middle_SB*512, size="1G", pattern=Value) == ExpectMatch:
             self.Print("Middle: Pass", "p")
         else:
             self.Print("Middle: Fail, data from SSD as below", "f")
@@ -313,7 +322,7 @@ class SMI_Sanitize(NVME):
             self.Print (mStr, "w")
             mPass=False
 
-        if self.fio_isequal(offset=self.last_SB*512, size="1G", pattern=Value) and ExpectMatch:
+        if self.fio_isequal(offset=self.last_SB*512, size="1G", pattern=Value) == ExpectMatch:
             self.Print("Back: Pass", "p")
         else:
             self.Print("Back: Fail, data from SSD as below", "f")
@@ -392,6 +401,7 @@ class SMI_Sanitize(NVME):
             self.Print("Fail", "f")
             ret_code=1 
         
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
     
     SubCase2TimeOut = 180
@@ -508,6 +518,7 @@ class SMI_Sanitize(NVME):
         self.Print ("Sanitize")
         self.TestCommandAllowed("admin", 0x84, "Deny")            
 
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
     
     SubCase3TimeOut = 180
@@ -551,6 +562,7 @@ class SMI_Sanitize(NVME):
         self.Print ("Reservation Release")
         self.TestCommandAllowed("io", 0x15, "Deny")
 
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
             
     SubCase4TimeOut = 60
@@ -588,7 +600,9 @@ class SMI_Sanitize(NVME):
                 self.Print("PASS", "p")  
             else:
                 self.Print("Fail", "f")
-                ret_code=1      
+                ret_code=1    
+                
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)  
         return ret_code
 
     SubCase5TimeOut = 60
@@ -624,7 +638,8 @@ class SMI_Sanitize(NVME):
                 ret_code=1
             else:
                 self.Print("Pass", "p")
-
+                
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code    
     
     SubCase6TimeOut = 60
@@ -682,6 +697,7 @@ class SMI_Sanitize(NVME):
                 self.Print("Fail", "f")
                 ret_code=1
                 
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)        
         return ret_code    
 
     # timeout 1.1hr
@@ -690,7 +706,7 @@ class SMI_Sanitize(NVME):
     def SubCase7(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=0, OWPASS=1)      
-
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
             
     # timeout 1.1hr
@@ -699,7 +715,7 @@ class SMI_Sanitize(NVME):
     def SubCase8(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=1, OWPASS=1)      
-
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
 
     # timeout 1.1hr
@@ -708,7 +724,7 @@ class SMI_Sanitize(NVME):
     def SubCase9(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=1, OWPASS=2)      
-
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
         
     SubCase10TimeOut = (1200)
@@ -716,18 +732,19 @@ class SMI_Sanitize(NVME):
     def SubCase10(self):
         self.Print("")
         ret_code=self.TestBlockEraseMechanism()      
-
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
 
     SubCase11TimeOut = (1200)
     SubCase11Desc = "Test Logical Block Data - Crypto Erase sanitize operation"      
     def SubCase11(self):
         self.Print("")
-        ret_code=self.TestCryptoEraseMechanism()      
-
+        ret_code=self.TestCryptoEraseMechanism()     
+        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
                     
-    # </sub item scripts>    
+    # </sub item scripts> 
+               
     '''
     SubCase7TimeOut = 60
     SubCase7Desc = "Test CDW10 - No Deallocate After Sanitize"      
