@@ -181,7 +181,7 @@ class SMI_PCIPowerStatus(NVME):
         t.start()     
              
         self.Print( "-----------------------------------------------------------------------------------")
-        self.PrintAlignString("'Shutdown Notification'", "'Shutdown Status'", "'Time in secend'")  
+        self.PrintAlignString("'Shutdown Notification'", "'Shutdown Status'", "'Time in seconds'")  
         while True:            
             SHN = self.GetSHN()
             SHST = self.GetSHST()       

@@ -49,6 +49,8 @@ class CR_(object,NVMECom):
     
     CSTS=RegDescriptor("show-regs", "csts")
     CSTS.bss=RegDescriptor("show-regs", "csts")
+    CSTS.SHST=RegDescriptor("show-regs", "csts", 2, 3)
+    
     AQA=RegDescriptor("show-regs", "aqa")  
     ASQ=RegDescriptor("show-regs", "asq")  
     AQA=RegDescriptor("show-regs", "aqa") 

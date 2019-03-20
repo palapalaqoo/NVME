@@ -733,6 +733,7 @@ class NVME(object, NVMECom):
     def nvme_reset(self):
         self.status="reset"    
         self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
+        sleep(1)
         self.status="normal"
         return 0     
     def subsystem_reset(self):
@@ -748,7 +749,8 @@ class NVME(object, NVMECom):
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.1) 
         self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)     
         self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/unbind" %(self.pcie_port), 0.1) 
-        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/bind" %(self.pcie_port), 0.1)         
+        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/bind" %(self.pcie_port), 0.1)    
+        sleep(1)     
         self.status="normal"
         return 0         
     def link_reset(self):

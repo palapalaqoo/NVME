@@ -24,7 +24,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190314"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -291,12 +291,16 @@ class SMI_Telemetry(NVME):
                 
         self.Print ("-- start test TCIDA for Controller Level Reset --"        )
         for Item in self.ResetItem:
-            print Item[0]
+            
+            self.Print ( Item[0] )
         
             # trigger reset
             Item[1]()
             
-            # reload 
+            # reload      
+            self.LOG07=self.get_log_passthru(7, 512, 1, 0)
+            self.LOG08=self.get_log_passthru(8, 512, 1, 0)
+                        
             self.Print ("TCIDA in log 0x7= %s"%self.LOG07[383])
             self.Print ("TCIDA in log 0x8= %s"%self.LOG08[383])
             if (TCIDA_old==self.LOG08[383]) and (TCIDA_old==self.LOG07[383]):
