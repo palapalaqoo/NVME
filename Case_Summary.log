@@ -1,2 +1,1 @@
-CASE 1 : Test Power State : Pass
-CASE 2 : Test Runtime D3 Transitions : Skip
+CASE 1 : Metadata test : Skip

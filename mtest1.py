@@ -118,41 +118,33 @@ class Test(NVME):
       
         RDY = (value ) & 0b1
         return RDY        
+    def WriteMetadatas(self, startBlock, numOfBlock, metadataSize):
+        # write metadata with file MetadataFile_in
+        totalMetadataSize=metadataSize * numOfBlock
+        size = numOfBlock*512
+        block_cnt = numOfBlock-1      
+        
+        mStr = self.shell_cmd("dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\132 2>/dev/null | nvme write %s -s %s -z %s -c %s -y %s -M %s"%(numOfBlock, self.dev, startBlock,size, block_cnt, totalMetadataSize, self.MetadataFile_in))
+        retCommandSueess=bool(re.search("write: Success", mStr))
+        if (retCommandSueess ==  True) :
+            self.Print("Write done")    
+            return True
+        else:
+            self.Print("Write fail, quit all, write cmd= %s"%self.LastCmd, "f")
+            return False 
     def __init__(self, argv):
         # initial parent class
         super(Test, self).__init__(argv)
         self.Print("1234567890")
-        print self.CR.CSTS.int
-        
-        '''
-        CC= self.MemoryRegisterBaseAddress+0x28
-        CChex=hex(CC)
-        print CChex
-        
-        print self.read_pcie(self.PXCAP, 0xC+0x2)
-        print self.read_pcie(self.PXCAP, 0xC+0x1)
-        print self.read_pcie(self.PXCAP, 0xC+0x0)
-        
-        print "---------------------"
-        print self.read_pcie(self.PXCAP, 0x12+0x0)
-        print "---------------------"
-        print "---------------------"
-        print "---------------------"
-        print self.read_pcie(self.PMCAP, 0x2+0x0)
-        print self.read_pcie(self.PMCAP, 0x3+0x0)
-        print self.read_pcie(self.PMCAP, 0x4+0x0)
-        '''
-        self.thread_ResetRTD3()
-        print "0"
-        print ""
-        StartT=time.time()
-        sleep(1)
-        StopT=time.time()
-        TimeDiv=StopT-StartT
-        self.Print( "Run Time: %s"%TimeDiv, "p")
-                    
-        self.PrintAlignString("888", "123")
+        self.MetadataFile_in= "MMMMMMMMMM"
 
+        print "here"
+        aa=16
+        print "2345 %s"%aa
+        
+        self.WriteMetadatas(startBlock=0 , numOfBlock=8 , metadataSize=8)
+        
+        print "here"
                         
         '''
         self.status="reset"

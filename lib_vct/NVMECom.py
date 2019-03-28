@@ -10,6 +10,7 @@ import signal
 import time
 import shutil
 import csv
+import struct
 
 class TimedOutExc(Exception):
     pass
@@ -77,7 +78,7 @@ class NVMECom():
         NVMECom.SubCasePoint=son.SubCasePoint
         
         self.InitLogFile()
-        
+        self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
 
     @property
@@ -87,7 +88,8 @@ class NVMECom():
     def shell_cmd(self, cmd, sleep_time=0):
         #print to command log
         if self.RecordCmdToLogFile:
-            self.Logger(cmd, mfile="cmd")        
+            self.Logger(cmd, mfile="cmd")
+        self.LastCmd=cmd        
         fd = os.popen(cmd)
         msg = fd.read().strip()
         fd.close()
@@ -426,6 +428,42 @@ class NVMECom():
 
         return PMCAP, MSICAP, PXCAP, MSIXCAP, AERCAP
 
+    def isfileExist(self, filePath):
+        if os.path.exists(filePath):
+            return True
+        else:
+            return False
+
+    def rmFile(self, filePath):
+        if os.path.exists(filePath):
+            os.remove(filePath)
+   
+    def readBinaryFileToList(self, filePath):
+        mList=[]
+        with open(filePath, "rb") as f:
+            byteStr = f.read(1)
+            while byteStr != "":
+                # Do stuff with byte.
+                byte = struct.unpack('b', byteStr)[0]
+                mList.append(byte)
+                
+                byteStr = f.read(1)
+        return mList
+    
+    def writeBinaryFileFromList(self, filePath, mList):            
+        f = open(filePath, 'w+b')
+        byte_arr = mList
+        binary_format = bytearray(byte_arr)
+        f.write(binary_format)
+        f.close()                
+
+      
+    def isFileTheSame(self, F0, F1):
+        mStr = self.shell_cmd("diff %s %s 1> /dev/null; echo $?"%(F0, F1))
+        if mStr =="0":
+            return True
+        else:
+            return False
     
     def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = 'x'):
     # Print iterations progress

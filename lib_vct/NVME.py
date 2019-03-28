@@ -405,7 +405,7 @@ class NVME(object, NVMECom):
             if printTag:
                 self.Print("== ResetToInitStatus ===========================", "p")
                 printTag=False                            
-            self.Print("Format namespace 1 to previous format(LBAF%s)"%(self.FLBAS))
+            self.Print("Format namespace 1 to previous format(LBAF%s)"%(Init_lbaf))
             
             self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1" % (self.dev_port, nsid, LBAFx, 0, 0, 0, 0))
             Now_lbaf=self.IdNs.FLBAS.int&0xF 
