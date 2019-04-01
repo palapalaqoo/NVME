@@ -141,8 +141,11 @@ class Test(NVME):
         print "here"
         aa=16
         print "2345 %s"%aa
+        print self.MDTSinByte
+        print self.CR.CAP.MPSMIN.int
+        print self.IdCtrl.MDTS.int
         
-        self.WriteMetadatas(startBlock=0 , numOfBlock=8 , metadataSize=8)
+
         
         print "here"
                         

@@ -23,7 +23,7 @@ class SMI_MetadataTest(NVME):
             RP = self.LBAF[x][self.lbafds.RP]
             LBADS = self.LBAF[x][self.lbafds.LBADS] 
             MS = self.LBAF[x][self.lbafds.MS] 
-            if MS!=0:                           
+            if MS!=0 and LBADS>=9:                           
                 self.TestItems.append([x, RP, LBADS, MS])
         
     def Format(self, nsid, lbaf, ses, pil=0, pi=0, ms=0):
@@ -49,12 +49,12 @@ class SMI_MetadataTest(NVME):
                     value=0          
         self.writeBinaryFileFromList(self.MetadataFile_in, List_buf)        
 
-    def WriteMetadatas_AsSeparateBuffer(self, startBlock, numOfBlock, metadataSize):
+    def WriteMetadatas_AsSeparateBuffer(self, sizePerBlock, startBlock, numOfBlock, metadataSize):
         # write metadata with file MetadataFile_in
         totalMetadataSize=metadataSize * numOfBlock
-        size = numOfBlock*512
+        size = numOfBlock*sizePerBlock
         block_cnt = numOfBlock-1        
-        mStr = self.shell_cmd("dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\132 2>/dev/null | nvme write %s -s %s -z %s -c %s -y %s -M %s 2>&1"%(numOfBlock, self.dev, startBlock,size, block_cnt, totalMetadataSize, self.MetadataFile_in))
+        mStr = self.shell_cmd("dd if=/dev/zero bs=%s count=%s 2>&1   |tr \\\\000 \\\\132 2>/dev/null | nvme write %s -s %s -z %s -c %s -y %s -M %s 2>&1"%(sizePerBlock, numOfBlock, self.dev, startBlock,size, block_cnt, totalMetadataSize, self.MetadataFile_in))
         retCommandSueess=bool(re.search("write: Success", mStr))
         if (retCommandSueess ==  True) :
             self.Print("Done")    
@@ -63,9 +63,9 @@ class SMI_MetadataTest(NVME):
             self.Print("Fail, quit all, write cmd= %s"%self.LastCmd, "f")
             return False
 
-    def WriteMetadatas_AsContiguousPartOfLB(self, startBlock, numOfBlock, metadataSize):
+    def WriteMetadatas_AsContiguousPartOfLB(self, startBlock, numOfBlock, sizePerBlock):
         # write data and metadata with file MetadataFile_in
-        size = numOfBlock*(512+metadataSize)
+        size = numOfBlock*sizePerBlock
         block_cnt = numOfBlock-1        
         mStr = self.shell_cmd("nvme write %s -s %s -z %s -c %s -d %s 2>&1"%( self.dev, startBlock,size, block_cnt, self.MetadataFile_in))
         retCommandSueess=bool(re.search("write: Success", mStr))
@@ -76,9 +76,9 @@ class SMI_MetadataTest(NVME):
             self.Print("Fail, quit all, write cmd= %s"%self.LastCmd, "f")
             return False
     
-    def CreateRandomLogicBlockDataAndMetadataFile(self, numOfBlock, metadataSize):
+    def CreateRandomLogicBlockDataAndMetadataFile(self, numOfBlock, sizePerBlock):
         # write to MetadataFile_in
-        numOfByte = (512 + metadataSize)*numOfBlock
+        numOfByte = sizePerBlock*numOfBlock
         self.shell_cmd("dd if=/dev/urandom of=%s bs=%s count=1 2>&1 >/dev/null"%(self.MetadataFile_in, numOfByte))
         
     def CreateRandomMetadataFile(self, numOfBlock, metadataSize):
@@ -86,11 +86,11 @@ class SMI_MetadataTest(NVME):
         numOfByte = metadataSize*numOfBlock
         self.shell_cmd("dd if=/dev/urandom of=%s bs=%s count=1 2>&1 >/dev/null"%(self.MetadataFile_in, numOfByte))
 
-    def CheckBlockMetadatas_AsSeparateBuffer(self, startBlock, numOfBlock, metadataSize):
+    def CheckBlockMetadatas_AsSeparateBuffer(self, sizePerBlock,startBlock, numOfBlock, metadataSize):
         # read metadata to file MetadataFile_out, and compare with MetadataFile_in
         # startBlock=0, numOfBlock=2, metadataSize=8
         totalMetadataSize=metadataSize * numOfBlock
-        size = numOfBlock*512
+        size = numOfBlock*sizePerBlock
         block_cnt = numOfBlock-1    
             
         self.rmFile(self.MetadataFile_out)
@@ -119,11 +119,11 @@ class SMI_MetadataTest(NVME):
 
         return True
     
-            
-    def CheckBlockMetadatas_AsContiguousPartOfLB(self, startBlock, numOfBlock, metadataSize):
+    # ----------------------------------------------------------------------------------------------              
+    def CheckBlockMetadatas_AsContiguousPartOfLB(self, startBlock, numOfBlock,sizePerBlock):
         # read metadata to file MetadataFile_out, and compare with MetadataFile_in
         # startBlock=0, numOfBlock=2, metadataSize=8
-        size = numOfBlock*(512+metadataSize)
+        size = numOfBlock*sizePerBlock
         block_cnt = numOfBlock-1    
             
         self.rmFile(self.MetadataFile_out)
@@ -147,6 +147,64 @@ class SMI_MetadataTest(NVME):
             return False                 
 
         return True
+    # ----------------------------------------------------------------------------------------------  
+    def FormatNS(self, LBAF_num, MetadataSetting): 
+        self.Print("Format namespace 1 to LBAF %s with Metadata Settings (MSET)= %s"%(LBAF_num, MetadataSetting))                  
+        mStr=self.Format(nsid=1, lbaf = LBAF_num, ses=0, pil=0, pi=0, ms=MetadataSetting)
+        if re.search("Success formatting namespace", mStr):
+            self.Print("Done")
+        else:
+            self.Print("Fail to format namespace1, quit all, cmd: %s"%self.LastCmd, "f")
+            return 1        
+
+        self.Print("")
+        FLBAS_bit4 = 1 if (self.IdNs.FLBAS.int&0x10)>0 else 0
+        self.Print("Formatted LBA Size (FLBAS) bit 4 : %s"%FLBAS_bit4)           
+        if MetadataSetting==0:
+            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was cleared to ‘0’ indicates that all of the metadata for a command is transferred as a separate contiguous buffer of data") 
+            if FLBAS_bit4==0:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")
+                return False
+        else:
+            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was set to ‘1’ indicates that the metadata is transferred at the end of the data LBA")
+            if FLBAS_bit4==1 :
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")
+                return False  
+        
+        return True
+    # ----------------------------------------------------------------------------------------------                
+    
+    def Test_Write_Read_AsSeparateBuffer(self, testBlock, sizePerBlock, metadataSize):
+        # create metadata file
+        self.CreateRandomMetadataFile(numOfBlock=testBlock, metadataSize =metadataSize)
+        if not self.WriteMetadatas_AsSeparateBuffer(sizePerBlock=sizePerBlock, startBlock=0 , numOfBlock=testBlock , metadataSize=metadataSize):
+            return False             
+        self.Print("")
+        # verify 
+        self.Print("check if metadata in first %s block and file %s are the same"%(testBlock, self.MetadataFile_in))    
+        if not self.CheckBlockMetadatas_AsSeparateBuffer(sizePerBlock=sizePerBlock,startBlock=0, numOfBlock=testBlock, metadataSize=metadataSize):
+            return False        
+        self.Print("")                                              
+        return True        
+    
+    def Test_Write_Read_AsContiguousPartOfLB(self, startBlock, numOfBlock, sizePerBlock):
+        if not self.WriteMetadatas_AsContiguousPartOfLB(startBlock, numOfBlock , sizePerBlock):
+            return False 
+            
+        self.Print("")
+        # verify 
+        self.Print("check if metadata in first %s block and file %s are the same"%(numOfBlock, self.MetadataFile_in))    
+        if not self.CheckBlockMetadatas_AsContiguousPartOfLB(startBlock, numOfBlock,sizePerBlock):
+            return False         
+        return True   
+    
+    
+    
+    
     
     def __init__(self, argv):
         # initial parent class
@@ -195,53 +253,26 @@ class SMI_MetadataTest(NVME):
             LBAF_num = Item[0]
             RP = Item[1]
             LBADS = Item[2]
-            MS = Item[3]            
- 
-            self.Print("Format namespace 1 to LBAF %s with Metadata Settings (MSET)= %s"%(LBAF_num, MetadataSetting))                  
-            mStr=self.Format(nsid=1, lbaf = LBAF_num, ses=0, pil=0, pi=0, ms=MetadataSetting)
-            if re.search("Success formatting namespace", mStr):
-                self.Print("Done")
-            else:
-                self.Print("Fail to format namespace1, quit all, cmd: %s"%self.LastCmd, "f")
+            MS = Item[3]      
+            # LBADS=9, testblock=1, LBADS=12, testblock=8, etc
+            sizePerBlock=512*pow(2,(LBADS-9))
+            # format namespace
+            if not self.FormatNS(LBAF_num, MetadataSetting):
                 return 1
             
-            # ----------------------------------------------------------------------------------------------
+            # test write and read for minBlock
+            testBlock=1
             self.Print("")
-            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was cleared to ‘0’ indicates that all of the metadata for a command is transferred as a separate contiguous buffer of data")
-            FLBAS_bit4 = 1 if (self.IdNs.FLBAS.int&0x10)>0 else 0
-            self.Print("Formatted LBA Size (FLBAS) bit 4 : %s"%FLBAS_bit4)    
-            if FLBAS_bit4==0:
-                self.Print("Pass", "p")
-            else:
-                self.Print("Fail", "f")
-                ret_code=1
-                
-                
-            testBlock=8
-            '''
-            self.Print("check if metadata in first %s block is 0"%testBlock)            
-            # create MetadataFile_in with value=0 and size = MS , for compare MetadataFile_out
-            self.Create_MetadataFile_in(startValue = 0, size=MS*testBlock, isConstant=True)
-            # verify 
-            if not self.CheckBlockMetadatas_AsSeparateBuffer(startBlock=0, numOfBlock=testBlock, metadataSize=MS):
-                return 1 
-            '''
-            # ----------------------------------------------------------------------------------------------
-            testBlock=8
-            self.Print("")
-            self.Print("Write metadata to controller(file %s), start from LBA0, number of blocks is %s"%(self.MetadataFile_in, testBlock))
-            # create metadata file
-            self.CreateRandomMetadataFile(numOfBlock=testBlock, metadataSize =MS)
-            if not self.WriteMetadatas_AsSeparateBuffer(startBlock=0 , numOfBlock=testBlock , metadataSize=MS):
-                return 1 
+            self.Print("Write metadata to controller(file %s), start from LBA0, number of blocks is %s(the minimum data transfer size)"%(self.MetadataFile_in, testBlock))
+            if not self.Test_Write_Read_AsSeparateBuffer(testBlock,sizePerBlock, MS):
+                return 1        
             
+            # test write and read for maxBlock
+            testBlock=self.MDTSinByte/sizePerBlock
             self.Print("")
-            # verify 
-            self.Print("check if metadata in first %s block and file %s are the same"%(testBlock, self.MetadataFile_in))    
-            if not self.CheckBlockMetadatas_AsSeparateBuffer(startBlock=0, numOfBlock=testBlock, metadataSize=MS):
+            self.Print("Write metadata to controller(file %s), start from LBA0, number of blocks is %s(the maximum data transfer size)"%(self.MetadataFile_in, hex(testBlock)))
+            if not self.Test_Write_Read_AsSeparateBuffer(testBlock,sizePerBlock, MS):
                 return 1 
-            # ----------------------------------------------------------------------------------------------            
-            self.Print("")                                               
         
         return ret_code
 
@@ -265,43 +296,30 @@ class SMI_MetadataTest(NVME):
             RP = Item[1]
             LBADS = Item[2]
             MS = Item[3]            
-
-            self.Print("Format namespace 1 to LBAF %s with Metadata Settings (MSET)= %s"%(LBAF_num, MetadataSetting))                
-            mStr=self.Format(nsid=1, lbaf = LBAF_num, ses=0, pil=0, pi=0, ms=MetadataSetting)
-            if re.search("Success formatting namespace", mStr):
-                self.Print("Done")
-            else:
-                self.Print("Fail to format namespace1, quit all, cmd: %s"%self.LastCmd, "f")
+            # LBADS=9, testblock=1, LBADS=12, testblock=8, etc
+            sizePerBlock=512*pow(2,(LBADS-9)) + MS
+            # format namespace
+            if not self.FormatNS(LBAF_num, MetadataSetting):
                 return 1
-
-            # ----------------------------------------------------------------------------------------------
-            # ----------------------------------------------------------------------------------------------
-            self.Print("")
-            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was set to ‘1’ indicates that the metadata is transferred at the end of the data LBA")
-            FLBAS_bit4 = 1 if (self.IdNs.FLBAS.int&0x10)>0 else 0
-            self.Print("Formatted LBA Size (FLBAS) bit 4 : %s"%FLBAS_bit4)    
-            if FLBAS_bit4==1 :
-                self.Print("Pass", "p")
-            else:
-                self.Print("Fail", "f")
-                ret_code=1
             
-            testBlock=8
+            
+            # test write and read for minBlock
+            testBlock=1
+            self.Print("")            
+            self.Print("Write random patten of data with metadata to controller(file %s), start from LBA0, number of blocks is %s"%(self.MetadataFile_in, testBlock))
+            # create metadata file
+            self.CreateRandomLogicBlockDataAndMetadataFile(numOfBlock=testBlock,sizePerBlock=sizePerBlock)            
+            if not self.Test_Write_Read_AsContiguousPartOfLB(startBlock=0 , numOfBlock=testBlock ,sizePerBlock=sizePerBlock):
+                return 1                                             
+
+            # test write and read for maxBlock
+            testBlock=self.MDTSinByte/sizePerBlock
             self.Print("")
             self.Print("Write random patten of data with metadata to controller(file %s), start from LBA0, number of blocks is %s"%(self.MetadataFile_in, testBlock))
             # create metadata file
-            self.CreateRandomLogicBlockDataAndMetadataFile(numOfBlock=testBlock, metadataSize =MS)
-            if not self.WriteMetadatas_AsContiguousPartOfLB(startBlock=0 , numOfBlock=testBlock , metadataSize=MS):
-                return 1 
-            
-            self.Print("")
-            # verify 
-            self.Print("check if metadata in first %s block and file %s are the same"%(testBlock, self.MetadataFile_in))    
-            if not self.CheckBlockMetadatas_AsContiguousPartOfLB(startBlock=0, numOfBlock=testBlock, metadataSize=MS):
-                return 1 
-            # ----------------------------------------------------------------------------------------------            
-            self.Print("")                                                
-        
+            self.CreateRandomLogicBlockDataAndMetadataFile(numOfBlock=testBlock,sizePerBlock=sizePerBlock)            
+            if not self.Test_Write_Read_AsContiguousPartOfLB(startBlock=0 , numOfBlock=testBlock ,sizePerBlock=sizePerBlock):
+                return 1   
         
         return ret_code
 

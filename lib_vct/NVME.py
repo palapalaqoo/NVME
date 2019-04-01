@@ -396,20 +396,22 @@ class NVME(object, NVMECom):
                 success=False
         
         # if initial_FLBAS !=0, format nsid 1 to initial_FLBAS, e.g. 512 or 4k etc.. 
-        Init_lbaf=self.initial_FLBAS&0xF        
-        Now_lbaf=self.IdNs.FLBAS.int&0xF        
-        if Init_lbaf!=Now_lbaf:                
-            LBAFx=Init_lbaf        
+        Init_FLBAS=self.initial_FLBAS    
+        Now_FLBAS=self.IdNs.FLBAS.int
+        if Init_FLBAS!=Now_FLBAS:  
+            Init_lbaf=Init_FLBAS&0xF   
+            Init_FLBAS_bit4 = 1 if (Init_FLBAS&0x10)>0 else 0     
+                               
             nsid=1
 
             if printTag:
                 self.Print("== ResetToInitStatus ===========================", "p")
                 printTag=False                            
-            self.Print("Format namespace 1 to previous format(LBAF%s)"%(Init_lbaf))
+            self.Print("Format namespace 1 to previous format(Formatted LBA Size (FLBAS) field is %s)"%(hex(Init_FLBAS)))
             
-            self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1" % (self.dev_port, nsid, LBAFx, 0, 0, 0, 0))
-            Now_lbaf=self.IdNs.FLBAS.int&0xF 
-            if Init_lbaf==Now_lbaf:  
+            self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1" % (self.dev_port, nsid, Init_lbaf, 0, 0, 0, Init_FLBAS_bit4))
+            Now_FLBAS=self.IdNs.FLBAS.int
+            if Init_FLBAS==Now_FLBAS:  
                 self.Print("Success", "p")
             else:    
                 self.Print("Fail", "f")
