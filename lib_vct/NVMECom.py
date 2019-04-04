@@ -80,6 +80,7 @@ class NVMECom():
         self.InitLogFile()
         self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
+        self.timer=timer_()
 
     @property
     def Second(self):
@@ -459,11 +460,22 @@ class NVMECom():
 
       
     def isFileTheSame(self, F0, F1):
-        mStr = self.shell_cmd("diff %s %s 1> /dev/null; echo $?"%(F0, F1))
-        if mStr =="0":
-            return True
-        else:
-            return False
+        # if the same, return None, else return int list
+        #mStr = self.shell_cmd("diff %s %s 1> /dev/null; echo $?"%(F0, F1))
+        mRt=[]
+        # Output the (decimal) byte numbers and (octal) values of all differing bytes
+        CMDrt = self.shell_cmd("cmp -l %s %s"%(F0, F1))
+        if CMDrt =="":
+            return None
+        else:            
+            mStr="^.*(\d*)\s*(\d*)\s*(\d*)"
+            if re.search(mStr, CMDrt):
+                Offset =int(re.search(mStr, CMDrt).group(1))
+                ValueF0 =int(re.search(mStr, CMDrt).group(2),8)
+                ValueF1 =int(re.search(mStr, CMDrt).group(3),8)
+                return [Offset, ValueF0, ValueF1]
+            else:
+                return None
     
     def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = 'x'):
     # Print iterations progress
@@ -536,7 +548,26 @@ class NVMECom():
             self.Print("File not found","f")
             return None
         return l        
+    
+
+            
+            
 #== end NVMECom =================================================
+
+class timer_():
+
+    def __init__(self):
+        self.time=0
+        self._StartT=0
+        self._StopT=0
+    def start(self):
+        self._StartT=time.time()
+    def stop(self):
+        self._StopT=time.time()  
+        self.time=format(self._StopT - self._StartT, '.6f')
+
+
+
 
 class LBARangeDataStructure_():
 # usage

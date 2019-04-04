@@ -1023,6 +1023,26 @@ class NVME(object, NVMECom):
                 cnt=cnt+1
         self.Print ("  End Sub Case list -------------------------------"     )
         self.Print (""    )
+        
+    def GetBlockSize(self):
+        # get current block size, i.e. 512, 4096(4k) .. etc.
+        Now_FLBAS=self.IdNs.FLBAS.int  
+        Now_FLBAS_bit4 = 1 if (Now_FLBAS&0x10)>0 else 0  
+        Now_LBAFinUse=self.IdNs.LBAFinUse
+        Now_MS=Now_LBAFinUse[1]
+        Now_LBADS=Now_LBAFinUse[2]   
+        # if metadata is transferred at the end of the data LBA, e.g. Now_FLBAS_bit4 = 1
+        if Now_FLBAS_bit4==1:                    
+            sizePerBlock=512*pow(2,(Now_LBADS-9))
+        else:            
+            sizePerBlock=512*pow(2,(Now_LBADS-9)) + Now_MS        
+        return sizePerBlock
+        
+    def MaxNLBofCDW12(self):   
+        # ret maximum value of Number of Logical Blocks (NLB) in current format 
+        return self.MDTSinByte/self.GetBlockSize()
+            
+            
 
 # ==============================================================    
 class DevWakeUpAllTheTime():

@@ -10,6 +10,7 @@ import os
 import csv
 import shutil
 from random import randint
+import threading
 # Import VCT modules
 from lib_vct.NVME import NVME
 
@@ -135,6 +136,13 @@ class Test(NVME):
     def __init__(self, argv):
         # initial parent class
         super(Test, self).__init__(argv)
+        self.Print("1234567890")
+        self.Print("1234567890") if False else None
+        self.timer.start()
+        sleep(1)
+        self.timer.stop()
+        self.Print("TIme : %s"%self.timer.time) 
+
         self.Print("1234567890")
         self.MetadataFile_in= "MMMMMMMMMM"
 

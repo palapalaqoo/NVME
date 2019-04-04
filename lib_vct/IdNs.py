@@ -22,6 +22,18 @@ class IdNs_(object, NVMECom):
     NMIC=RegDescriptor("id-ns", "nmic")
     RESCAP=RegDescriptor("id-ns", "rescap")
     FPI=RegDescriptor("id-ns", "fpi")
+        
+    NAWUN=RegDescriptor("id-ns", "nawun")
+    NAWUPF=RegDescriptor("id-ns", "nawupf")
+    NACWU=RegDescriptor("id-ns", "nacwu")
+    NABSN=RegDescriptor("id-ns", "nabsn")
+    NABO=RegDescriptor("id-ns", "nabo")
+    NABSPF=RegDescriptor("id-ns", "nabspf")
+    NOIOB=RegDescriptor("id-ns", "noiob")
+    NVMCAP=RegDescriptor("id-ns", "nvmcap")
+    NGUID=RegDescriptor("id-ns", "nguid")
+    EUI64=RegDescriptor("id-ns", "eui64")
+        
     #DLFEAT=RegDescriptor("id-ns", "dlfeat")    
     @property         
     def DLFEAT(self):
@@ -33,17 +45,20 @@ class IdNs_(object, NVMECom):
         else:
             DLFEAT=0   
         return DLFEAT
-    
-    NAWUN=RegDescriptor("id-ns", "nawun")
-    NAWUPF=RegDescriptor("id-ns", "nawupf")
-    NACWU=RegDescriptor("id-ns", "nacwu")
-    NABSN=RegDescriptor("id-ns", "nabsn")
-    NABO=RegDescriptor("id-ns", "nabo")
-    NABSPF=RegDescriptor("id-ns", "nabspf")
-    NOIOB=RegDescriptor("id-ns", "noiob")
-    NVMCAP=RegDescriptor("id-ns", "nvmcap")
-    NGUID=RegDescriptor("id-ns", "nguid")
-    EUI64=RegDescriptor("id-ns", "eui64")
+    @property         
+    def LBAFinUse(self):
+    # ret [lbafId, ms, lbads, rp] whick current format in use
+        CmdRt=self.shell_cmd("nvme id-ns %s| grep 'in use' 2>&1"%NVMECom.device)
+        mStr="^lbaf\s*(\d+)\D+(\d+)\D+(\d+)\D+(\d+)\D+"
+        if re.search(mStr, CmdRt):
+            lbaf=int(re.search(mStr, CmdRt).group(1),16)
+            ms=int(re.search(mStr, CmdRt).group(2),16)
+            lbads=int(re.search(mStr, CmdRt).group(3),16)
+            rp=int(re.search(mStr, CmdRt).group(4),16)
+            rtLBAFinUse=[lbaf, ms, lbads, rp] 
+        else:
+            rtLBAFinUse=None  
+        return rtLBAFinUse
 
 
     

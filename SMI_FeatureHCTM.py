@@ -112,16 +112,48 @@ class SMI_SmartHealthLog(NVME):
         return ret_code
     
     def ResetHCTM(self):
-            self.Print ("")
-            self.Print ("Reset TMT value")
+            self.Print ("")     
+            self.Print ("== reset HCTM ==")  
+            self.Print ("Disable HCTM by setting TMT1 and TMT2 to 0")
+            self.SetTMT1_TMT2(0, 0)
+            sleep(1)
+            self.Print ("Reset TMT to previous  value")
             self.SetTMT1_TMT2(self.TMT1bk, self.TMT2bk)
-            self.Print ("Done")
-            self.Print ("")
+            cTMT1, cTMT2 = self.GetTMT1_TMT1()
+            self.Print ("Current TMT1, TMT2 value is : %s, %s "%(cTMT1, cTMT2))       
+            if cTMT1==self.TMT1bk and cTMT2==self.TMT2bk:
+                self.Print("Done", "p")
+            else:
+                self.Print("Fail", "f")
+                #return False    
 
             self.Print ("")
             self.Print ("NVMe reset controller")
             self.nvme_reset()  
-            self.Print ("Done")        
+            self.Print ("Done")  
+            self.Print ("== end of reset HCTM ==")       
+    
+    def TestValueClearToZero(self, TMT1, TMT2):
+        mTMT1=TMT1
+        mTMT2=TMT2
+        self.Print("")
+        self.Print ("Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2))
+        mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)        
+        # if Accept cmd, then verify value, else return 1
+        if self.CheckisSuccess(mStr)==1:
+            return False
+        
+        self.Print ("Verify current value by get feature command")
+        cTMT1, cTMT2 = self.GetTMT1_TMT1()
+        self.Print ("Current TMT1, TMT2 value is : %s, %s "%(cTMT1, cTMT2))
+        if cTMT1==TMT1 and cTMT2==TMT2:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            return False     
+        return True   
+        
+    
     
     def RaisingTempture(self, TargetTemp, TimeOut):
     # TimeOut = time limit in secend
@@ -172,8 +204,9 @@ class SMI_SmartHealthLog(NVME):
         
     # override PreTest()
     def PreTest(self):
-        if DUT.HCTMA==1:
+        if self.HCTMA==1:
             self.Print( "Controller support HCTM", "p")
+            self.Print ("Current TMT1, TMT2 value is : %s, %s "%(self.TMT1bk, self.TMT2bk))            
             return True
         else:
             self.Print( "Controller do not support HCTM", "w")
@@ -183,11 +216,18 @@ class SMI_SmartHealthLog(NVME):
     def SubCase1(self):  
         self.Print ("Test if controller accept TMT1 and TMT2 value is zero or not, expected result: Accept")
         self.Print ("Keyword: A value cleared to zero, specifies that this part of the feature shall be disabled.")
-        mTMT1=0
-        mTMT2=0
-        self.Print ("Set TMT1= %s, TMT2= %s"%(mTMT1, mTMT2))
-        mStr =  self.SetTMT1_TMT2(mTMT1, mTMT2)
-        return self.CheckisSuccess(mStr)
+        # all=0
+        if self.TestValueClearToZero(TMT1=0, TMT2=0)==False:
+            return 1
+        # TMT1=0          
+        if self.TestValueClearToZero(TMT1=0, TMT2=self.TMT2bk)==False:
+            return 1          
+        # TMT2=0
+        if self.TestValueClearToZero(TMT1=self.TMT1bk, TMT2=0)==False:
+            return 1       
+      
+        
+        return 0
 
     
     def SubCase2(self):
