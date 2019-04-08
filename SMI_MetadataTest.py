@@ -74,7 +74,7 @@ class SMI_MetadataTest(NVME):
             self.Print("Fail, quit all, write cmd= %s"%self.LastCmd, "f")  if printInfo else None
             return False
 
-    def WriteMetadatas_AsContiguousPartOfLB(self, startBlock, NLB_CDW12, sizePerBlock):
+    def WriteMetadatas_AsContiguousPartOfLB(self, startBlock, NLB_CDW12, sizePerBlock, printInfo=False):
         # write data and metadata with file MetadataFile_in
         # sizePerBlock, 512/4K
         size = NLB_CDW12*sizePerBlock
@@ -82,10 +82,10 @@ class SMI_MetadataTest(NVME):
         mStr = self.shell_cmd("nvme write %s -s %s -z %s -c %s -d %s 2>&1"%( self.dev, startBlock,size, block_cnt, self.MetadataFile_in_WithThreadname))
         retCommandSueess=bool(re.search("write: Success", mStr))
         if (retCommandSueess ==  True) :
-            self.Print("Done")    
+            self.Print("Done") if printInfo else None  
             return True
         else:
-            self.Print("Fail, quit all, write cmd= %s"%self.LastCmd, "f")
+            self.Print("Fail, quit all, write cmd= %s"%self.LastCmd, "f") if printInfo else None  
             return False
     
     def CreateRandomLogicBlockDataAndMetadataFile(self, NLB_CDW12, sizePerBlock):
@@ -98,15 +98,20 @@ class SMI_MetadataTest(NVME):
         numOfByte = metadataSize*NLB_CDW12
         self.shell_cmd("dd if=/dev/urandom of=%s bs=%s count=1 2>&1 >/dev/null"%(self.MetadataFile_in_WithThreadname, numOfByte))
     
-    def GetDismatch_LBA_WriteValue_ReadValue(self, F0, F1, Ttype, startBlock, metadataSize):
+    def GetDismatch_LBA_WriteValue_ReadValue(self, F0, F1, Ttype, startBlock, cmpareDataSize):
         Result = self.isFileTheSame(F0, F1)
         if Result==None:
             return None
         elif Ttype=="Separate":
             byteoffset=Result[0]
-            LBAoffset=(byteoffset-1)/metadataSize
+            LBAoffset=(byteoffset-1)/cmpareDataSize
             LBA=startBlock+LBAoffset
             return [LBA, Result[1], Result[2]]
+        elif  Ttype=="Contiguous":
+            byteoffset=Result[0]
+            LBAoffset=(byteoffset-1)/cmpareDataSize
+            LBA=startBlock+LBAoffset
+            return [LBA, Result[1], Result[2]]            
             
             
         
@@ -119,16 +124,17 @@ class SMI_MetadataTest(NVME):
         block_cnt = NLB_CDW12-1    
         FileOut=self.MetadataFile_out_WithThreadname
         FileIn=self.MetadataFile_in_WithThreadname
+        
+        self.rmFile(FileOut)
                                      
         self.Print("Get metadata from block: %s, number of block: %s, and save to file(%s)"%(startBlock, NLB_CDW12, FileOut)) if printInfo else None
 
         self.shell_cmd("nvme read %s -s %s -z %s -c %s -y %s -M %s 2>&1 >/dev/null"%(self.dev, startBlock,size, block_cnt, totalMetadataSize, FileOut))
-        sleep(0.5)
+        
         if self.isfileExist(FileOut):
             self.Print("Done") if printInfo else None
         else:
             self.Print("Fail to read metadata, quit all", "f") if printInfo else None
-            self.rmFile(FileOut)
             return False                
         '''
         self.Print("Check if metadata in first block is 0x0")
@@ -142,39 +148,40 @@ class SMI_MetadataTest(NVME):
             self.Print("Pass", "p")  if printInfo else None
         else:
             self.Print("Fail", "f") if printInfo else None
-            self.rmFile(FileOut)
             return False                 
-        self.rmFile(FileOut)
         return True
     
     # ----------------------------------------------------------------------------------------------              
-    def CheckBlockMetadatas_AsContiguousPartOfLB(self, startBlock, NLB_CDW12,sizePerBlock):
+    def CheckBlockMetadatas_AsContiguousPartOfLB(self, startBlock, NLB_CDW12,sizePerBlock, printInfo=False):
         # read metadata to file MetadataFile_out, and compare with MetadataFile_in
         # startBlock=0, NLB_CDW12=2, metadataSize=8
         size = NLB_CDW12*sizePerBlock
         block_cnt = NLB_CDW12-1    
+        FileOut=self.MetadataFile_out_WithThreadname
+        FileIn=self.MetadataFile_in_WithThreadname        
             
-        self.rmFile(self.MetadataFile_out_WithThreadname)
+        self.rmFile(FileOut)
                                    
-        self.Print("Get metadata from block: %s, number of block: %s, and save to file(%s)"%(startBlock, NLB_CDW12, self.MetadataFile_out_WithThreadname))
+        self.Print("Get metadata from block: %s, number of block: %s, and save to file(%s)"%(startBlock, NLB_CDW12, FileOut))  if printInfo else None
 
-        self.shell_cmd("nvme read %s -s %s -z %s -c %s -d %s 2>&1 >/dev/null"%(self.dev, startBlock,size, block_cnt, self.MetadataFile_out_WithThreadname))
-        sleep(0.5)
-        if self.isfileExist(self.MetadataFile_out_WithThreadname):
-            self.Print("Done")
+        self.shell_cmd("nvme read %s -s %s -z %s -c %s -d %s 2>&1 >/dev/null"%(self.dev, startBlock,size, block_cnt, FileOut))
+        
+        if self.isfileExist(FileOut):
+            self.Print("Done")  if printInfo else None
         else:
             self.Print("Fail to read metadata, quit all", "f")
             return False                
 
-        self.Print("Check if data and metadata from controller(%s) and %s are the same"%(self.MetadataFile_out_WithThreadname, self.MetadataFile_in_WithThreadname))            
+        self.Print("Check if data and metadata from controller(%s) and %s are the same"%(FileOut, FileIn))  if printInfo else None            
         # if MetadataFile_out = MetadataFile_in, then pass
-        if self.isFileTheSame(self.MetadataFile_out_WithThreadname, self.MetadataFile_in_WithThreadname)==None:
-            self.Print("Pass", "p")
+        self.CompareResult=self.GetDismatch_LBA_WriteValue_ReadValue(FileOut, FileIn, "Contiguous", startBlock, sizePerBlock)
+        if self.CompareResult==None:
+            self.Print("Pass", "p")  if printInfo else None
         else:
-            self.Print("Fail", "f")   
+            self.Print("Fail", "f") if printInfo else None
             return False                 
-
-        return True
+        return True        
+        
     # ----------------------------------------------------------------------------------------------  
     def FormatNS(self, LBAF_num, MetadataSetting): 
         self.Print("Format namespace 1 to LBAF %s with Metadata Settings (MSET)= %s"%(LBAF_num, MetadataSetting))                  
@@ -189,14 +196,14 @@ class SMI_MetadataTest(NVME):
         FLBAS_bit4 = 1 if (self.IdNs.FLBAS.int&0x10)>0 else 0
         self.Print("Formatted LBA Size (FLBAS) bit 4 : %s"%FLBAS_bit4)           
         if MetadataSetting==0:
-            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was cleared to ‘0’ indicates that all of the metadata for a command is transferred as a separate contiguous buffer of data") 
+            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was cleared to '0' indicates that all of the metadata for a command is transferred as a separate contiguous buffer of data") 
             if FLBAS_bit4==0:
                 self.Print("Pass", "p")
             else:
                 self.Print("Fail", "f")
                 return False
         else:
-            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was set to ‘1’ indicates that the metadata is transferred at the end of the data LBA")
+            self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was set to '1' indicates that the metadata is transferred at the end of the data LBA")
             if FLBAS_bit4==1 :
                 self.Print("Pass", "p")
             else:
@@ -205,11 +212,14 @@ class SMI_MetadataTest(NVME):
         
         return True
     # ----------------------------------------------------------------------------------------------                
-    
+    def rmTemporaryfiles(self):
+        FileOut=self.MetadataFile_out_WithThreadname
+        FileIn=self.MetadataFile_in_WithThreadname
+        self.rmFile(FileOut)
+        self.rmFile(FileIn)
+                    
     def Test_Write_Read_AsSeparateBuffer(self, startBlock, NLB_CDW12, sizePerBlock, metadataSize, printInfo=True):
         # sizePerBlock, 512/4K
-        # create metadata file
-        self.CreateRandomMetadataFile(NLB_CDW12=NLB_CDW12, metadataSize =metadataSize)
         if not self.WriteMetadatas_AsSeparateBuffer(sizePerBlock=sizePerBlock, startBlock=startBlock , NLB_CDW12=NLB_CDW12 , metadataSize=metadataSize, printInfo=printInfo):
             return False
           
@@ -222,20 +232,22 @@ class SMI_MetadataTest(NVME):
         self.Print("") if printInfo else None                                       
         return True        
     
-    def Test_Write_Read_AsContiguousPartOfLB(self, startBlock, NLB_CDW12, sizePerBlock):
-        if not self.WriteMetadatas_AsContiguousPartOfLB(startBlock, NLB_CDW12 , sizePerBlock):
+    def Test_Write_Read_AsContiguousPartOfLB(self, startBlock, NLB_CDW12, sizePerBlock, printInfo=False):
+        if not self.WriteMetadatas_AsContiguousPartOfLB(startBlock, NLB_CDW12 , sizePerBlock, printInfo=False):
             return False 
             
-        self.Print("")
+        self.Print("") if printInfo else None  
         # verify 
-        self.Print("check if metadata in first %s block and file %s are the same"%(NLB_CDW12, self.MetadataFile_in_WithThreadname))    
-        if not self.CheckBlockMetadatas_AsContiguousPartOfLB(startBlock, NLB_CDW12,sizePerBlock):
+        self.Print("check if metadata in first %s block and file %s are the same"%(NLB_CDW12, self.MetadataFile_in_WithThreadname)) if printInfo else None      
+        if not self.CheckBlockMetadatas_AsContiguousPartOfLB(startBlock, NLB_CDW12,sizePerBlock, printInfo=False):
             return False         
         return True   
     
     def Test_Write_Read_AsSeparateBuffer_OneThread(self, startBlock, stopBlock, maximumNLB, sizePerBlock, metadataSize, printInfo=False):
         # loop for the test, if all  block has been test or other thread fail or this thread fail, then return
-        
+        # create metadata file
+        self.rmTemporaryfiles()
+        self.CreateRandomMetadataFile(NLB_CDW12=maximumNLB, metadataSize =metadataSize)        
         finished=False
         while True:
             # read blkPtr and allPass           
@@ -244,6 +256,9 @@ class SMI_MetadataTest(NVME):
             mPtr=self.blkPtr
             NLB=stopBlock-mPtr
             NLB= maximumNLB if NLB>maximumNLB else NLB
+            if NLB!=maximumNLB:
+                self.rmTemporaryfiles()
+                self.CreateRandomMetadataFile(NLB_CDW12=NLB, metadataSize =metadataSize)    
             allPass=self.allPass
             if mPtr>=stopBlock or not allPass:
                 finished=True
@@ -252,6 +267,7 @@ class SMI_MetadataTest(NVME):
             self.lock.release()
             
             if finished:
+                self.rmTemporaryfiles()
                 return
             
             # if not pass, set self.allPass=false and set failAtStartBlk, failAtStopBlk, then return
@@ -262,8 +278,10 @@ class SMI_MetadataTest(NVME):
                 self.failAtStartBlk=mPtr
                 self.failAtStopBlk=mPtr+NLB
                 self.failAtThread=threading.current_thread().name
+                self.rmTemporaryfiles()
                 return
-    
+        self.rmTemporaryfiles()
+        
     def Test_Write_Read_AsSeparateBuffer_MultiThread(self, thread, startBlock, stopBlock, NLB_CDW12, printInfo=False):         
         thread_w=thread
         sizePerBlock=self.GetBlockSize()   
@@ -274,6 +292,63 @@ class SMI_MetadataTest(NVME):
             t.start() 
             RetThreads.append(t)     
         return RetThreads    
+    #-----------------------------------------------------------------------------------------------------------------
+    def Test_Write_Read_AsContiguousPartOfLB_OneThread(self, startBlock, stopBlock, maximumNLB, sizePerBlock, metadataSize, printInfo=False):
+        # loop for the test, if all  block has been test or other thread fail or this thread fail, then return
+        
+        # create metadata file for max NLB
+        self.rmTemporaryfiles()
+        self.CreateRandomLogicBlockDataAndMetadataFile(NLB_CDW12=maximumNLB,sizePerBlock=sizePerBlock)
+        
+        
+        finished=False
+        while True:
+            # read blkPtr and allPass                       
+            self.lock.acquire()
+            mPtr=self.blkPtr
+            NLB=stopBlock-mPtr
+            NLB= maximumNLB if NLB>maximumNLB else NLB
+            if NLB!=maximumNLB:
+                # create metadata file if last write and nlb!=maximumNLB
+                self.rmTemporaryfiles()
+                self.CreateRandomLogicBlockDataAndMetadataFile(NLB_CDW12=NLB,sizePerBlock=sizePerBlock)      
+                      
+            allPass=self.allPass
+            if mPtr>=stopBlock or not allPass:
+                finished=True
+            else:            
+                self.blkPtr=self.blkPtr+NLB
+            self.lock.release()
+            
+            if finished:
+                self.rmTemporaryfiles()
+                return
+            
+            # if not pass, set self.allPass=false and set failAtStartBlk, failAtStopBlk, then return
+            if self.mTestModeOn:
+                self.Print(threading.current_thread().name+", Ptr: %s, NLB: %s"%(mPtr, NLB))
+            if not self.Test_Write_Read_AsContiguousPartOfLB(mPtr, NLB, sizePerBlock, printInfo):
+                self.allPass=False
+                self.failAtStartBlk=mPtr
+                self.failAtStopBlk=mPtr+NLB
+                self.failAtThread=threading.current_thread().name
+                self.rmTemporaryfiles()
+                return 
+        self.rmTemporaryfiles()
+        
+    def Test_Write_Read_AsContiguousPartOfLB_MultiThread(self, thread, startBlock, stopBlock, NLB_CDW12, printInfo=False):         
+        thread_w=thread
+        sizePerBlock=self.GetBlockSize()   
+        metadataSize=self.IdNs.LBAFinUse[1]                
+        RetThreads = []        
+        for i in range(thread_w):   
+            t = threading.Thread(target = self.Test_Write_Read_AsContiguousPartOfLB_OneThread, args=(startBlock, stopBlock, NLB_CDW12, sizePerBlock, metadataSize, printInfo))
+            t.start() 
+            RetThreads.append(t)     
+        return RetThreads    
+
+
+
     
     def PrintProgress(self):      
         totalBlk=self.blkLast-self.blkFirst
@@ -350,13 +425,18 @@ class SMI_MetadataTest(NVME):
             testBlock=1
             self.Print("")
             self.Print("Write metadata to controller(file %s), start from LBA0, number of blocks is %s(the minimum data transfer size)"%(self.MetadataFile_in_WithThreadname, testBlock))
+            self.rmTemporaryfiles()
+            self.CreateRandomMetadataFile(NLB_CDW12=testBlock, metadataSize =MS)
             if not self.Test_Write_Read_AsSeparateBuffer(startBlock=0, NLB_CDW12=testBlock, sizePerBlock=sizePerBlock, metadataSize=MS, printInfo=True):
                 return 1        
             
             # test write and read for maxBlock
-            testBlock=self.MDTSinByte/sizePerBlock
+            NLB_CDW12=self.MaxNLBofCDW12()
+            testBlock=NLB_CDW12
             self.Print("")
-            self.Print("Write metadata to controller(file %s), start from LBA0, number of blocks is %s(the maximum data transfer size)"%(self.MetadataFile_in_WithThreadname, hex(testBlock)))
+            self.Print("Write metadata to controller(file %s), start from LBA0, number of blocks is %s(the maximum data transfer size)"%(self.MetadataFile_in_WithThreadname, testBlock))
+            self.rmTemporaryfiles()
+            self.CreateRandomMetadataFile(NLB_CDW12=testBlock, metadataSize =MS)
             if not self.Test_Write_Read_AsSeparateBuffer(startBlock=0, NLB_CDW12=testBlock, sizePerBlock=sizePerBlock, metadataSize=MS, printInfo=True):
                 return 1 
         
@@ -365,12 +445,12 @@ class SMI_MetadataTest(NVME):
 
     # <define sub item scripts>
     SubCase2TimeOut = 60
-    SubCase2Desc = "Metadata test -  Transferred as a contiguous part of the logical block that it is associated with"   
+    SubCase2Desc = "Metadata test -  Transferred as a contiguous part of the logical block"   
     SubCase2KeyWord = ""
     def SubCase2(self):
         ret_code=0
         self.Print("")
-        self.Print("Test mechanism for transferring the metadata is 'as a ontiguous part of the logical block'")
+        self.Print("Test mechanism for transferring the metadata is 'as a contiguous part of the logical block'")
         MetadataSetting=1
 
 
@@ -382,7 +462,7 @@ class SMI_MetadataTest(NVME):
             RP = Item[1]
             LBADS = Item[2]
             MS = Item[3]            
-            # LBADS=9, testblock=1, LBADS=12, testblock=8, etc
+            # LBADS=9, ms=8, sizePerBlock=512+8= 520; LBADS=12, ms=8, sizePerBlock=512*8+8= 4104
             sizePerBlock=512*pow(2,(LBADS-9)) + MS
             # format namespace
             if not self.FormatNS(LBAF_num, MetadataSetting):
@@ -392,17 +472,20 @@ class SMI_MetadataTest(NVME):
             # test write and read for minBlock
             testBlock=1
             self.Print("")            
-            self.Print("Write random patten of data with metadata to controller(file %s), start from LBA0, number of blocks is %s"%(self.MetadataFile_in_WithThreadname, testBlock))
+            self.Print("Write random patten of data with metadata to controller(file %s), start from LBA0, NLB is %s (minimum)"%(self.MetadataFile_in_WithThreadname, testBlock))
             # create metadata file
+            self.rmTemporaryfiles()
             self.CreateRandomLogicBlockDataAndMetadataFile(NLB_CDW12=testBlock,sizePerBlock=sizePerBlock)            
             if not self.Test_Write_Read_AsContiguousPartOfLB(startBlock=0 , NLB_CDW12=testBlock ,sizePerBlock=sizePerBlock):
                 return 1                                             
 
             # test write and read for maxBlock
-            testBlock=self.MDTSinByte/sizePerBlock
+            NLB_CDW12=self.MaxNLBofCDW12()
+            testBlock=NLB_CDW12
             self.Print("")
-            self.Print("Write random patten of data with metadata to controller(file %s), start from LBA0, number of blocks is %s"%(self.MetadataFile_in_WithThreadname, testBlock))
+            self.Print("Write random patten of data with metadata to controller(file %s), start from LBA0, NLB is %s (maximum)"%(self.MetadataFile_in_WithThreadname, testBlock))
             # create metadata file
+            self.rmTemporaryfiles()
             self.CreateRandomLogicBlockDataAndMetadataFile(NLB_CDW12=testBlock,sizePerBlock=sizePerBlock)            
             if not self.Test_Write_Read_AsContiguousPartOfLB(startBlock=0 , NLB_CDW12=testBlock ,sizePerBlock=sizePerBlock):
                 return 1   
@@ -412,7 +495,7 @@ class SMI_MetadataTest(NVME):
 
 
     SubCase3TimeOut = 60
-    SubCase3Desc = "Metadata test -  Transferred as Separate Buffer, test 1G data"   
+    SubCase3Desc = "Metadata test -  Transferred as Separate Buffer, test 0x100000 block(1048576)"   
     SubCase3KeyWord = ""
     def SubCase3(self):
         ret_code=0
@@ -422,6 +505,7 @@ class SMI_MetadataTest(NVME):
         #MetadataSetting=1
         self.Print("Test mechanism for transferring the metadata is 'separate buffer of data'")
         MetadataSetting= 0
+        self.blkPtr=0
 
         if self.TestItems!=None:
             self.Print("----------------------------------------")
@@ -438,19 +522,17 @@ class SMI_MetadataTest(NVME):
             if not self.FormatNS(LBAF_num, MetadataSetting):
                 return 1
             
-            
-            
-                      
             thread=32
             startBlock=0 
             #stopBlock=1023
-            stopBlock=65535
+            stopBlock=0x100000 #1048576 block
             NLB_CDW12=self.MaxNLBofCDW12() 
             printInfo=False               
             # initial progress bar parameter
             self.blkFirst=startBlock
             self.blkLast=stopBlock
             
+            self.Print("Create %s thread to write %s blocks with Maximum transfer block size(NLB) %s"%(thread, stopBlock, NLB_CDW12))
             #timer
             self.timer.start()
                         
@@ -466,14 +548,15 @@ class SMI_MetadataTest(NVME):
                         break
             
                 # if all process finished then, quit while loop,
-                if allfinished==1:        
+                if allfinished==1: 
+                    self.PrintProgress()       
                     break
                 else:              
                     #print progress bar    
                     self.PrintProgress()           
-                    sleep(0.5)                          
+                    sleep(1)                          
             self.timer.stop()
-            
+
             self.Print("")
             #check result
             if self.allPass:
@@ -481,9 +564,84 @@ class SMI_MetadataTest(NVME):
             else:
                 self.Print("Fail", "f")
                 self.Print("Failure block: %s on %s"%(hex(self.failAtStartBlk), self.failAtThread), "f")
+                ret_code=1
         
         return ret_code
-    
+
+
+    SubCase4TimeOut = 60
+    SubCase4Desc = "Metadata test -  Transferred as a contiguous part of the logical block, test 0x100000 block(1048576)"   
+    SubCase4KeyWord = ""
+    def SubCase4(self):
+        ret_code=0
+        self.Print("")
+        self.Print("Metadata test")
+        self.Print("Mechanism for transferring the metadata is 'as a ontiguous part of the logical block'")
+        MetadataSetting=1
+        self.blkPtr=0
+
+        if self.TestItems!=None:
+            self.Print("----------------------------------------")
+            self.Print("")
+            Item=self.TestItems[0]
+            self.Print("LBAF %s, RP: %s, LBADS: %s, MS: %s"%(Item[0], Item[1], Item[2], Item[3])) 
+            LBAF_num = Item[0]
+            RP = Item[1]
+            LBADS = Item[2]
+            MS = Item[3]      
+
+            # format namespace
+            if not self.FormatNS(LBAF_num, MetadataSetting):
+                return 1
+            
+            thread=32
+            startBlock=0 
+            #stopBlock=1023
+            stopBlock=0x100000 #1048576 block
+            NLB_CDW12=self.MaxNLBofCDW12() 
+            printInfo=False               
+            # initial progress bar parameter
+            self.blkFirst=startBlock
+            self.blkLast=stopBlock
+            
+
+            self.Print("Create %s thread to write %s blocks with Maximum transfer block size(NLB) %s"%(thread, stopBlock, NLB_CDW12))
+            
+            #timer
+            self.timer.start()
+                        
+            # write data using multi thread
+            mThreads = self.Test_Write_Read_AsContiguousPartOfLB_MultiThread(thread, startBlock, stopBlock, NLB_CDW12,  printInfo)
+            
+            # check if all process finished             
+            while True:        
+                allfinished=1
+                for process in mThreads:
+                    if process.is_alive():
+                        allfinished=0
+                        break
+            
+                # if all process finished then, quit while loop,
+                if allfinished==1:        
+                    self.PrintProgress()
+                    break
+                else:              
+                    #print progress bar    
+                    self.PrintProgress()           
+                    sleep(1)                          
+            self.timer.stop()
+
+            self.Print("")
+            #check result
+            if self.allPass:
+                self.Print("Pass, time usage: %s"%self.timer.time, "p")
+            else:
+                self.Print("Fail", "f")
+                self.Print("Failure block: %s on %s"%(hex(self.failAtStartBlk), self.failAtThread), "f")
+                ret_code=1
+        
+        return ret_code
+        
     # </define sub item scripts>
 
     # define PostTest  

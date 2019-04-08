@@ -13,7 +13,7 @@ from random import randint
 import threading
 # Import VCT modules
 from lib_vct.NVME import NVME
-
+from io import BytesIO
 '''
 def my_decorator(func):
     def wrapped_func(*args,**kwargs):
@@ -138,10 +138,9 @@ class Test(NVME):
         super(Test, self).__init__(argv)
         self.Print("1234567890")
         self.Print("1234567890") if False else None
-        self.timer.start()
-        sleep(1)
-        self.timer.stop()
-        self.Print("TIme : %s"%self.timer.time) 
+        f = BytesIO(bytearray(os.urandom(512)))
+        #f.write(self.shell_cmd("dd if=/dev/urandom bs=512 count=1 "))
+        aa= f.getvalue()
 
         self.Print("1234567890")
         self.MetadataFile_in= "MMMMMMMMMM"

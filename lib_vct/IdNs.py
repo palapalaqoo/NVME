@@ -51,9 +51,9 @@ class IdNs_(object, NVMECom):
         CmdRt=self.shell_cmd("nvme id-ns %s| grep 'in use' 2>&1"%NVMECom.device)
         mStr="^lbaf\s*(\d+)\D+(\d+)\D+(\d+)\D+(\d+)\D+"
         if re.search(mStr, CmdRt):
-            lbaf=int(re.search(mStr, CmdRt).group(1),16)
-            ms=int(re.search(mStr, CmdRt).group(2),16)
-            lbads=int(re.search(mStr, CmdRt).group(3),16)
+            lbaf=int(re.search(mStr, CmdRt).group(1))
+            ms=int(re.search(mStr, CmdRt).group(2))
+            lbads=int(re.search(mStr, CmdRt).group(3))
             rp=int(re.search(mStr, CmdRt).group(4),16)
             rtLBAFinUse=[lbaf, ms, lbads, rp] 
         else:

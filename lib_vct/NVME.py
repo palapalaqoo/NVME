@@ -1032,7 +1032,7 @@ class NVME(object, NVMECom):
         Now_MS=Now_LBAFinUse[1]
         Now_LBADS=Now_LBAFinUse[2]   
         # if metadata is transferred at the end of the data LBA, e.g. Now_FLBAS_bit4 = 1
-        if Now_FLBAS_bit4==1:                    
+        if Now_FLBAS_bit4==0:                    
             sizePerBlock=512*pow(2,(Now_LBADS-9))
         else:            
             sizePerBlock=512*pow(2,(Now_LBADS-9)) + Now_MS        
