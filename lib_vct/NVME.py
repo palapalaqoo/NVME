@@ -39,6 +39,11 @@ class NVME(object, NVMECom):
         self.CreateAbstractFuncAndVariablesForSonClassToOverride()
         # self.dev = /dev/nvme0n1
         self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(self.CreateSubCaseListForParser())
+        # check if self.dev = /dev/nvme*n*
+        if not re.search("^/dev/nvme\d+n\d+$", self.dev):
+            # have not initial set_NVMECom_par, so can't use self.print()
+            print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
+            sys.exit(1)
         # self.dev_port = /dev/nvme0
         self.dev_port=self.dev[0:self.dev.find("nvme")+5]
         # self.dev_ns = 1
@@ -1040,7 +1045,7 @@ class NVME(object, NVMECom):
         
     def MaxNLBofCDW12(self):   
         # ret maximum value of Number of Logical Blocks (NLB) in current format 
-        return self.MDTSinByte/self.GetBlockSize()
+        return self.MDTSinByte/self.GetBlockSize()-1
             
             
 

@@ -468,11 +468,12 @@ class NVMECom():
         if CMDrt =="":
             return None
         else:            
-            mStr="^.*(\d*)\s*(\d*)\s*(\d*)"
-            if re.search(mStr, CMDrt):
-                Offset =int(re.search(mStr, CMDrt).group(1))
-                ValueF0 =int(re.search(mStr, CMDrt).group(2),8)
-                ValueF1 =int(re.search(mStr, CMDrt).group(3),8)
+            mStr="^(\d*)\s*(\d*)\s*(\d*)"
+            mSearch=re.search(mStr, CMDrt)
+            if mSearch:
+                Offset =int(mSearch.group(1))
+                ValueF0 =int(mSearch.group(2),8)
+                ValueF1 =int(mSearch.group(3),8)
                 return [Offset, ValueF0, ValueF1]
             else:
                 return None

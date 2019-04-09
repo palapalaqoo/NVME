@@ -138,10 +138,9 @@ class Test(NVME):
         super(Test, self).__init__(argv)
         self.Print("1234567890")
         self.Print("1234567890") if False else None
-        f = BytesIO(bytearray(os.urandom(512)))
-        #f.write(self.shell_cmd("dd if=/dev/urandom bs=512 count=1 "))
-        aa= f.getvalue()
-
+        NSID=5
+        mDev=self.dev_port + "n%s"%NSID
+        print mDev
         self.Print("1234567890")
         self.MetadataFile_in= "MMMMMMMMMM"
 
