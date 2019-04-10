@@ -11,7 +11,10 @@ from time import sleep
 from lib_vct.NVME import NVME
 
 class SMI_PCIPowerStatus(NVME):
-
+    ScriptName = "SMI_PCIPowerStatus.py"
+    Author = "Sam Chan"
+    Version = "20190410"
+    
     def SetPS(self, psValue):
         self.write_pcie(self.PMCAP, 0x4, psValue)
         

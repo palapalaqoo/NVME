@@ -550,6 +550,19 @@ class NVMECom():
             return None
         return l        
     
+    def InitFolder(self, path):       
+        # if folder exist, remove it    
+        if os.path.exists(path):
+            self.RmFolder(path) 
+        # Create folder
+        if not os.path.exists(path):
+            os.makedirs(path)
+            
+    def RmFolder(self, path): 
+        if os.path.exists(path):
+            shutil.rmtree(path)
+            
+             
 
             
             

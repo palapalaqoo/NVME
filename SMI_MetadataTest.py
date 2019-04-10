@@ -15,7 +15,7 @@ from __builtin__ import False
 class SMI_MetadataTest(NVME):
     ScriptName = "SMI_MetadataTest.py"
     Author = "Sam Chan"
-    Version = "20190326"
+    Version = "20190410"
 
 
     
@@ -238,9 +238,9 @@ class SMI_MetadataTest(NVME):
         return True        
         
     # ----------------------------------------------------------------------------------------------  
-    def FormatNS(self, LBAF_num, MetadataSetting, printInfo=True): 
+    def FormatNS(self, LBAF_num, MetadataSetting, nsid=1, printInfo=True): 
         self.Print("Format namespace 1 to LBAF %s with Metadata Settings (MSET)= %s"%(LBAF_num, MetadataSetting)) if printInfo else None                  
-        mStr=self.Format(nsid=1, lbaf = LBAF_num, ses=0, pil=0, pi=0, ms=MetadataSetting)
+        mStr=self.Format(nsid=nsid, lbaf = LBAF_num, ses=0, pil=0, pi=0, ms=MetadataSetting)
         if re.search("Success formatting namespace", mStr):
             self.Print("Done")  if printInfo else None
         else:
@@ -248,7 +248,12 @@ class SMI_MetadataTest(NVME):
             return False        
 
         self.Print("") if printInfo else None
-        FLBAS_bit4 = 1 if (self.IdNs.FLBAS.int&0x10)>0 else 0
+        
+        mDev=self.dev_port + "n%s"%nsid
+        mStr="nvme id-ns %s |grep 'flbas' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(mDev)
+        FLBAS=int(self.shell_cmd(mStr), 16)
+        FLBAS_bit4 = 1 if (FLBAS&0x10)>0 else 0        
+        
         self.Print("Formatted LBA Size (FLBAS) bit 4 : %s"%FLBAS_bit4) if printInfo else None           
         if MetadataSetting==0:
             self.Print("Check if Formatted LBA Size (FLBAS) bit 4 was cleared to '0' indicates that all of the metadata for a command is transferred as a separate contiguous buffer of data") if printInfo else None
@@ -404,20 +409,21 @@ class SMI_MetadataTest(NVME):
 
 
     def CompareNsMetadatas(self, expectedDataChangedNsid):
+        # return 0 = pass, or the error nsid 
         for Item in self.NsTestItems:
             NSID = Item[6]
-            fileName="MetadataFile_out_backup"
-            F0=fileName+"_ns"%NSID
-            fileName="MetadataFile_out_current"
-            F1=fileName+"_ns"%NSID            
+            fileName=self.MetadataFile_NsBk
+            F0=fileName+"_ns%s"%NSID
+            fileName=self.MetadataFile_NsCur
+            F1=fileName+"_ns%s"%NSID            
             
             Result = self.isFileTheSame(F0, F1)
             TheSame=True if Result==None else False
-            # if files are the same and is not expected to the same
-            if TheSame and expectedDataChangedNsid!=NSID: 
+            # if files are the same and is expected to be changed
+            if TheSame and expectedDataChangedNsid==NSID: 
                 return NSID
-            # if files are not same and is expected to the same
-            if not TheSame and expectedDataChangedNsid==NSID: 
+            # if files are not same and is not expected to be changed
+            if not TheSame and expectedDataChangedNsid!=NSID: 
                 return NSID   
             
         return 0            
@@ -438,7 +444,7 @@ class SMI_MetadataTest(NVME):
         NSID = Item[6] 
         sizePerBlock = Item[7]     
         startBlock=0
-        NLB_CDW12=1
+        NLB_CDW12=0
         
         self.rmTemporaryfiles()
         if Type=="Separate":
@@ -455,10 +461,10 @@ class SMI_MetadataTest(NVME):
         return True
 
     def ReadNsMetadatasToFile_backup(self, sizePerBlock,startBlock, NLB_CDW12, metadataSize,printInfo=True):
-        return self.ReadNsMetadatasToFile( sizePerBlock,startBlock, NLB_CDW12, metadataSize,printInfo, "MetadataFile_out_backup")
+        return self.ReadNsMetadatasToFile( sizePerBlock,startBlock, NLB_CDW12, metadataSize, self.MetadataFile_NsBk, printInfo)
         
     def ReadNsMetadatasToFile_current(self, sizePerBlock,startBlock, NLB_CDW12, metadataSize,printInfo=True):
-        return self.ReadNsMetadatasToFile( sizePerBlock,startBlock, NLB_CDW12, metadataSize,printInfo, "MetadataFile_out_current")
+        return self.ReadNsMetadatasToFile( sizePerBlock,startBlock, NLB_CDW12, metadataSize, self.MetadataFile_NsCur, printInfo)
         
     def ReadNsMetadatasToFile(self, sizePerBlock,startBlock, NLB_CDW12, metadataSize, fileName, printInfo=True):
         
@@ -477,13 +483,13 @@ class SMI_MetadataTest(NVME):
                 totalMetadataSize=metadataSize * (NLB_CDW12+1)
                 size = (NLB_CDW12+1)*sizePerBlock
                 block_cnt = NLB_CDW12    
-                FileOut=fileName+"_ns"%NSID
+                FileOut=fileName+"_ns%s"%NSID
                 self.rmFile(FileOut)
                 self.shell_cmd("nvme read %s -s %s -z %s -c %s -y %s -M %s 2>&1 >/dev/null"%(mDev, startBlock,size, block_cnt, totalMetadataSize, FileOut))
             else: # Contiguous
                 size = (NLB_CDW12+1)*sizePerBlock
                 block_cnt = NLB_CDW12    
-                FileOut=fileName+"_ns"%NSID
+                FileOut=fileName+"_ns%s"%NSID
                 self.rmFile(FileOut)
                 self.shell_cmd("nvme read %s -s %s -z %s -c %s -d %s 2>&1 >/dev/null"%(mDev, startBlock,size, block_cnt, FileOut))
                 
@@ -507,9 +513,14 @@ class SMI_MetadataTest(NVME):
         self.LBAF=self.GetAllLbaf()
         self.TestItems=[]
         self.initTestItems()
-
-        self.MetadataFile_out = "MetadataFile_out"
-        self.MetadataFile_in = "MetadataFile_in"
+        
+        # create temp folder
+        self.TempFolderName = "./temp"
+        self.InitFolder(self.TempFolderName)
+        self.MetadataFile_out = self.TempFolderName + "/MetadataFile_out"
+        self.MetadataFile_in = self.TempFolderName + "/MetadataFile_in"
+        self.MetadataFile_NsBk = self.TempFolderName + "/MetadataFile_out_backup"
+        self.MetadataFile_NsCur = self.TempFolderName + "/MetadataFile_out_current"
         
         self.CompareResult=[]
         
@@ -674,7 +685,7 @@ class SMI_MetadataTest(NVME):
             if not self.FormatNS(LBAF_num, MetadataSetting):
                 return 1
             
-            thread=32
+            thread=64
             startBlock=0 
             #stopBlock=1023
             stopBlock=0x100000 #1048576 block
@@ -748,7 +759,7 @@ class SMI_MetadataTest(NVME):
             if not self.FormatNS(LBAF_num, MetadataSetting):
                 return 1
             
-            thread=32
+            thread=64
             startBlock=0 
             #stopBlock=1023
             stopBlock=0x100000 #1048576 block
@@ -799,7 +810,7 @@ class SMI_MetadataTest(NVME):
         return ret_code
 
     SubCase5TimeOut = 60
-    SubCase5Desc = "Metadata -  Transferred as Separate Buffer - Multi namespaces"   
+    SubCase5Desc = "Metadata -  Test the metadata for multi namespaces"   
     SubCase5KeyWord = ""
     def SubCase5(self):
         ret_code=0
@@ -847,7 +858,7 @@ class SMI_MetadataTest(NVME):
                 self.Print("formating NS %s ( LBAF %s, LBADS: %s, MS: %s, transferringType: %s)"%(NSID, LBAF_num, LBADS, MS, Type)) 
    
                 # format namespace
-                if not self.FormatNS(LBAF_num=LBAF_num, MetadataSetting=MetadataSetting, printInfo=False):
+                if not self.FormatNS(LBAF_num=LBAF_num, MetadataSetting=MetadataSetting, nsid=NSID, printInfo=False):
                     self.Print("Fail, quit all","f") 
                     return 1
                 
@@ -865,10 +876,10 @@ class SMI_MetadataTest(NVME):
                 NSID = Item[6] 
                 sizePerBlock = Item[7] 
                 
-                testBlock=1
+                NLB_CDW12=0
 
                 self.Print("Backup corrent metadatas in all namespaces")
-                if not self.ReadNsMetadatasToFile_backup(sizePerBlock=sizePerBlock, startBlock=0, NLB_CDW12=testBlock, metadataSize=MS, printInfo=False):
+                if not self.ReadNsMetadatasToFile_backup(sizePerBlock=sizePerBlock, startBlock=0, NLB_CDW12=NLB_CDW12, metadataSize=MS, printInfo=False):
                     self.Print("read fail, quite", "f")
                     return 1
                                 
@@ -878,12 +889,12 @@ class SMI_MetadataTest(NVME):
                     return 1
                 
                 self.Print("Read corrent metadatas in all namespaces")
-                if self.ReadNsMetadatasToFile_current(sizePerBlock=sizePerBlock, startBlock=0, NLB_CDW12=testBlock, metadataSize=MS, printInfo=False):
+                if not self.ReadNsMetadatasToFile_current(sizePerBlock=sizePerBlock, startBlock=0, NLB_CDW12=NLB_CDW12, metadataSize=MS, printInfo=False):
                     self.Print("read fail, quite", "f")
                     return 1
                 
                 self.Print("Check if metadata in ns %s has been changed and metadatas in other namespaces  should not be modified"%NSID)                 
-                MisMatchNsid=self.CompareNsMetadatas() 
+                MisMatchNsid=self.CompareNsMetadatas(NSID) 
                 if MisMatchNsid==0:
                     self.Print("Pass", "p")
                 else:
@@ -894,26 +905,6 @@ class SMI_MetadataTest(NVME):
                 
         return ret_code
 
-
-
-    SubCase6TimeOut = 60
-    SubCase6Desc = "Metadata -  Transferred as Separate Buffer - Multi namespaces"   
-    SubCase6KeyWord = ""
-    def SubCase6(self):
-        ret_code=0
-        self.Print("")
-        self.Print("TTTTTTTTTTTTTTTTTT")
-        self.Print("")
-        MetadataSetting= 0
-        # number of NS that will be created and test, each TestItems have 2 transferring mechanism
-        # and this test will try to include all the mechanism
-        print len(self.NsTestItems)
-        print self.NsTestItems
-
-        self.Print("Backup corrent metadatas in all namespaces")
-        if not self.ReadNsMetadatasToFile_backup(sizePerBlock=512, startBlock=0, NLB_CDW12=0, metadataSize=8, printInfo=False):
-            self.Print("read fail, quite", "f")
-            return 1
         
     # </define sub item scripts>
 
@@ -921,10 +912,9 @@ class SMI_MetadataTest(NVME):
     def PostTest(self): 
         if not self.mTestModeOn:
             # remove file            
-            #self.rmFile(self.MetadataFile_out_WithThreadname)
-            #self.rmFile(self.MetadataFile_in_WithThreadname)     
+            self.RmFolder(self.TempFolderName)    
             pass
-           
+
         return True 
     
 if __name__ == "__main__":

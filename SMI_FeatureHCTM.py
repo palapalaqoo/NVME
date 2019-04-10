@@ -30,7 +30,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_FeatureHCTM.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190410"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     SubCase1TimeOut = 60
