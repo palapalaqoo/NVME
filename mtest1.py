@@ -3,222 +3,259 @@
 
 # Import python built-ins
 import sys
+import re
+import threading
 import time
 from time import sleep
-import re
+import struct
+import fcntl
+# import ioctl_opt
+import ctypes
 import os
-import csv
-import shutil
-from random import randint
-import threading
+import time
+import datetime
 # Import VCT modules
 from lib_vct.NVME import NVME
-from io import BytesIO
-'''
-def my_decorator(func):
-    def wrapped_func(*args,**kwargs):
-        return func("I've been decorated!",*args,**kwargs)
-    return wrapped_func
-'''
-class Test(NVME):
 
+class SMI_PCIPowerStatus(NVME):
 
-    def GetFWVer(self):
-        FirmwareSlotInformationLog = self.get_log2byte(3, 64)
-        AFI=FirmwareSlotInformationLog[0]
-        ActiveFirmwareSlot= int(AFI, 16)&0b00000111
-        FWVer=""
-        for i in range(8):
-            FWVer=FWVer+chr(int(FirmwareSlotInformationLog[i+ActiveFirmwareSlot*8], 16))
-            
-        return FWVer
-    
-    
-    
-    def write1block(self, value, block, nsid=1):
-        # write 1 block data, ex, nvme_write_1_block(0x32,0)
-        # if csts.rdy=0, return false
-        # value, value to write        
-        # block, block to  write  
-        '''
-        oct_val=oct(value)[-3:]
-        if self.dev_alive and self.status=="normal":
-            self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null | nvme write %s --start-block=%s --data-size=512 2>&1 > /dev/null) "%(oct_val, self.dev, block))   
-        else:
-            return False
-        '''
+    def SetPS(self, psValue):
+        self.write_pcie(self.PMCAP, 0x4, psValue)
         
-        oct_val=oct(value)[-3:]
-        #if self.dev_alive and self.status=="normal":  
-                 
-        slba=block
-        cdw10=slba&0xFFFFFFFF
-        cdw11=slba>>32    
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n %s -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(oct_val, self.dev, nsid, cdw10, cdw11))
-            #retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
-        return mStr
-
-    def FindPatten(self, offset, size, SearchPatten):
-        #return string, if no finding, return ""
-        # example:       '00ba000 cdcd cdcd cdcd cdcd cdcd cdcd cdcd cdcd'  
-        # SearchPatten = 0xcd, and return 0x00ba000
-        find=""
-        HexPatten = format(SearchPatten, '02x')
-        buf=self.shell_cmd("hexdump %s -n %s -s %s 2>/dev/null"%(self.dev, size, offset,  )) 
-        # example:       '00ba000 cdcd cdcd cdcd cdcd cdcd cdcd cdcd cdcd'  
-        mStr="[^\n](\w*)%s"%((" "+HexPatten*2)*8)
-        if re.search(mStr, buf):       
-            find="0x"+re.search(mStr, buf).group(1)   
-        return find         
-
-
-    def CreateLBARangeDataStructure(self, NumOfEntrys):
-        # create multi entry of LBARangeDataStructure
-        # return string , ex "\\255\\12\\78\\ .."
-        mStr=""
-        for entry in range(NumOfEntrys):        
-            self.LBARangeDataStructure.Type=0x2
-            self.LBARangeDataStructure.Attributes=0x1
-            self.LBARangeDataStructure.SLBA=entry*8
-            self.LBARangeDataStructure.NLB=7
-            self.LBARangeDataStructure.CreatePattern()
-            # save created string to mStr
-            mStr = mStr + self.LBARangeDataStructure.Pattern
+    def GetPs(self):
+    # return int
+        PMCS = self.read_pcie(self.PMCAP, 0x4)       
+        return PMCS & 0b0011
+    
+    def initTestItems(self):
+        # self.TestItems=[[PS, name, supported],[PS, name, supported],..]
+        
+        CurrentPS = self.PS_init+1
+        
+        if CurrentPS==0:
+            self.TestItems.append([3, "D3Hot state", True])
+            self.TestItems.append([0, "D0 state", True])
+        elif CurrentPS==3:
+            self.TestItems.append([0, "D0 state", True])             
+            self.TestItems.append([3, "D3Hot state", True])
+        else:
+            self.TestItems.append([3, "D3Hot state", True])
+            self.TestItems.append([0, "D0 state", True])
+                    
             
-        return mStr
+    def GetSHN(self):
+        mStr = self.shell_cmd("devmem2 %s "%self.Reg_CC)        
+        if re.search(": (.*)", mStr):
+            value = int(re.search(": (.*)", mStr).group(1),16)
+        else:
+            value = 0      
+        SHN = (value >> 14) & 0b11
+        return SHN
 
-    def nvme_reset(self):
-        self.status="reset"
-        #implement in SMI_NVMEReset.py
-        CC= self.MemoryRegisterBaseAddress+0x14
-        CChex=hex(CC)
-        self.shell_cmd("devmem2 %s w 0x00460000"%CChex, 1)
+    def GetSHST(self):
+        mStr = self.shell_cmd("devmem2 %s "%self.Reg_CSTS)        
+        if re.search(": (.*)", mStr):
+            value = int(re.search(": (.*)", mStr).group(1),16)
+        else:
+            value = 0      
+        CSTS = (value >> 2) & 0b11
+        return CSTS
 
-                
-        self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
-        #self.hot_reset() 
-        self.status="normal"
-        return 0    
-    def PrintAlignString(self,S0, S1, PF="default"):            
-        mStr = "{:<4}{:<30}{:<30}".format("", S0, S1)
+    def GetRDY(self):
+        mStr = self.shell_cmd("devmem2 %s "%self.Reg_CSTS)        
+        if re.search(": (.*)", mStr):
+            value = int(re.search(": (.*)", mStr).group(1),16)
+        else:
+            value = 0      
+        RDY = (value ) & 0b1
+        RDY = 0 if value==0xffffffff else RDY
+        return RDY  
+                                    
+    def thread_SetRTD3(self):
+        self.shell_cmd("echo auto > /sys/bus/pci/devices/%s/power/control"%self.pcie_port)
+        self.shell_cmd("echo -n %s > /sys/bus/pci/drivers/nvme/unbind"%self.pcie_port)
+        
+    def thread_ResetRTD3(self):
+        self.shell_cmd("echo -n %s > /sys/bus/pci/drivers/nvme/bind"%self.pcie_port)
+        self.shell_cmd("echo on > /sys/bus/pci/devices/%s/power/control"%self.pcie_port)        
+        
+    def PrintAlignString(self,S0, S1, S2="", PF="default"):            
+        mStr = "{:<4}{:<30}{:<30}{:<30}".format("", S0, S1, S2)
         if PF=="pass":
             self.Print( mStr , "p")        
         elif PF=="fail":
             self.Print( mStr , "f")      
         else:
-            self.Print( mStr )       
-    def thread_ResetRTD3(self):
-        self.shell_cmd("echo -n %s > /sys/bus/pci/drivers/nvme/bind"%self.pcie_port)
-        self.shell_cmd("echo on > /sys/bus/pci/devices/%s/power/control"%self.pcie_port)  
-    def GetRDY(self):
-        mStr = self.shell_cmd("devmem2 %s "%self.Reg_CC)        
-        if re.search(": (.*)", mStr):
-            value = int(re.search(": (.*)", mStr).group(1),16)
-        else:
-            value = 0
-      
-        RDY = (value ) & 0b1
-        return RDY        
-    def WriteMetadatas(self, startBlock, numOfBlock, metadataSize):
-        # write metadata with file MetadataFile_in
-        totalMetadataSize=metadataSize * numOfBlock
-        size = numOfBlock*512
-        block_cnt = numOfBlock-1      
-        
-        mStr = self.shell_cmd("dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\132 2>/dev/null | nvme write %s -s %s -z %s -c %s -y %s -M %s"%(numOfBlock, self.dev, startBlock,size, block_cnt, totalMetadataSize, self.MetadataFile_in))
-        retCommandSueess=bool(re.search("write: Success", mStr))
-        if (retCommandSueess ==  True) :
-            self.Print("Write done")    
-            return True
-        else:
-            self.Print("Write fail, quit all, write cmd= %s"%self.LastCmd, "f")
-            return False 
+            self.Print( mStr )      
+                    
     def __init__(self, argv):
         # initial parent class
-        super(Test, self).__init__(argv)
-        self.Print("1234567890")
-        self.Print("1234567890") if False else None
-        NSID=5
-        mDev=self.dev_port + "n%s"%NSID
-        print mDev
-        self.Print("1234567890")
-        self.MetadataFile_in= "MMMMMMMMMM"
-
-        print "here"
-        aa=16
-        print "2345 %s"%aa
-        print self.MDTSinByte
-        print self.CR.CAP.MPSMIN.int
-        print self.IdCtrl.MDTS.int
+        super(SMI_PCIPowerStatus, self).__init__(argv)
         
-
+        # save initial values        
+        self.PS_init = self.GetPs()
+        self.Print("Initial value of power state : %s"%self.PS_init) 
         
-        print "here"
+        self.TestItems=[]
+        self.initTestItems()
+        
+        self.Reg_CC=hex(self.MemoryRegisterBaseAddress+0x14)
+        self.Reg_CSTS=hex(self.MemoryRegisterBaseAddress+0x1C)
+        self.mT=0
+
+    # define pretest  
+    def PreTeset(self):                
+        return True            
+
+
+
+
+
+
+
+
+
+
+    class _nvme_passthru_cmd(ctypes.Structure):
+        _fields_ = [
+            ('opcode', ctypes.c_byte),
+            ('flags', ctypes.c_byte),
+            ('rsvd1', ctypes.c_ushort),
+            ('nsid', ctypes.c_uint),
+            ('cdw2', ctypes.c_uint),
+            ('cdw3', ctypes.c_uint),
+            ('metadata', ctypes.c_ulonglong),
+            ('addr', ctypes.c_ulonglong),
+            ('metadata_len', ctypes.c_uint),
+            ('data_len', ctypes.c_uint),
+            ('cdw10', ctypes.c_uint),
+            ('cdw11', ctypes.c_uint),
+            ('cdw12', ctypes.c_uint),
+            ('cdw13', ctypes.c_uint),
+            ('cdw14', ctypes.c_uint),
+            ('cdw15', ctypes.c_uint),
+            ('timeout_ms', ctypes.c_uint),
+            ('result', ctypes.c_uint),
+        ]
+    
+    def nvme_write(self, nvmePort, ns, slba, nlb, data):
+        #define NVME_IOCTL_IO_CMD    _IOWR('N', 0x43, struct nvme_passthru_cmd)
+        # NVME_IOCTL_IO_CMD = ioctl_opt.IOWR(ord('N'), 0x43, _nvme_passthru_cmd)
+        NVME_IOCTL_IO_CMD = 0xC0484E43
+    
+        #fd = os.open("/dev/nvme0", os.O_RDONLY)
+        fd = os.open("%s"%nvmePort, os.O_RDONLY)
+        nvme_passthru_cmd = self._nvme_passthru_cmd(    0x01, # opcode
+                                    0, # flags = os.O_RDONLY if (0x01 & 1) else os.O_WRONLY | os.O_CREAT, # opcode & 1 ? O_RDONLY : O_WRONLY | O_CREAT
+                                    0, # rsvd1
+                                    ns, # nsid
+                                    0, # cdw2
+                                    0, # cdw3
+                                    0, # metadata
+                                    id(data)+36, # addr
+                                    0, # metadata_len
+                                    len(data), # data_len
+                                    slba&0xffffffff, # cdw10= SLBA&0xffffffff
+                                    (slba&0xffffffff00000000)>>32, # cdw11= (SLBA&0xffffffff00000000)>>32
+                                    nlb, # cdw12= (LR<<31)|(FUA<<30)|((PRINFO&0xf)<<26)|((DTYPE&0xf)<<20)|NLB
+                                    0, # cdw13= DSM
+                                    0, # cdw14= ILBRT
+                                    0, # cdw15= ((LBATM&0xffff)<<16)|(LBAT&0xffff)
+                                    0, # timeout_ms
+                                    0, # result
+        )
+    
+        ret = fcntl.ioctl(fd, NVME_IOCTL_IO_CMD, nvme_passthru_cmd)
+        os.close(fd)
+        return ret
+    
+    def WWW(self, thread):        
+        thread_w=thread          
+        RetThreads = []        
+        data =''.join(chr(0x2F) for x in range(0x200))
+        for i in range(thread_w):                
+            t = threading.Thread(target = self.WWW_1, args=(data,))
+            t.start() 
+            RetThreads.append(t)     
+        return RetThreads
+        
+    def WWW_1(self, data):
+        while self.mT<5:
+            rt=self.nvme_write("/dev/nvme0", 1, 0, 0, data) 
+            if rt != 0:
+                print "Error rtcode: %s"%rt
+        #print threading.current_thread().name+" finish"
+
+
+
+
+
+
+
+
+    # <define sub item scripts>
+    SubCase1TimeOut = 60
+    SubCase1Desc = "Test Power State"   
+    SubCase1KeyWord = ""
+    def SubCase1(self):
+        
+        data =''.join(chr(0x2F) for x in range(0x200))
+        #self.WWW_1(data)
+        
+        ret_code=0
+        self.Print("")
+        self.PS_init = self.GetPs()
+        self.Print("Current power state : %s"%self.GetPs())        
+        self.Print("")
+        
+        if True:
+            self.timer.start()
+            self.RecordCmdToLogFile=False
                         
-        '''
-        self.status="reset"
-        self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
-        self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
-        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.bridge_port), 0.5) 
-        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.5)
-        self.shell_cmd("  rm -f %s* "%(self.dev_port))
-        #self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port)) 
-        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.bridge_port), 0.5) 
-        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.5)        
-        self.hot_reset()
-        self.status="normal"
-        '''
-        self.Print("")     
-        self.Print("Done")
-        self.Print("")        
+            # write data using multi thread
+            mThreads = self.WWW(1)
             
+            # check if all process finished             
+            while True:        
+                allfinished=1
+                for process in mThreads:
+                    if process.is_alive():
+                        allfinished=0
+                        break
+            
+                # if all process finished then, quit while loop,
+                if allfinished==1:        
+                    break
+                else:              
+                    #print progress bar
+                    sleep(1)
+                    self.hot_reset()            
+                    sleep(1)      
+                    sleep(1)   
+                    sleep(1)   
+                    sleep(1)   
+                    self.mT=10
+         
+            self.timer.stop()        
+        
+        
+        
+        
+                
+        return ret_code    
+
+    # </define sub item scripts>
+
+    # define PostTest  
+    def PostTest(self): 
+        return True 
 
 
-'''
-
-mNVME.LBARangeDataStructure.Type=0x2
-mNVME.LBARangeDataStructure.Attributes=0x1
-mNVME.LBARangeDataStructure.SLBA=0x5432
-mNVME.LBARangeDataStructure.NLB=7
-mNVME.LBARangeDataStructure.CreatePattern()
-print mNVME.LBARangeDataStructure.Pattern
-
-
-print hex(16)[1:]
-
-
-start = time.time()
-  
-print int(time.time())
-sleep(1)
-print time.time()
-
-
-for i in range(1,0x12):
-    print mNVME.get_feature(fid = i, sel = 0)
-    
-    
-def stopwatch(seconds):
-    start = time.time()
-    time.clock()    
-    elapsed = 0
-    while elapsed < seconds:
-        elapsed = time.time() - start
-        print "loop cycle time: %f, seconds count: %02d" % (time.clock() , elapsed) 
-        time.sleep(1)  
-
-stopwatch(20)
-    
-'''
 if __name__ == "__main__":
-    DUT = Test(sys.argv ) 
+    DUT = SMI_PCIPowerStatus(sys.argv ) 
+    DUT.RunScript()
+    DUT.Finish() 
 
-
-
-    
-    
-    
-    
     
     
     

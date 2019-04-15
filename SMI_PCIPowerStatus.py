@@ -316,6 +316,7 @@ class SMI_PCIPowerStatus(NVME):
 
     # define PostTest  
     def PostTest(self): 
+        sleep(1)
         return True 
 
 
