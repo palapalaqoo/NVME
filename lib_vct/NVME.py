@@ -580,14 +580,16 @@ class NVME(object, NVMECom):
         else:
             return "0"
     
-    def fio_write(self, offset, size, pattern, nsid=1):
-        DEV=self.dev_port+"n%s"%nsid 
+    def fio_write(self, offset, size, pattern, nsid=1, devPort=None):
+        devPort=self.dev_port if devPort==None else devPort
+        DEV=devPort+"n%s"%nsid 
         return self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=0 --verify=pattern --verify_pattern=%s" %(DEV, offset, size, pattern))
     
-    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k"):
+    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None):
     #-- return boolean
-        DEV=self.dev_port+"n%s"%nsid 
+        devPort=self.dev_port if devPort==None else devPort
+        DEV=devPort+"n%s"%nsid 
         msg =  self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' " %(fio_bs, DEV, offset, size, pattern))
 
@@ -932,7 +934,10 @@ class NVME(object, NVMECom):
         # check if controller supports the Namespace Management and Namespace Attachment commands or not
         NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
         NN=self.IdCtrl.NN.int
-        if NsSupported:
+        if not NsSupported:
+            self.Print ("controller don't supports the Namespace Management and Namespace Attachment commands, quit")
+            return 1
+        else:
             #self.Print ("controller supports the Namespace Management and Namespace Attachment commands"            )
             # set max test namespace <=8(default)
             MaxNs=NumOfNS if NN>NumOfNS else NN

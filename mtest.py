@@ -18,19 +18,20 @@ class SMI_PCIPowerStatus(NVME):
         CNS=0x2
         CNSs=0x2
         x = mStruct.Type.Byte1
-        y = mStruct.Type.Byte2[2]
-        z = mStruct.Type.Byte4
+        y = mStruct.Type.Byte2
+        #z = mStruct.Type.Byte4
 
     def __init__(self, argv):
         # initial parent class
         super(SMI_PCIPowerStatus, self).__init__(argv)
         
+
+        
         print self.Point.StructSize
         
-        aa=self.shell_cmd("nvme admin-passthru /dev/nvme0n1 --opcode=0x6 --data-len=16 -r --cdw10=0 --namespace-id=1 -b")
-        bb='\x01\x00\x02\x00'
-        bb=aa[0:3]
-        
+        #aa=self.shell_cmd("nvme admin-passthru /dev/nvme0n1 --opcode=0x6 --data-len=16 -r --cdw10=0 --namespace-id=1 -b")
+        bb='\x01\x04\x02'
+        #bb=aa[0:3]
         
         p = self.Point(bb)
         
@@ -49,15 +50,28 @@ class SMI_PCIPowerStatus(NVME):
 
     # <define sub item scripts>
     SubCase1TimeOut = 60
-    SubCase1Desc = "Test Power State"   
+    SubCase1Desc = "Test Power State 0000"   
     SubCase1KeyWord = ""
     def SubCase1(self):
-        ret_code=0
-                
+        ret_code=1
+        self.Print("dev=%s"%self.dev)
+        self.Print("dev=%s"%self.dev)
+        self.Print("dev=%s"%self.dev)
+        self.Print("dev=%s"%self.dev)
+        self.Print("dev=%s"%self.dev)
+        self.Print("dev=%s"%self.dev)
+        self.Print(self.shell_cmd("pwd"))
                 
         return ret_code
     
+    def SubCase2(self):
+        ret_code=1
+        self.Print("sleep 1s")
+        sleep(1)
+        self.Print("sleep 1s done")
 
+                
+        return ret_code
     # </define sub item scripts>
 
     # define PostTest  

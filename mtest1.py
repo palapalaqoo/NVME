@@ -9,11 +9,13 @@ import time
 from time import sleep
 import struct
 import fcntl
+import subprocess
 # import ioctl_opt
 import ctypes
 import os
 import time
 import datetime
+import linecache
 # Import VCT modules
 from lib_vct.NVME import NVME
 
@@ -190,59 +192,91 @@ class SMI_PCIPowerStatus(NVME):
 
 
 
+    def SubProcessThread(self, scriptName):
+        p = subprocess.Popen("cd SMI_SRIOV_SubProcess; python %s /dev/nvme0n1"%scriptName, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)           
+        while p.poll() is None:
+            sleep(0.5)
+        retcode = p.returncode
+        print     "recode=%s"%retcode
+        
+    def Run_SMI_SRIOV_SubProcess_Script(self, scriptName):
+        logFolder="SMI_SRIOV_SubProcess/Log/"
+        self.RmFolder(logFolder)
+        logPathWithUniversalCharacter="SMI_SRIOV_SubProcess/Log/*.logcolor"
+        t=threading.Thread(target=self.SubProcessThread, args=(scriptName,))
+        t.start()        
+        cnt=0        
 
+        while True:            
+            # if file exist    
+            logPath=self.shell_cmd("find %s 2> /dev/null |grep %s " %(logPathWithUniversalCharacter,logPathWithUniversalCharacter))
+            if logPath: 
+                # print new line
+                if self.isfileExist(logPath):            
+                    count = len(open(logPath).readlines(  ))
+                    if count>cnt:
+                        for ptr in range(cnt, count):
+                            linecache.clearcache()
+                            line = linecache.getline(logPath, ptr+1)                    
+                            sys.stdout.write(line)
+                        cnt = count            
 
+            if not t.is_alive():
+                break   
+            
 
     # <define sub item scripts>
     SubCase1TimeOut = 60
-    SubCase1Desc = "Test Power State"   
+    SubCase1Desc = "1111111111111111111Test Power State"   
     SubCase1KeyWord = ""
     def SubCase1(self):
+
+        self.Run_SMI_SRIOV_SubProcess_Script("mtest.py")
+
+   
         
-        data =''.join(chr(0x2F) for x in range(0x200))
-        #self.WWW_1(data)
         
-        ret_code=0
-        self.Print("")
-        self.PS_init = self.GetPs()
-        self.Print("Current power state : %s"%self.GetPs())        
-        self.Print("")
+
         
-        if True:
-            self.timer.start()
-            self.RecordCmdToLogFile=False
-                        
-            # write data using multi thread
-            mThreads = self.WWW(1)
+
+        #retcode = subprocess.call(["python", "SMI_SRIOV_SubProcess/mtest.py", "/dev/nvme0n1"])        
+        #print "Return code of test.py is ", retcode
+        
+        #self.shell_cmd("cd SMI_SRIOV_SubProcess; python mtest.py /dev/nvme0n1 &")
+        #p = subprocess.Popen("cd SMI_SRIOV_SubProcess; python mtest.py /dev/nvme0n1", shell=True, stderr=subprocess.PIPE)
+        #p = subprocess.Popen("cd SMI_SRIOV_SubProcess; python mtest.py /dev/nvme0n1", stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
+
+                             
             
-            # check if all process finished             
-            while True:        
-                allfinished=1
-                for process in mThreads:
-                    if process.is_alive():
-                        allfinished=0
-                        break
             
-                # if all process finished then, quit while loop,
-                if allfinished==1:        
-                    break
-                else:              
-                    #print progress bar
-                    sleep(1)
-                    self.hot_reset()            
-                    sleep(1)      
-                    sleep(1)   
-                    sleep(1)   
-                    sleep(1)   
-                    self.mT=10
+    # end of print new line    
+
+ 
+                    
+        print "done"   
+            
+            
+        
+        
+        
+        
+        
+        
+        cmd = "python mtest.py /dev/nvme0n1"
          
-            self.timer.stop()        
-        
-        
-        
-        
+        ''' 
+        p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
+         
+        while True:
+            line = p.stdout.readline()
+            if not line: break                  
+        '''
+         
+
                 
-        return ret_code    
+                        
+                
+        return 0    
 
     # </define sub item scripts>
 
