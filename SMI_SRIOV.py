@@ -429,13 +429,13 @@ class SMI_SRIOV(NVME):
         
                 
         self.Print("")     
-        self.Print("Try to format all namespaces")   
+        self.Print("Try to run SMI_DSM.py for nvme1n1")   
         self.write
         
+        print "rtcode=%s"%self.RunSMIScript("SMI_SubProcess/mtest.py", "%s 1,3"%self.dev)
         
         
-        
-        
+        '''
         self.Print("")    
         if self.VI_ResourceSupported:
             VIResourcesFlexibleTotal=self.PCCStructure.VIFRT
@@ -446,7 +446,7 @@ class SMI_SRIOV(NVME):
         # minimum number of VQ Resources that may be assigned is two    
             
             
-        
+        '''
         fdsafa
 
 

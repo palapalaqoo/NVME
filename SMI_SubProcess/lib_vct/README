@@ -1,0 +1,28 @@
+Overview and history
+--------------------
+lib_vct was created by Sam Chan
+
+
+Directories and Files
+--------------------
+
+lib_vct/ 
+        -NVME.py                                Module for nvme test component
+        -NVMECom.py                             Module for base nvme test component
+        -IdCtrl.py                              Module for nvme Identify controller command
+        -IdNs.py                                Module for nvme Identify Namespcae command
+        -ControllerRegister.py                  Module for nvme controller register, e.g. CAP, VS..
+        -GetLog.py                              Module for nvme Get log command        
+            -SanitizeStatus.py                  Module for nvme SanitizeStatus
+            -DeviceSelfTest.py                  Module for nvme DeviceSelfTest
+        -Flow.py                                Module for Flows that can issue event while flow in action       
+            -Sanitize.py                        Module for Sanitize flow
+            -DST.py                             Module for DST Flow
+
+
+
+
+
+
+
+

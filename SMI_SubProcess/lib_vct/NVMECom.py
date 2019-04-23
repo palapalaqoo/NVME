@@ -11,9 +11,6 @@ import time
 import shutil
 import csv
 import struct
-import subprocess
-import threading
-import linecache
 
 class TimedOutExc(Exception):
     pass
@@ -567,54 +564,6 @@ class NVMECom():
             
              
 
-
-    def SMIScriptSubProcess(self, pyPath):
-        scriptPath=pyPath[0:pyPath.find("/")]
-        scriptName=pyPath[pyPath.find("/")+1:]        
-        p = subprocess.Popen("cd %s; python %s /dev/nvme0n1"%(scriptPath, scriptName), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)           
-        while p.poll() is None:
-            sleep(0.5)
-        retcode = p.returncode
-        return retcode
-        
-    def RunSMIScript(self, pyPath, DevAndArgs="/dev/nvme0n1" ):
-        # pyPath:             ex. 'SMI_SubProcess/SMI_Read.py'
-        # DevAndArgs:    ex. '/dev/nvme0n1' for all subcase or '/dev/nvme0n1 1,3,4' for subcase1,3,4
-        # get scriptPath and scriptName
-
-        # check if  python file exist or not
-        if not self.shell_cmd("find %s 2> /dev/null |grep %s " %(pyPath,pyPath)):
-            self.Print("Error at func RunSMIScript, no such file: %s"%pyPath, "f")
-            return -1
-        scriptPath=pyPath[0:pyPath.find("/")]
-        scriptName=pyPath[pyPath.find("/")+1:]      
-        # remove log files          
-        logFolder=scriptPath +"/Log/"
-        self.RmFolder(logFolder)
-        logPathWithUniversalCharacter=logFolder+"*.logcolor"
-        
-        # start thread
-        p = subprocess.Popen("cd %s; python %s %s "%(scriptPath, scriptName, DevAndArgs), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)           
-        cnt=0 
-        # get log if any subcase finish, and print it to console while thread is ongoing
-        while True:
-            # if file exist    
-            logPath=self.shell_cmd("find %s 2> /dev/null |grep %s " %(logPathWithUniversalCharacter,logPathWithUniversalCharacter))
-            if logPath: 
-                # print new line
-                if self.isfileExist(logPath):            
-                    count = len(open(logPath).readlines(  ))
-                    if count>cnt:
-                        for ptr in range(cnt, count):
-                            linecache.clearcache()
-                            line = linecache.getline(logPath, ptr+1)                    
-                            sys.stdout.write(line)
-                        cnt = count          
-            if p.poll() is not None:
-                break
-            sleep(0.5)
-        retcode = p.returncode
-        return retcode        
             
             
 #== end NVMECom =================================================

@@ -231,7 +231,8 @@ class SMI_PCIPowerStatus(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
 
-        self.Run_SMI_SRIOV_SubProcess_Script("mtest.py")
+        #self.Run_SMI_SRIOV_SubProcess_Script("mtest.py")
+        print "rtc=%s"%self.RunSMIScript("SMI_SubProcess/mtest.py", "%s 1,3"%self.dev)
 
    
         
