@@ -3,10 +3,16 @@
 
 # Import python built-ins
 import sys
+import re
+from time import sleep
+from time import time
+import threading
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
-from firewall.functions import getPortID
+from random import randint
+from __builtin__ import True
+
 
 class SMI_SRIOV(NVME):
     ScriptName = "SMI_SRIOV.py"
@@ -87,13 +93,13 @@ class SMI_SRIOV(NVME):
             rTDS=self.shell_cmd(CMD) 
             # expected size for all SCEntry which equal to 32
             SCEntrySize=self.SCE.StructSize
-            for SCEntry in range(NumberofIdentifiers):
-                offset = SCEntrySize*(SCEntry+1)
+            for SCEntryID in range(NumberofIdentifiers):
+                offset = SCEntrySize*(SCEntryID+1)
                 data=rTDS[offset : offset+SCEntrySize]
                 # get structure here
                 rtStruct = self.SCE(data)
-                # save to list , e.g., SecondaryControllerList = [SecondaryControllerList, class SCE]
-                self.SecondaryControllerList.append([SCEntry, rtStruct])
+                # save to list , e.g., SecondaryControllerList = [SCEntryID, class SCE], where SCEntryID = 0, 1, 2, ...
+                self.SecondaryControllerList.append([SCEntryID, rtStruct])
         
             return True        
     
@@ -284,17 +290,306 @@ class SMI_SRIOV(NVME):
             LBADS = self.LBAF[x][self.lbafds.LBADS] 
             MS = self.LBAF[x][self.lbafds.MS] 
             #if MS!=0 and LBADS>=9:                           
-            self.FormatTestItems.append([x, RP, LBADS, MS])        
+            self.FormatTestItems.append([x, RP, LBADS, MS])       
+    # -------------------------------------------------------------------
+    def TestWriteRead(self, SubDUT, writeValue):
+    # SubDUT type is NVME
+        # write 10M data with writeValue
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
+        return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=writeValue, nsid=1) else False            
+    
+    def TestWriteCompare(self, SubDUT, writeValue):
+        # write 10M data with writeValue
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
+        # compare command
+        oct_val=oct(writeValue)[-3:]
+        mStr=self.shell_cmd("dd if=/dev/zero bs=5120 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 5120 -c 9 2>&1"%(oct_val, SubDUT.dev))
+        
+        # expected compare command is the same value, i.e. 'compare: Success"
+        return True if bool(re.search("compare: Success", mStr))  else False              
+    
+    def TestWriteFormatRead(self, SubDUT, writeValue):
+        # write 10M data with writeValue
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
+        # format
+        nsid=1; lbaf=0; ses=0; pil=0; pi=0; ms=0
+        mStr=self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1"%(self.dev_port, nsid, lbaf, ses, pil, pi, ms))
+        retCommandSueess=bool(re.search("Success formatting namespace", mStr))  
+        if not retCommandSueess:
+            self.Print("Fail to format %s, quit all"%SubDUT.dev, "f"); return False
+            
+        # after format, expected pattern = 0
+        return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1) else False  
+   
+    def TestWriteSanitizeRead(self, SubDUT, writeValue):  
+        # wait if sanitize is in progressing
+        if not self.WaitSanitizeFinish(SubDUT): return False
+              
+        # write 10M data with writeValue
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)    
+        
+        # Issue sanitize command where cdw10=2 for BlockErase        
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=2 2>&1"%(SubDUT.dev)          
+        mStr=self.shell_cmd(CMD)
+        if not re.search("NVMe command result:00000000", mStr):
+            self.Print("Fail for sanitize command, return code: %s"%mStr, "f"); 
+            self.Print("Sanitize command: %s"%CMD, "f"); 
+            return False
+
+        # wait if sanitize is in progressing
+        if not self.WaitSanitizeFinish(SubDUT): return False    
+        
+        # expected pattern = 0
+        return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1) else False
+
+    
+    def TestWriteUncRead(self, SubDUT, writeValue):
+        # write 10M data with writeValue
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)    
+        # write unc
+        BlockCnt=499
+        CMD = "nvme write-uncor %s -s 0 -n 1 -c %s 2>&1 "%(SubDUT.dev, BlockCnt)
+        mStr = self.shell_cmd(CMD) 
+        if not re.search("Write Uncorrectable Success", mStr):
+            self.Print("Fail to Write Uncorrectable, return code: %s"%mStr, "f"); 
+            self.Print("Write Uncorrectable command: %s"%CMD, "f"); 
+            return False 
+         
+        # check if 'Input/output error' for hexdump command
+        CMD = "hexdump %s -n 1M  2>&1 "%(SubDUT.dev)
+        mStr = self.shell_cmd(CMD) 
+        if not re.search("Input/output error", mStr):
+            self.Print("Read uncorrectable blocks fail, following is the returned result for command: %s"%CMD, "f"); 
+            self.Print("--------------------------", "f"); 
+            self.Print("%s"%mStr, "f"); 
+            self.Print("--------------------------", "f"); 
+            return False    
+
+        # write 10M data with writeValue to remove Uncorrectable
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)  
+                
+        return True     
+        
+    
+    def WaitSanitizeFinish(self, SubDUT):
+        # wait for recently sanitize finish
+        timeout=120
+        per = SubDUT.GetLog.SanitizeStatus.SPROG
+        if per != 65535:
+            #self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = %s)"%timeout)                       
+            finish=True           
+            WaitCnt=0
+            while per != 65535:                
+                per = SubDUT.GetLog.SanitizeStatus.SPROG
+                WaitCnt = WaitCnt +1
+                if WaitCnt ==timeout:
+                    finish=False
+                    break
+                sleep(1)   
+            if not finish: self.Print("Error, Time out 120s for Wait sanitize operation finish! (%s)"%SubDUT.dev, "f");  return False
+        return True
+        # end wait         
+    
+    def VerifyAllDevices(self, excludeDev=None, printInfo=True):
+        # vierify if  '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc.. , for all VF/PV and exclude excludeDev device
+        mPass=True
+        for Dev in self.AllDevices:     
+            if Dev!=excludeDev:    
+                # verify
+                mStr = self.shell_cmd("hexdump %s -n 512 -C 2>&1"%Dev)
+                if bool(re.search("%s"%Dev, mStr)):
+                    self.Print("Check %s: Expected string at block 0 is '%s' : Pass"%(Dev, Dev), "p") if printInfo else None
+                else:
+                    self.Print("Check %s: Expected string at block 0 is '%s' : Fail"%(Dev, Dev), "f") if printInfo else None
+                    mPass=False
+        return mPass        
+    
+    def TestSpecificVFandOtherVFshouldNotBeModified(self, SpecificDevice):
+        
+        #write data to all devices, except SpecificDevice
+        self.Print("Write data to all devices, e.g. '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc..")
+        for Dev in self.AllDevices:         
+            # write '/dev/nvme0n1' to the first block of /dev/nvme0n1 and  '/dev/nvme1n1' to /dev/nvme1n1                
+            CMD= "echo %s | nvme write %s --data-size=512 --prinfo=1 2>&1 > /dev/nul"%(Dev, Dev)
+            self.shell_cmd(CMD)
+            
+        # verify    
+        self.Print("Check the block 0 of all devices .")
+        if not self.VerifyAllDevices(excludeDev=None, printInfo=True): return 1
+            
+                
+        self.Print("")        
+        # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
+        SubDUT = NVME([SpecificDevice])        
+                
+        # get test items for current device
+        ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
+        # run all test items
+        for Item in ThreadTestItem:
+            # print test item name
+            self.Print(Item[0])
+            # run test item with SubDUT and writeValue=any value
+            Func = Item[1]
+            success = Func(SubDUT=SubDUT, writeValue=randint(1, 0xFF))
+            
+            if success:
+                self.Print("Done", "p"); 
+            else:
+                self.Print("Fail, quit all", "f"); return 1
+            
+            # check data in other controllers     
+            self.Print("Check if data in other controller has not been modified"); 
+            if self.VerifyAllDevices(excludeDev=SpecificDevice, printInfo=False): 
+                self.Print("Pass", "p"); 
+            else:
+                self.Print("Fail", "p"); 
+                # print info again
+                self.VerifyAllDevices(excludeDev=SpecificDevice, printInfo=True)
+                self.Print("Quit all", "p");
+                return 1
+            self.Print("")
+    
+            
+    def ThreadTest(self, device, testTime): 
+        # device = /dev/nvmeXn1
+        
+        # create SubDUT to use NVME object for specific device, e.x. /dev/nvme2n1, note that argv is type list
+        SubDUT = NVME([device])    
+        
+        # get test items for current device
+        ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
+                
+        TotalItem=len(ThreadTestItem)
+        TestItemID_old=None
+        TestItemID=randint(1, 0xFF) % TotalItem
+        StartTime = time.time()
+        while True:          
+            # if time out
+            CurrentTime = time.time()
+            if (CurrentTime-StartTime)>testTime: break
+            
+            # if iMain Thread is not Alive
+            if not self.isMainThreadAlive(): break
+                        
+            # get test ID that is not the same with current one
+            TestItemID=self.GetNextTestItemID(TotalItem, TestItemID_old)
+            
+            # get writeValue, script name, script func
+            writeValue = randint(1, 0xFF)
+            scriptName=ThreadTestItem[TestItemID][0]
+            func = ThreadTestItem[TestItemID][1]
+            # run and get return code
+            rtCode = func(SubDUT, writeValue)
+            
+            # write info to mutex variable
+            self.lock.acquire()
+            # MutexThreadOut [device, TestItemID,scriptName, writeValue, rtCode]
+            self.MutexThreadOut.append([device, TestItemID,scriptName, writeValue, rtCode])                
+            self.lock.release()            
+            
+            # backup ID
+            TestItemID_old = TestItemID
+            # if return code is not zero, then quit
+            if rtCode!=0: break                
+            
+    def MultiThreadTest(self, device, testTime): 
+        # call ThreadTest(self, device, testTime) for all devices to test their testitems at the same time
+        mThreads = [] 
+        # clear mutex variable before any thread start
+        self.MutexThreadOut=[]
+        for Dev in self.AllDevices:
+            t = threading.Thread(target = self.ThreadTest, args=(Dev, testTime,))
+            t.start() 
+            mThreads.append(t)     
+            
+        # check if all process finished 
+        while True:
+            allfinished=1
+            for process in mThreads:
+                if process.is_alive():
+                    allfinished=0
+                    break
+            
+            # if all process finished then, quit while loop, else  send reset command
+            if allfinished==1:        
+                break
+            else:
+                sleep(1)                                                                
+                # fetch mutex variable
+                self.lock.acquire()
+                Out = self.MutexThreadOut  
+                # clear
+                self.MutexThreadOut=[]
+                self.lock.release()
+                # if there is info out, parse to console
+                if len(Out):
+                    for oneThreadOut in Out:
+                        # oneThreadOut [device, TestItemID,scriptName, writeValue, rtCode]  
+                        device=oneThreadOut[0]
+                        TestItemID=oneThreadOut[1]
+                        scriptName=oneThreadOut[2]
+                        writeValue=oneThreadOut[3]
+                        rtCode=oneThreadOut[4]
+                        result= "pass" if rtCode==0 else "fail"                    
+                        self.PrintAlignString("Device: %s"%device, "Test function name: %s"%scriptName, "Result %s"%result, result)
+
+    def PrintAlignString(self,S0, S1, S2, PF="default"):            
+        mStr = "{:<25}\t{:<40}\t{:<20}".format(S0, S1, S2)
+        if PF=="pass":
+            self.Print( mStr , "p")        
+        elif PF=="fail":
+            self.Print( mStr , "f")      
+        else:
+            self.Print( mStr ) 
+            
+    def GetCurrentDutTestItem(self, SubDUT):
+        # get current device test item, ex. /dev/nvme0n1 may test all feature
+        ThreadTestItem=[]
+        # add test items
+        ThreadTestItem.append(["TestWriteRead", self.TestWriteRead])
+        ThreadTestItem.append(["TestWriteCompare", self.TestWriteCompare])                
+        # if ibaf0 is supported, i.e.  lbaf0->lbads>9 , then add test item 'TestWriteFormatRead'
+        LBAF=SubDUT.GetAllLbaf()
+        LBAF0_LBADS=LBAF[0][SubDUT.lbafds.LBADS]
+        LBAF0Supported = True if (LBAF0_LBADS >=  9) else False
+        ThreadTestItem.append(["TestWriteFormatRead", self.TestWriteFormatRead]) if LBAF0Supported else None        
+        # if BlockErase sanitize is supported, i.e.  sanicap_bit1=1 , then add test item 'TestWriteSanitizeRead'
+        BlockEraseSupport = True if (SubDUT.IdCtrl.SANICAP.bit(1) == "1") else False
+        ThreadTestItem.append(["TestWriteSanitizeRead", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
+        # if WriteUncSupported is supported , then add test item 'WriteUncSupported'
+        WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
+        ThreadTestItem.append(["TestWriteUncRead", self.TestWriteUncRead]) if WriteUncSupported else None
+        return ThreadTestItem
+        
+        
+    def GetNextTestItemID(self,TotalItem, TestItemID_old):
+        # return random ID that is different from  TestItemID_old
+        while True:
+            NewID = randint(1, 0xFF) % TotalItem
+            if NewID!=TestItemID_old:
+                return NewID
+        
+    # -------------------------------------------------------------------
+    
+    def GetCurrentNvmeList(self):
+        mStr=self.shell_cmd("nvme list")
+        return re.findall("/dev/nvme\d+n\d+", mStr)
+        
+        
     
     def __init__(self, argv):
         # initial parent class
-        super(SMI_SRIOV, self).__init__(argv)
+        super(SMI_SRIOV, self).__init__(argv)      
+        
+        
+        # get TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)
+        self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
         
         # get PrimaryControllerCapabilitiesStructure
         self.PCCStructure = self.Get_PrimaryControllerCapabilitiesStructure()
         
         # get SecondaryControllerList
-        # [SCEntry, class SCE] where SCEntry from 0
+        # [SCEntryID, class SCE], where SCEntryID = 0, 1, 2, ...
         self.SecondaryControllerList=[]
         self.Get_SecondaryControllerList()     
         
@@ -318,9 +613,34 @@ class SMI_SRIOV(NVME):
         # [[LBAF_number, RP, LBADS, MS],[LBAF_number, RP, LBADS, MS],..]   
         self.FormatTestItems=[]
         self.InitFormatTestItems()
+        
+        # device lists, first is PF, others is VF
+        self.AllDevices=list(self.dev)
+        
+        # Mutex for multi thread, [device, TestItemID,scriptName, writeValue, rtCode]
+        self.MutexThreadOut=[]
 
     # define pretest  
-    def PreTest(self):        
+    def PreTest(self):                     
+        self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
+        self.Print("TotalVFs: %s"%self.TotalVFs)
+        if self.TotalVFs>0:
+            self.Print("PCIe device support SR-IOV", "p")
+        else:
+            self.Print("PCIe device do not support SR-IOV, quit all", "w"); return False  
+            
+        self.Print("")
+        self.Print("Check if number of Secondary Controller List in identify structure is equal to the value of")
+        self.Print("TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)")        
+        NumOfSec = len(self.SecondaryControllerList)        
+        self.Print("Number of Secondary Controller: %s"%NumOfSec) 
+        self.Print("TotalVFs: %s"%self.TotalVFs)
+        if NumOfSec==self.TotalVFs:
+            self.Print("Pass", "p"); 
+        else: 
+            self.Print("Fail, quit all", "f"); return False  
+        
+        self.Print("")
         if self.VirtualizationManagementCommandSupported:
             self.Print("Virtualization Management Command Supported: Yes")
         else:
@@ -347,26 +667,30 @@ class SMI_SRIOV(NVME):
             self.Print("Linux's sysfs support SRIOV: No", "w")    
                     
         return True            
-
+    
     # <define sub item scripts>
     SubCase1TimeOut = 60
     SubCase1Desc = "Enable all VF with all Flexible Resources"   
     SubCase1KeyWord = ""
     def SubCase1(self):
-        ret_code=0
-        
-        self.Print("Try to set Primary Controller Resources to Minimum")
-        self.Set_PF_ResourceMinimum(printInfo=True)
-        self.Print("Done")
+        ret_code=0       
         
         self.Print("") 
         self.Print("Set all VF offline")
         if not self.SetCurrentNumOfVF(0):
-            self.Print("Fail, quit all", "f"); return 1      
+            self.Print("Fail, quit all", "f"); return 1   
+        
+        # backup os nvme list            
+        VFOff_NvmeList=self.GetCurrentNvmeList()
+        
+        self.Print("Try to set Primary Controller Resources to Minimum")
+        self.Set_PF_ResourceMinimum(printInfo=True)
+        self.Print("Done")        
+   
         
         self.Print("")     
         self.Print("Try to set Secondary Controller Resources to Minimum")
-        self.Set_PF_ResourceMinimum(printInfo=True)
+        self.Set_VF_ResourceMinimum(printInfo=True)
         self.Print("Done")  
         
         self.Print("") 
@@ -427,6 +751,53 @@ class SMI_SRIOV(NVME):
         self.Print("------------------------------------------------------")   
         if ret_code!=0: return 1
         
+
+        
+        # linux nvme list after enable VF
+        VFOn_NvmeList=self.GetCurrentNvmeList()
+        VFDevices = list(set(VFOn_NvmeList) - set(VFOff_NvmeList)).sort()
+        NumOfVF=len(self.SecondaryControllerList)
+        self.Print("Check if linux os create %s NVMe device under folder /dev/"%NumOfVF)
+        self.Print("")
+        for Dev in VFDevices:
+            self.Print(Dev)
+        if NumOfVF==len(VFDevices):
+            self.Print("Pass","p")
+        else:
+            self.Print("Fail, quit all", "f"); return 1
+        
+        # check if all controller is enabled
+        self.Print("Check if all SCEntry is enabled in identify structure -> SecondaryControllerList")
+        # get identify structure
+        self.Get_SecondaryControllerList()    
+        for SCEntry in self.SecondaryControllerList:
+            SCEntryID = SCEntry[0]
+            SCE = SCEntry[1]
+            # if Secondary Controller State (SCS)=1, controller is online
+            if (SCE.SCS&0b1) ==1:    
+                self.Print("SCEntry %s is enabled"%SCEntryID,"p")
+            else:
+                self.Print("SCEntry %s is disabled, quit all"%SCEntryID,"f"); return 1
+        
+        # append all devices for testing , where AllDevices[0] is PF, others is VF     
+        PFDevices= [self.dev]
+        self.AllDevices = PFDevices + ["/dev/nvme1n1"]
+                
+        # test all test item in one VF and other VF/PF should not be modified 
+        self.TestSpecificVFandOtherVFshouldNotBeModified(self.AllDevices[1])
+        
+        
+
+            
+        
+        
+        
+        
+        
+        
+        
+        
+        
                 
         self.Print("")     
         self.Print("Try to run SMI_DSM.py for nvme1n1")   
@@ -447,7 +818,7 @@ class SMI_SRIOV(NVME):
             
             
         '''
-        fdsafa
+        
 
 
         

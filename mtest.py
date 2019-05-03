@@ -11,6 +11,31 @@ from time import sleep
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
 import struct
+
+
+import sys
+import os
+
+'''
+try:
+    cwd = os.getcwd()
+    import Tkinter as tk # this is for python2
+except:
+    self.Print("Try to  install %s/python27-tkinter-2.7.13-5.el7.x86_64.rpm"%cwd, "w")
+    if sys.version_info[0] !=2.7 :
+        raise Exception("Must be using Python 2.7")
+        sys.exit(1)
+    else:
+        self.shell_cmd("yum localinstall python27-tkinter-2.7.13-5.el7.x86_64.rpm")
+        try:
+            import Tkinter as tk # this is for python3
+        except:
+            
+            self.Print("Cant install %s/python27-tkinter-2.7.13-5.el7.x86_64.rpm, quit all"%cwd, "f")
+            sys.exit(1)
+'''
+
+
 class SMI_PCIPowerStatus(NVME):
 
     class Point(mStruct.Struct):
@@ -45,7 +70,25 @@ class SMI_PCIPowerStatus(NVME):
         
 
     # define pretest  
-    def PreTeset(self):                
+    def PreTest(self):    
+        self.shell_cmd("rpm -qa |grep python27-tkinter-2.7.13-5.el7.x86_64.rpm")
+             
+        try:
+            cwd = os.getcwd()
+            import Tkinter as tk # this is for python2
+        except:
+            self.Print("Try to  install %s/python27-tkinter-2.7.13-5.el7.x86_64.rpm"%cwd, "w")
+            if sys.version_info[0] !=2 :
+                raise Exception("Must be using Python 2.x")
+                return 1
+            else:
+                self.shell_cmd("yum localinstall python27-tkinter-2.7.13-5.el7.x86_64.rpm")
+                try:
+                    import Tkinter as tk # this is for python3
+                except:
+                    
+                    self.Print("Cant install %s/python27-tkinter-2.7.13-5.el7.x86_64.rpm, quit all"%cwd, "f")
+                    return 1
         return True            
 
     # <define sub item scripts>
@@ -54,13 +97,10 @@ class SMI_PCIPowerStatus(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=1
-        self.Print("dev=%s"%self.dev)
-        self.Print("dev=%s"%self.dev)
-        self.Print("dev=%s"%self.dev)
-        self.Print("dev=%s"%self.dev)
-        self.Print("dev=%s"%self.dev)
-        self.Print("dev=%s"%self.dev)
-        self.Print(self.shell_cmd("pwd"))
+        
+        root=tk.Tk()  
+        root.mainloop()
+
                 
         return ret_code
     

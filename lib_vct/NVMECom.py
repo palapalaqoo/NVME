@@ -378,7 +378,7 @@ class NVMECom():
         self.WriteLogFile(  mStr, mfile=mfile )
         
             
-    def ParserArgv(self, SubCaseList=""):
+    def ParserArgv(self, argv, SubCaseList=""):
         # argv[1]: device path, ex, '/dev/nvme0n1'
         # argv[2]: subcases, ex, '1,4,5,7'
         # argv[3]: script test mode on, ex, '-t'
@@ -388,7 +388,9 @@ class NVMECom():
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")
         
-        args = parser.parse_args()
+        if argv[0] == sys.argv[0]:
+            del argv[0]
+        args = parser.parse_args(args=argv)
         
         mDev=args.dev
         mTestModeOn=True if args.t else False
@@ -408,7 +410,8 @@ class NVMECom():
         MSIXCAP=0
         PXCAP=0
         AERCAP=0
-        buf=self.shell_cmd("lspci -v -s %s" %(self.pcie_port))
+        SR_IOVCAP=0
+        buf=self.shell_cmd("lspci -vv -s %s" %(self.pcie_port))
         
         mStr="Capabilities: \[(.+?)\] Power Management"
         if re.search(mStr, buf):
@@ -426,11 +429,15 @@ class NVMECom():
         if re.search(mStr, buf):
             MSIXCAP=int(re.search(mStr, buf).group(1),16)
             
-        mStr="Capabilities: \[(.+?)\] Advanced Error Reporting"
+        mStr="Capabilities: \[(.+?) v(\d)\] Advanced Error Reporting"
         if re.search(mStr, buf):
             AERCAP=int(re.search(mStr, buf).group(1),16)        
 
-        return PMCAP, MSICAP, PXCAP, MSIXCAP, AERCAP
+        mStr="Capabilities: \[(.+?) v(\d)\] Single Root I/O Virtualization"
+        if re.search(mStr, buf):
+            SR_IOVCAP=int(re.search(mStr, buf).group(1),16)   
+            
+        return PMCAP, MSICAP, PXCAP, MSIXCAP, AERCAP,SR_IOVCAP
 
     def isfileExist(self, filePath):
         if os.path.exists(filePath):
@@ -615,7 +622,12 @@ class NVMECom():
             sleep(0.5)
         retcode = p.returncode
         return retcode        
-            
+
+    def isMainThreadAlive(self):        
+        for i in threading.enumerate():
+            if i.name == "MainThread":
+                return True
+        return False            
             
 #== end NVMECom =================================================
 

@@ -38,7 +38,7 @@ class NVME(object, NVMECom):
         # init sub case
         self.CreateAbstractFuncAndVariablesForSonClassToOverride()
         # self.dev = /dev/nvme0n1
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(self.CreateSubCaseListForParser())
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(argv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):
             # have not initial set_NVMECom_par, so can't use self.print()
@@ -164,7 +164,7 @@ class NVME(object, NVMECom):
         self.MDTSinBlock=self.MDTSinByte/512
         
         # get System Bus (PCI Express) Registers, int format
-        self.PMCAP, self.MSICAP, self.PXCAP, self.MSIXCAP, self.AERCAP=self.GetPCIERegBase()
+        self.PMCAP, self.MSICAP, self.PXCAP, self.MSIXCAP, self.AERCAP, self.SR_IOVCAP=self.GetPCIERegBase()
         self.PCIHeader=0
         # Initiate Function Level Reset value        
         self.IFLRV= self.read_pcie(self.PXCAP, 0x9) + (1<<7)

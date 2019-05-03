@@ -1,0 +1,64 @@
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'cntlid ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| find /dev/nvme1n1 2> /dev/null |grep /dev/nvme1n1 
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0|  udevadm info /dev/nvme1  |grep P: |cut -d '/' -f 5
+20190503_13:17:15 DT: 00:00:00 Case: 0| echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo 0000:03:00.0 | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ns /dev/nvme1n1 |grep 'ncap ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme show-regs /dev/nvme1n1 |grep 'cap ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'mdts ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| lspci -vv -s 0000:03:00.0
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 9.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0|  nvme get-log /dev/nvme1n1 --log-id=5 --log-len=2048 -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '
+' ' '|sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 10.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 11.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 12.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 13.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 14.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 15.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 16.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| setpci -s 0000:03:00.0 17.b 
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ns /dev/nvme1n1 |grep 'flbas ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0|  nvme id-ns /dev/nvme1n1 2>&1
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'sanicap ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:15 DT: 00:00:00 Case: 0| nvme id-ctrl /dev/nvme1 |grep 'lpa ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'
+20190503_13:17:28 DT: 00:00:13 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=0 --verify=pattern --verify_pattern=98
+20190503_13:17:29 DT: 00:00:14 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=read --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=1 --verify=pattern --verify_pattern=98 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' 
+20190503_13:17:37 DT: 00:00:24 Case: 1| hexdump /dev/nvme0n1 -n 512 -C 2>&1
+20190503_13:17:40 DT: 00:00:25 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=0 --verify=pattern --verify_pattern=125
+20190503_13:17:41 DT: 00:00:28 Case: 1| dd if=/dev/zero bs=5120 count=1 2>&1   |tr \\000 \\175 2>/dev/null |nvme compare /dev/nvme1n1  -s 0 -z 5120 -c 9 2>&1
+20190503_13:18:18 DT: 00:01:05 Case: 1| hexdump /dev/nvme0n1 -n 512 -C 2>&1
+20190503_13:18:19 DT: 00:01:04 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=0 --verify=pattern --verify_pattern=203
+20190503_13:18:20 DT: 00:01:07 Case: 1|  nvme format /dev/nvme1n1 -n 1 -l 0 -s 0 -p 0 -i 0 -m 0 2>&1
+20190503_13:18:20 DT: 00:01:05 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=read --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=1 --verify=pattern --verify_pattern=0 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' 
+20190503_13:18:38 DT: 00:01:25 Case: 1| hexdump /dev/nvme0n1 -n 512 -C 2>&1
+20190503_13:18:48 DT: 00:01:33 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=0 --verify=pattern --verify_pattern=234
+20190503_13:18:50 DT: 00:01:37 Case: 1| nvme write-uncor /dev/nvme1n1 -s 0 -n 1 -c 499 2>&1 
+20190503_13:18:59 DT: 00:01:46 Case: 1| hexdump /dev/nvme1n1 -n 1M  2>&1 
+20190503_13:19:17 DT: 00:02:02 Case: 0| fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=/dev/nvme1n1 --offset=0 --size=10M --name=mdata         --do_verify=0 --verify=pattern --verify_pattern=234
+20190503_13:19:28 DT: 00:02:15 Case: 1| hexdump /dev/nvme0n1 -n 512 -C 2>&1
+20190503_13:19:28 DT: 00:02:15 Case: 1| find SMI_SubProcess/mtest.py 2> /dev/null |grep SMI_SubProcess/mtest.py 
+20190503_13:19:28 DT: 00:02:15 Case: 1| find SMI_SubProcess/Log/*.logcolor 2> /dev/null |grep SMI_SubProcess/Log/*.logcolor 
+20190503_13:19:29 DT: 00:02:16 Case: 1| find SMI_SubProcess/Log/*.logcolor 2> /dev/null |grep SMI_SubProcess/Log/*.logcolor 
+20190503_13:19:29 DT: 00:02:16 Case: 1| find SMI_SubProcess/Log/*.logcolor 2> /dev/null |grep SMI_SubProcess/Log/*.logcolor 
+20190503_13:19:30 DT: 00:02:17 Case: 1| find SMI_SubProcess/Log/*.logcolor 2> /dev/null |grep SMI_SubProcess/Log/*.logcolor 
