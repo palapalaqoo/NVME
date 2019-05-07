@@ -5,13 +5,13 @@
 import sys
 import re
 from time import sleep
-from time import time
+import time
 import threading
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
 from random import randint
-from __builtin__ import True
+
 
 
 class SMI_SRIOV(NVME):
@@ -479,20 +479,20 @@ class SMI_SRIOV(NVME):
             scriptName=ThreadTestItem[TestItemID][0]
             func = ThreadTestItem[TestItemID][1]
             # run and get return code
-            rtCode = func(SubDUT, writeValue)
+            rtPass = func(SubDUT, writeValue)
             
             # write info to mutex variable
             self.lock.acquire()
-            # MutexThreadOut [device, TestItemID,scriptName, writeValue, rtCode]
-            self.MutexThreadOut.append([device, TestItemID,scriptName, writeValue, rtCode])                
+            # MutexThreadOut [device, TestItemID,scriptName, writeValue, rtPass]
+            self.MutexThreadOut.append([device, TestItemID,scriptName, writeValue, rtPass])                
             self.lock.release()            
             
             # backup ID
             TestItemID_old = TestItemID
             # if return code is not zero, then quit
-            if rtCode!=0: break                
+            if not rtPass: break                
             
-    def MultiThreadTest(self, device, testTime): 
+    def MultiThreadTest(self, testTime): 
         # call ThreadTest(self, device, testTime) for all devices to test their testitems at the same time
         mThreads = [] 
         # clear mutex variable before any thread start
@@ -524,14 +524,14 @@ class SMI_SRIOV(NVME):
                 # if there is info out, parse to console
                 if len(Out):
                     for oneThreadOut in Out:
-                        # oneThreadOut [device, TestItemID,scriptName, writeValue, rtCode]  
+                        # oneThreadOut [device, TestItemID,scriptName, writeValue, rtPass]  
                         device=oneThreadOut[0]
                         TestItemID=oneThreadOut[1]
                         scriptName=oneThreadOut[2]
                         writeValue=oneThreadOut[3]
-                        rtCode=oneThreadOut[4]
-                        result= "pass" if rtCode==0 else "fail"                    
-                        self.PrintAlignString("Device: %s"%device, "Test function name: %s"%scriptName, "Result %s"%result, result)
+                        rtPass=oneThreadOut[4]
+                        result= "pass" if rtPass else "fail"                    
+                        self.PrintAlignString("Device: %s"%device, "Test function name: %s"%scriptName, "Result: %s"%result, result)
 
     def PrintAlignString(self,S0, S1, S2, PF="default"):            
         mStr = "{:<25}\t{:<40}\t{:<20}".format(S0, S1, S2)
@@ -546,19 +546,19 @@ class SMI_SRIOV(NVME):
         # get current device test item, ex. /dev/nvme0n1 may test all feature
         ThreadTestItem=[]
         # add test items
-        ThreadTestItem.append(["TestWriteRead", self.TestWriteRead])
-        ThreadTestItem.append(["TestWriteCompare", self.TestWriteCompare])                
+        ThreadTestItem.append(["Test_Write_Read", self.TestWriteRead])
+        ThreadTestItem.append(["Test_Write_Compare", self.TestWriteCompare])                
         # if ibaf0 is supported, i.e.  lbaf0->lbads>9 , then add test item 'TestWriteFormatRead'
         LBAF=SubDUT.GetAllLbaf()
         LBAF0_LBADS=LBAF[0][SubDUT.lbafds.LBADS]
         LBAF0Supported = True if (LBAF0_LBADS >=  9) else False
-        ThreadTestItem.append(["TestWriteFormatRead", self.TestWriteFormatRead]) if LBAF0Supported else None        
+        ThreadTestItem.append(["Test_Write_Format_Read", self.TestWriteFormatRead]) if LBAF0Supported else None        
         # if BlockErase sanitize is supported, i.e.  sanicap_bit1=1 , then add test item 'TestWriteSanitizeRead'
         BlockEraseSupport = True if (SubDUT.IdCtrl.SANICAP.bit(1) == "1") else False
-        ThreadTestItem.append(["TestWriteSanitizeRead", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
+        ThreadTestItem.append(["Test_Write_Sanitize_Read", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
         # if WriteUncSupported is supported , then add test item 'WriteUncSupported'
         WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
-        ThreadTestItem.append(["TestWriteUncRead", self.TestWriteUncRead]) if WriteUncSupported else None
+        ThreadTestItem.append(["Test_WriteUnc_Read", self.TestWriteUncRead]) if WriteUncSupported else None
         return ThreadTestItem
         
         
@@ -617,7 +617,8 @@ class SMI_SRIOV(NVME):
         # device lists, first is PF, others is VF
         self.AllDevices=list(self.dev)
         
-        # Mutex for multi thread, [device, TestItemID,scriptName, writeValue, rtCode]
+        # Mutex for multi thread, [device, TestItemID,scriptName, writeValue, rtPass]
+        self.lock=threading.Lock()
         self.MutexThreadOut=[]
 
     # define pretest  

@@ -80,7 +80,8 @@ class NVMECom():
         NVMECom.StartLocalTime=son.StartLocalTime
         NVMECom.SubCasePoint=son.SubCasePoint
         
-        self.InitLogFile()
+        # if object is created in subcase of main script, then do not init log files
+        self.InitLogFile() if not son.isSubCaseOBJ else None
         self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
         self.timer=timer_()
@@ -388,8 +389,7 @@ class NVMECom():
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")
         
-        if argv[0] == sys.argv[0]:
-            del argv[0]
+
         args = parser.parse_args(args=argv)
         
         mDev=args.dev

@@ -38,7 +38,20 @@ class NVME(object, NVMECom):
         # init sub case
         self.CreateAbstractFuncAndVariablesForSonClassToOverride()
         # self.dev = /dev/nvme0n1
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(argv, self.CreateSubCaseListForParser())
+        
+        # if object is created from main script , ex. DUT = SMI_SmartHealthLog(sys.argv )
+        # then argv=sys.argv , thus remove argv[0] ='sysPath/SMI_SmartHealthLog.py', and pass to ParserArgv()
+        # else if object is created in subcase of main script, ex. SubDUT = NVME(['/dev/nvme1n1']) in subcase1
+        # the you can use SubDUT to control  /dev/nvme1n1, ex. using SubDUT.nvme_reset() to issue nvme reset for /dev/nvme1n1
+        if argv[0] == sys.argv[0]:
+            # created from main script
+            self.isSubCaseOBJ=False
+            mArgv = argv[1:]   # ['/dev/nvme0n1', subcase items and other parameters]
+        else:
+            # created in subcase
+            self.isSubCaseOBJ=True
+            mArgv = argv # ['/dev/nvme0n1'], only 1 args
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):
             # have not initial set_NVMECom_par, so can't use self.print()
