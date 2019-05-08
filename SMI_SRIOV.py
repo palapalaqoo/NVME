@@ -303,7 +303,7 @@ class SMI_SRIOV(NVME):
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
         # compare command
         oct_val=oct(writeValue)[-3:]
-        mStr=self.shell_cmd("dd if=/dev/zero bs=5120 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 5120 -c 9 2>&1"%(oct_val, SubDUT.dev))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 512 -c 0 2>&1"%(oct_val, SubDUT.dev))
         
         # expected compare command is the same value, i.e. 'compare: Success"
         return True if bool(re.search("compare: Success", mStr))  else False              

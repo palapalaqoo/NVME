@@ -32,7 +32,6 @@ class NVME(object, NVMECom):
     
     
     def __init__(self, argv):
-        
         # status
         self.status="normal"
         # init sub case
@@ -53,8 +52,7 @@ class NVME(object, NVMECom):
             mArgv = argv # ['/dev/nvme0n1'], only 1 args
         self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
-        if not re.search("^/dev/nvme\d+n\d+$", self.dev):
-            # have not initial set_NVMECom_par, so can't use self.print()
+        if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
             sys.exit(1)
         # self.dev_port = /dev/nvme0
@@ -77,8 +75,9 @@ class NVME(object, NVMECom):
         self.last_SB=0
         
         if self.ctrl_alive:  
-            self.set_NVMECom_par(self)
-            self.IdCtrl = IdCtrl.IdCtrl_()
+            # init NVMECom
+            NVMECom.__init__(self, self)            
+            self.IdCtrl = IdCtrl.IdCtrl_(self)
             self.CNTLID=self.IdCtrl.CNTLID.int 
         else:
             self.Print("Error! Can't find device of %s"%self.dev_port, "f")
@@ -156,8 +155,8 @@ class NVME(object, NVMECom):
                  
     def init_parameters(self):        
                 
-        self.CR = ControllerRegister.CR_()        
-        self.IdNs = IdNs.IdNs_()
+        self.CR = ControllerRegister.CR_(self)        
+        self.IdNs = IdNs.IdNs_(self)
         self.GetLog = GetLog.GetLog_(self)
         self.Flow=Flow.Flow_(self)
         
@@ -259,14 +258,14 @@ class NVME(object, NVMECom):
         # if override Pretest(), then run it, or PreTestIsPass= true
         if self.IsMethodOverride( "PreTest"):
             # enable RecordCmdToLogFile to recode command
-            NVMECom.RecordCmdToLogFile=True             
+            self.RecordCmdToLogFile=True             
             self.Logger("<PreTest> ----------------------------", mfile="cmd") 
                 
             PreTest = self.GetAbstractFunctionOrVariable(0, "pretest")
             PreTestIsPass = PreTest()
             
             # disable RecordCmdToLogFile to recode command
-            NVMECom.RecordCmdToLogFile=True             
+            self.RecordCmdToLogFile=True             
             self.Logger("</PreTest> ----------------------------", mfile="cmd")       
             self.Logger("", mfile="cmd")            
         else:
@@ -294,7 +293,7 @@ class NVME(object, NVMECom):
                     self.Print ("-- Keyword: %s"%SpecKeyWord)
 
                     # enable RecordCmdToLogFile to recode command
-                    NVMECom.RecordCmdToLogFile=True             
+                    self.RecordCmdToLogFile=True             
                     self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")                                         
 
                     # run script, 3th,4th line equal 1,2 line statements
@@ -315,7 +314,7 @@ class NVME(object, NVMECom):
                         Code = 1               
                     # other execption
                     except Exception, error:
-                        self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%NVMECom.LogNameCmd, "f" )
+                        self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%self.LogNameCmd, "f" )
                         self.Print( "Exception message as below", "f" )
                         self.Print ("")
                         self.Print( "=====================================", "f" )
@@ -330,7 +329,7 @@ class NVME(object, NVMECom):
 
                          
                     # disable RecordCmdToLogFile to recode command
-                    NVMECom.RecordCmdToLogFile=True             
+                    self.RecordCmdToLogFile=True             
                     self.Logger("</Case %s> ----------------------------"%SubCaseNum, mfile="cmd")
                     self.Logger("", mfile="cmd")                             
                 else:
@@ -347,14 +346,14 @@ class NVME(object, NVMECom):
         # if override Posttest(), then run it, or PreTestIsPass= true
         if self.IsMethodOverride( "PostTest"):
             # enable RecordCmdToLogFile to recode command
-            NVMECom.RecordCmdToLogFile=True             
+            self.RecordCmdToLogFile=True             
             self.Logger("<PostTest> ----------------------------", mfile="cmd") 
                 
             PostTest = self.GetAbstractFunctionOrVariable(0, "posttest")
             PostTestIsPass = PostTest()
             
             # disable RecordCmdToLogFile to recode command
-            NVMECom.RecordCmdToLogFile=True             
+            self.RecordCmdToLogFile=True             
             self.Logger("</PostTest> ----------------------------", mfile="cmd")       
             self.Logger("", mfile="cmd")            
         else:

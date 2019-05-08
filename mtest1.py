@@ -303,7 +303,7 @@ class SMI_SRIOV(NVME):
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
         # compare command
         oct_val=oct(writeValue)[-3:]
-        mStr=self.shell_cmd("dd if=/dev/zero bs=5120 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 5120 -c 9 2>&1"%(oct_val, SubDUT.dev))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 512 -c 0 2>&1"%(oct_val, SubDUT.dev))
         
         # expected compare command is the same value, i.e. 'compare: Success"
         return True if bool(re.search("compare: Success", mStr))  else False              
@@ -457,6 +457,7 @@ class SMI_SRIOV(NVME):
         
         # get test items for current device
         ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
+        print ThreadTestItem
                 
         TotalItem=len(ThreadTestItem)
         TestItemID_old=None
@@ -477,7 +478,7 @@ class SMI_SRIOV(NVME):
             writeValue = randint(1, 0xFF)
             scriptName=ThreadTestItem[TestItemID][0]
             func = ThreadTestItem[TestItemID][1]
-            #func=self.TestWriteSanitizeRead
+            func=self.TestWriteCompare
             # run and get return code
             rtPass = func(SubDUT, writeValue)
             
@@ -555,6 +556,7 @@ class SMI_SRIOV(NVME):
         ThreadTestItem.append(["Test_Write_Format_Read", self.TestWriteFormatRead]) if LBAF0Supported else None        
         # if BlockErase sanitize is supported, i.e.  sanicap_bit1=1 , then add test item 'TestWriteSanitizeRead'
         BlockEraseSupport = True if (SubDUT.IdCtrl.SANICAP.bit(1) == "1") else False
+        print "SubDUT %s BlockEraseSupport %s, SubDUT %s"%(SubDUT, SubDUT.IdCtrl.SANICAP.bit(1), SubDUT.dev)
         ThreadTestItem.append(["Test_Write_Sanitize_Read", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
         # if WriteUncSupported is supported , then add test item 'WriteUncSupported'
         WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
@@ -667,7 +669,7 @@ class SMI_SRIOV(NVME):
         #self.AllDevices = PFDevices 
         # test all test item in one VF and other VF/PF should not be modified 
         #self.TestSpecificVFandOtherVFshouldNotBeModified(self.AllDevices[1])
-        self.MultiThreadTest(30)
+        self.MultiThreadTest(10)
         
 
         

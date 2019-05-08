@@ -11,7 +11,9 @@ class RegType(object):
 
 class RegDescriptor(object,NVMECom):  
     
-    def __init__(self, mcmd=None, mreg='var', bitStart=0, bitStop=65535,regType=RegType.hex, nsSpec=True):
+    def __init__(self, mcmd=None, mreg='var', bitStart=0, bitStop=65535,regType=RegType.hex, nsSpec=True, NVMEobj=None):
+        self.device=NVMEobj.dev
+        self.device_port=NVMEobj.dev[0:NVMEobj.dev.find("nvme")+5]        
         self.cmd = mcmd
         self.reg = mreg     
         self.bitstart = bitStart
@@ -22,6 +24,28 @@ class RegDescriptor(object,NVMECom):
         # if MNTMT = 12, and regtype = hex, then NVME.IdCtrl.MNTMT.int = 0xC, wrong value
         self.regtype=regType
         self.nsspec=nsSpec
+    
+    def get_reg(self, cmd, reg, gettype=0, nsSpec=True):
+    #-- cmd = nvme command, show-regs, id-ctrl, id-ns
+    #-- reg = register keyword in nvme command
+    #-- gettype:
+    #--     0:    string, ex. cc: 460001, return "100064"
+    #--     1:    string, ex. cc: 460001, return "460001"
+    #--     16:     int,  ex. lpa: 0xf,return 15
+        if nsSpec:
+            DEV=self.device
+        else:
+            DEV=self.device_port
+        #DEV=self.device if cmd=="id-ns" else self.device_port
+        mStr="nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
+        if gettype==0:
+            return self.shell_cmd(mStr)[::-1]
+        if gettype==1:
+            return self.shell_cmd(mStr)
+        elif gettype==16:
+            return int(self.shell_cmd(mStr), 16)
+    
+    
     
     @property
     def str(self):

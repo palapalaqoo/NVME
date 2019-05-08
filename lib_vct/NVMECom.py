@@ -35,8 +35,6 @@ def deadline(timeout, *args):
     return decorate    
 
 class NVMECom():   
-    device="null"
-    device_port="null"
     mTestModeOn=False
     SubItemNumValue=0
     RecordCmdToLogFile=False
@@ -69,22 +67,20 @@ class NVMECom():
         f = open(NVMECom.LogNameCmd, "w")
         f.close()          
             
-    def __init__(self):
-        pass
-        
-    def set_NVMECom_par(self, son):
+    def __init__(self, son):        
         # set NVMECom parameters from subclass
-        NVMECom.device=son.dev
-        NVMECom.device_port=son.dev[0:son.dev.find("nvme")+5]
-        NVMECom.mTestModeOn=son.TestModeOn
-        NVMECom.StartLocalTime=son.StartLocalTime
-        NVMECom.SubCasePoint=son.SubCasePoint
+        self.device=son.dev
+        self.device_port=son.dev[0:son.dev.find("nvme")+5]
+        self.mTestModeOn=son.TestModeOn
+        self.StartLocalTime=son.StartLocalTime
+        self.SubCasePoint=son.SubCasePoint
         
         # if object is created in subcase of main script, then do not init log files
         self.InitLogFile() if not son.isSubCaseOBJ else None
         self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
-        self.timer=timer_()
+        self.timer=timer_()        
+        
 
     @property
     def Second(self):
@@ -109,10 +105,10 @@ class NVMECom():
     #--     1:    string, ex. cc: 460001, return "460001"
     #--     16:     int,  ex. lpa: 0xf,return 15
         if nsSpec:
-            DEV=NVMECom.device
+            DEV=self.device
         else:
-            DEV=NVMECom.device_port
-        #DEV=NVMECom.device if cmd=="id-ns" else NVMECom.device_port
+            DEV=self.device_port
+        #DEV=self.device if cmd=="id-ns" else self.device_port
         mStr="nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
         if gettype==0:
             return self.shell_cmd(mStr)[::-1]
@@ -128,9 +124,9 @@ class NVMECom():
     #-- ex. return string "0123" where byte[0] = 0x01, byte[1] = 0x23
     #-- size, size in bytes
         if (StartByte==-1 and StopByte==-1):
-            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size))
         else:
-            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(NVMECom.device, log_id, size))
+            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size))
             return mStr[StartByte*2:(StopByte+1)*2]
 
 
@@ -162,7 +158,7 @@ class NVMECom():
         LPOU= LPO >> 32
         
         #cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=0x007F0008 -l 512 2>&1 "%mNVME.dev
-        cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(NVMECom.device, CDW10, NUMDU, LPOL, LPOU, size)
+        cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(self.device, CDW10, NUMDU, LPOL, LPOU, size)
         mbuf=self.shell_cmd(cmd)
         return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType, BytesOfElement)
             
@@ -332,7 +328,7 @@ class NVMECom():
         elif Ctype=="w" or Ctype=="W":   
             mStr = self.UseStringStyle(msg, fore="yellow")       
         elif Ctype=="t" or Ctype=="T":  
-            if NVMECom.mTestModeOn:
+            if self.mTestModeOn:
                 mStr = self.UseStringStyle(msg, fore="cyan")
         elif Ctype=="d" or Ctype=="D":  
             mStr = self.UseStringStyle(msg)
