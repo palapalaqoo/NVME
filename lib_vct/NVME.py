@@ -1065,6 +1065,23 @@ class NVME(object, NVMECom):
         return self.MDTSinByte/self.GetBlockSize()-1
             
             
+    def WaitSanitizeFinish(self, timeout):
+        # wait for recently sanitize finish
+        per = self.GetLog.SanitizeStatus.SPROG
+        if per != 65535:
+            #self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = %s)"%timeout)                       
+            finish=True           
+            WaitCnt=0
+            while per != 65535:                
+                per = self.GetLog.SanitizeStatus.SPROG
+                WaitCnt = WaitCnt +1
+                if WaitCnt ==timeout:
+                    finish=False
+                    break
+                sleep(1)   
+            if not finish: return False
+        return True
+
 
 # ==============================================================    
 class DevWakeUpAllTheTime():

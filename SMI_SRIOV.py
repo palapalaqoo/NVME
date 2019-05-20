@@ -7,6 +7,9 @@ import re
 from time import sleep
 import time
 import threading
+tkinter = None
+import os
+
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
@@ -303,7 +306,7 @@ class SMI_SRIOV(NVME):
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
         # compare command
         oct_val=oct(writeValue)[-3:]
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 512 -c 0 2>&1"%(oct_val, SubDUT.dev))
+        mStr=SubDUT.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 512 -c 0 2>&1"%(oct_val, SubDUT.dev))
         
         # expected compare command is the same value, i.e. 'compare: Success"
         return True if bool(re.search("compare: Success", mStr))  else False              
@@ -313,7 +316,7 @@ class SMI_SRIOV(NVME):
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
         # format
         nsid=1; lbaf=0; ses=0; pil=0; pi=0; ms=0
-        mStr=self.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1"%(self.dev_port, nsid, lbaf, ses, pil, pi, ms))
+        mStr=SubDUT.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1"%(SubDUT.dev_port, nsid, lbaf, ses, pil, pi, ms))
         retCommandSueess=bool(re.search("Success formatting namespace", mStr))  
         if not retCommandSueess:
             self.Print("Fail to format %s, quit all"%SubDUT.dev, "f"); return False
@@ -323,7 +326,7 @@ class SMI_SRIOV(NVME):
    
     def TestWriteSanitizeRead(self, SubDUT, writeValue):  
         # wait if sanitize is in progressing
-        if not self.WaitSanitizeFinish(SubDUT): return False
+        if not SubDUT.WaitSanitizeFinish(120): return False
               
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)    
@@ -337,7 +340,7 @@ class SMI_SRIOV(NVME):
             return False
 
         # wait if sanitize is in progressing
-        if not self.WaitSanitizeFinish(SubDUT): return False    
+        if not SubDUT.WaitSanitizeFinish(120): return False    
         
         # expected pattern = 0
         return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1) else False
@@ -347,9 +350,9 @@ class SMI_SRIOV(NVME):
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)    
         # write unc
-        BlockCnt=499
+        BlockCnt=127
         CMD = "nvme write-uncor %s -s 0 -n 1 -c %s 2>&1 "%(SubDUT.dev, BlockCnt)
-        mStr = self.shell_cmd(CMD) 
+        mStr = SubDUT.shell_cmd(CMD) 
         if not re.search("Write Uncorrectable Success", mStr):
             self.Print("Fail to Write Uncorrectable, return code: %s"%mStr, "f"); 
             self.Print("Write Uncorrectable command: %s"%CMD, "f"); 
@@ -357,7 +360,7 @@ class SMI_SRIOV(NVME):
          
         # check if 'Input/output error' for hexdump command
         CMD = "hexdump %s -n 1M  2>&1 "%(SubDUT.dev)
-        mStr = self.shell_cmd(CMD) 
+        mStr = SubDUT.shell_cmd(CMD) 
         if not re.search("Input/output error", mStr):
             self.Print("Read uncorrectable blocks fail, following is the returned result for command: %s"%CMD, "f"); 
             self.Print("--------------------------", "f"); 
@@ -369,26 +372,7 @@ class SMI_SRIOV(NVME):
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)  
                 
         return True     
-        
-    
-    def WaitSanitizeFinish(self, SubDUT):
-        # wait for recently sanitize finish
-        timeout=120
-        per = SubDUT.GetLog.SanitizeStatus.SPROG
-        if per != 65535:
-            #self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = %s)"%timeout)                       
-            finish=True           
-            WaitCnt=0
-            while per != 65535:                
-                per = SubDUT.GetLog.SanitizeStatus.SPROG
-                WaitCnt = WaitCnt +1
-                if WaitCnt ==timeout:
-                    finish=False
-                    break
-                sleep(1)   
-            if not finish: self.Print("Error, Time out 120s for Wait sanitize operation finish! (%s)"%SubDUT.dev, "f");  return False
-        return True
-        # end wait         
+             
     
     def VerifyAllDevices(self, excludeDev=None, printInfo=True):
         # vierify if  '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc.. , for all VF/PV and exclude excludeDev device
@@ -449,6 +433,12 @@ class SMI_SRIOV(NVME):
                 return 1
             self.Print("")
     
+    def Push(self, device, TestItemID,scriptName, writeValue, rtPass):
+        # write info to mutex variable
+        self.lock.acquire()
+        # MutexThreadOut [device, TestItemID,scriptName, writeValue, rtPass]
+        self.MutexThreadOut.append([device, TestItemID,scriptName, writeValue, rtPass])                
+        self.lock.release()        
             
     def ThreadTest(self, device, testTime): 
         # device = /dev/nvmeXn1
@@ -458,11 +448,24 @@ class SMI_SRIOV(NVME):
         
         # get test items for current device
         ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
-                
+        # unmask below to get all command in /log/xxxx.cmdlog
+        # SubDUT.RecordCmdToLogFile=True        
         TotalItem=len(ThreadTestItem)
         TestItemID_old=None
         TestItemID=randint(1, 0xFF) % TotalItem
         StartTime = time.time()
+        # if using GUI
+        if self.UsingGUI:
+            # get Lb
+            for i in range(len(self.AllDevices)):
+                if self.AvaItems[i][0] == device:
+                    Lb = self.AvaItems[i][1]
+                    break                    
+            # update available test item string
+            for i in range(TotalItem):
+                name = ThreadTestItem[i][0]
+                Lb.insert("end", name)                
+                
         while True:          
             # if time out
             CurrentTime = time.time()
@@ -478,14 +481,15 @@ class SMI_SRIOV(NVME):
             writeValue = randint(1, 0xFF)
             scriptName=ThreadTestItem[TestItemID][0]
             func = ThreadTestItem[TestItemID][1]
+            # write info to mutex variable, with rtPass=self.Running
+            self.Push(device, TestItemID,scriptName, writeValue, self.Running)   
             # run and get return code
             rtPass = func(SubDUT, writeValue)
-            
-            # write info to mutex variable
-            self.lock.acquire()
-            # MutexThreadOut [device, TestItemID,scriptName, writeValue, rtPass]
-            self.MutexThreadOut.append([device, TestItemID,scriptName, writeValue, rtPass])                
-            self.lock.release()            
+            # write info to mutex variable, with rtPass
+            self.Push(device, TestItemID,scriptName, writeValue, rtPass)               
+
+
+          
             
             # backup ID
             TestItemID_old = TestItemID
@@ -493,6 +497,14 @@ class SMI_SRIOV(NVME):
             if not rtPass: break                
             
     def MultiThreadTest(self, testTime): 
+        # if using GUI, show GUI by threading
+        if self.UsingGUI:
+            tGUI = threading.Thread(target = self.ThreadCreatUI)
+            tGUI.start() 
+            # wait window start
+            sleep(1)
+            
+                
         # call ThreadTest(self, device, testTime) for all devices to test their testitems at the same time
         mThreads = [] 
         # clear mutex variable before any thread start
@@ -500,8 +512,7 @@ class SMI_SRIOV(NVME):
         for Dev in self.AllDevices:
             t = threading.Thread(target = self.ThreadTest, args=(Dev, testTime,))
             t.start() 
-            mThreads.append(t)     
-            
+            mThreads.append(t)            
         # check if all process finished 
         while True:
             allfinished=1
@@ -513,15 +524,15 @@ class SMI_SRIOV(NVME):
             # if all process finished then, quit while loop, else  send reset command
             if allfinished==1:        
                 break
-            else:
-                sleep(1)                                                                
+            else:               
+                sleep(0.5)                                                                
                 # fetch mutex variable
                 self.lock.acquire()
                 Out = self.MutexThreadOut  
                 # clear
                 self.MutexThreadOut=[]
                 self.lock.release()
-                # if there is info out, parse to console
+                # if there is info out, parse to console/GUI
                 if len(Out):
                     for oneThreadOut in Out:
                         # oneThreadOut [device, TestItemID,scriptName, writeValue, rtPass]  
@@ -530,8 +541,38 @@ class SMI_SRIOV(NVME):
                         scriptName=oneThreadOut[2]
                         writeValue=oneThreadOut[3]
                         rtPass=oneThreadOut[4]
-                        result= "pass" if rtPass else "fail"                    
-                        self.PrintAlignString("Device: %s"%device, "Test function name: %s"%scriptName, "Result: %s"%result, result)
+                        
+                        # show on console
+                        if rtPass==self.Running:     # if rtPass is self.Running, skip it
+                            result="running"
+                        else:                        
+                            result= "pass" if rtPass else "fail"                    
+                            self.PrintAlignString("Device: %s"%device, "Test function name: %s"%scriptName, "Result: %s"%result, result)
+                        
+                        # show on GUI if using GUI
+                        if self.UsingGUI:
+                            # get Lb
+                            for i in range(len(self.AllDevices)):
+                                if self.CurrItems[i][0] == device:
+                                    Lb = self.CurrItems[i][1]
+                                    break                    
+                            # update Current test item string                         
+            
+                            if result=="running":     # if result is Running, add item with yellow color
+                                Lb.insert("end", scriptName)
+                                Lb.itemconfig("end", {'fg': 'blue'})
+                                Lb.yview("end")                                  #Set the scrollbar to the end of the listbox
+                            elif result=="pass": 
+                                Lb.itemconfig("end", {'fg': 'green'})
+                            else : 
+                                Lb.itemconfig("end", {'fg': 'red'})                            
+                                                               
+                                            
+                        
+        # if using GUI, close GUI
+        if self.UsingGUI:
+            sleep(2)
+            self.root.quit()                        
 
     def PrintAlignString(self,S0, S1, S2, PF="default"):            
         mStr = "{:<25}\t{:<40}\t{:<20}".format(S0, S1, S2)
@@ -576,12 +617,88 @@ class SMI_SRIOV(NVME):
         return re.findall("/dev/nvme\d+n\d+", mStr)
         
         
-    
+        
+    def import_with_auto_install(self):
+        package = "Tkinter"
+        try:
+            return __import__(package)
+        except ImportError:
+            self.Print("Linux has not install tkinter, Try to install tkinter (yum -y install tkinter)", "w")           
+            InstallSuccess =  True if self.shell_cmd("yum -y install tkinter 2>&1 >/dev/null ; echo $?")=="0" else False
+            
+            if InstallSuccess:
+                self.Print("Install Success!, restart script..", "p")                           
+                os.execl(sys.executable, sys.executable, * sys.argv)
+                return None
+            else:
+                self.Print("Install fail!, using console mode", "f")
+                return None
+            
+    def CheckTkinter(self):    
+        #self.shell_cmd("rpm -qa |grep python27-tkinter-2.7.13-5.el7.x86_64.rpm")
+        global  tkinter     
+
+        tkinter = self.import_with_auto_install()
+        if tkinter==None:
+            return False
+        return True
+                
+    def ThreadCreatUI(self):
+        numOfDev = len(self.AllDevices)
+        ListWidth = 20  # width in characters for current testing item
+        ListHight = 20  # hight in characters for current testing item
+        ListWidth_ava = 20  # width in characters for list available test item
+        ListHight_ava = 10  # hight in characters for list available test item
+
+        InfoHight = 20 # hight in characters        
+        self.root=tkinter.Tk()  
+        self.root.geometry('{}x{}'.format(1000, 800))
+        import tkMessageBox
+        
+        F_slotView = tkinter.Frame(self.root)
+        F_slotView.pack(side="top")
+        
+        
+        for slot in range(numOfDev):
+            # ---- per slot            
+            # create frame for put all slot elements there
+            F_slotView_oneSlot = tkinter.Frame(F_slotView)
+            F_slotView_oneSlot.pack(side="left")
+            
+            # add header
+            Dev = self.AllDevices[slot]
+            slotHeader = tkinter.Label( F_slotView_oneSlot, text=Dev ,relief="solid", width= ListWidth) # Dev="nvme0n1"
+            slotHeader.pack(side="top")      
+                  
+            # add listview for current testing item
+            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight, width= ListWidth)
+            Lb.pack(side="top")
+            # save to CurrItems for further processing, ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
+            self.CurrItems.append([Dev, Lb])
+            
+            # hight in characters for list available test item  
+            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight_ava, width= ListWidth_ava)
+            Lb.pack(side="top")
+            # save to CurrItems for further processing
+            self.AvaItems.append([Dev, Lb]) 
+            # ---- end per slot
+        
+        F_Info = tkinter.Frame(self.root)
+        F_Info.pack(side="bottom")        
+        self.root.mainloop()
+        return True       
+                
     def __init__(self, argv):
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
         
-        
+        # UI define
+        self.UsingGUI=self.CheckTkinter()
+        #self.UsingGUI=False
+        self.CurrItems=[]   # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
+        self.AvaItems=[]    # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
+        self.root=None
+                
         # get TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)
         self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
         
@@ -620,9 +737,14 @@ class SMI_SRIOV(NVME):
         # Mutex for multi thread, [device, TestItemID,scriptName, writeValue, rtPass]
         self.lock=threading.Lock()
         self.MutexThreadOut=[]
-
+        
+        # others
+        self.Running=None
+        
+        
     # define pretest  
-    def PreTest(self):                     
+    def PreTest(self): 
+        '''                    
         self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
         self.Print("TotalVFs: %s"%self.TotalVFs)
         if self.TotalVFs>0:
@@ -666,16 +788,17 @@ class SMI_SRIOV(NVME):
             self.Print("Linux's sysfs support SRIOV: Yes")
         else:
             self.Print("Linux's sysfs support SRIOV: No", "w")    
-                    
+        '''            
         return True            
     
     # <define sub item scripts>
-    SubCase1TimeOut = 60
+    SubCase1TimeOut = 600
     SubCase1Desc = "Enable all VF with all Flexible Resources"   
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0       
         
+        '''
         self.Print("") 
         self.Print("Set all VF offline")
         if not self.SetCurrentNumOfVF(0):
@@ -786,7 +909,10 @@ class SMI_SRIOV(NVME):
                 
         # test all test item in one VF and other VF/PF should not be modified 
         self.TestSpecificVFandOtherVFshouldNotBeModified(self.AllDevices[1])
+        '''
         
+        self.AllDevices = [self.dev] + ["/dev/nvme1n1"]
+        self.MultiThreadTest(10)
         
 
             

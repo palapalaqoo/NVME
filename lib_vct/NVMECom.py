@@ -119,10 +119,11 @@ class NVMECom():
 
     def str_reverse(self, mstr):
         return mstr[::-1]
-    def get_log(self, log_id, size, StartByte=-1, StopByte=-1):
+    def get_log(self, log_id, size, StartByte=-1, StopByte=-1, NVMEobj=None):
     #-- return string byte[0]+byte[1]+byte[2]+ ...
     #-- ex. return string "0123" where byte[0] = 0x01, byte[1] = 0x23
     #-- size, size in bytes
+        self.device = NVMEobj.device if NVMEobj!= None else self.device
         if (StartByte==-1 and StopByte==-1):
             return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size))
         else:
@@ -139,7 +140,7 @@ class NVMECom():
         n=2
         return [line[i:i+n] for i in range(0, len(line), n)]       
     
-    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1):
+    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1, NVMEobj=None):
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0
     #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] ,if ReturnType=0
     #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1   
@@ -158,6 +159,7 @@ class NVMECom():
         LPOU= LPO >> 32
         
         #cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=0x007F0008 -l 512 2>&1 "%mNVME.dev
+        self.device = NVMEobj.device if NVMEobj!= None else self.device
         cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(self.device, CDW10, NUMDU, LPOL, LPOU, size)
         mbuf=self.shell_cmd(cmd)
         return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType, BytesOfElement)
@@ -583,8 +585,9 @@ class NVMECom():
     def RunSMIScript(self, pyPath, DevAndArgs="/dev/nvme0n1" ):
         # pyPath:             ex. 'SMI_SubProcess/SMI_Read.py'
         # DevAndArgs:    ex. '/dev/nvme0n1' for all subcase or '/dev/nvme0n1 1,3,4' for subcase1,3,4
+        # return retcode
+        
         # get scriptPath and scriptName
-
         # check if  python file exist or not
         if not self.shell_cmd("find %s 2> /dev/null |grep %s " %(pyPath,pyPath)):
             self.Print("Error at func RunSMIScript, no such file: %s"%pyPath, "f")

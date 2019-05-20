@@ -663,23 +663,7 @@ class SMI_SRIOV(NVME):
         ret_code=0       
         
         
-        # append all devices for testing , where AllDevices[0] is PF, others is VF     
-        PFDevices= [self.dev]
-        self.AllDevices = PFDevices + ["/dev/nvme1n1"]
-        #self.AllDevices = PFDevices 
-        # test all test item in one VF and other VF/PF should not be modified 
-        #self.TestSpecificVFandOtherVFshouldNotBeModified(self.AllDevices[1])
-        self.MultiThreadTest(10)
-        
-
-        
-                
-        self.Print("")     
-        self.Print("Try to run SMI_DSM.py for nvme1n1")   
-        self.write
-        
-        print "rtcode=%s"%self.RunSMIScript("SMI_SubProcess/mtest.py", "%s 1,3"%self.dev)
-        
+        self.Print("OKLA")
 
 
 
