@@ -18,5 +18,5 @@ class GetLog_():
     def __init__(self, obj):        
         self.SanitizeStatus=SanitizeStatus_(obj)  
         self.DeviceSelfTest=DeviceSelfTest_(obj)
-        self.SMART=SMART_()
+        self.SMART=SMART_(obj)
     

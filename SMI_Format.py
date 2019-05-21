@@ -45,7 +45,7 @@ class SMI_Format(NVME):
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     def GetHealthLog(self):
         Value=[]
-        #Value.append(["CompositeTemperature", self.GetLog.SMART.CompositeTemperature])
+        Value.append(["CompositeTemperature", self.GetLog.SMART.CompositeTemperature])
         Value.append(["CriticalWarning", self.GetLog.SMART.CriticalWarning])
         Value.append(["AvailableSpare", self.GetLog.SMART.AvailableSpare])
         Value.append(["AvailableSpareThreshold", self.GetLog.SMART.AvailableSpareThreshold])
@@ -796,7 +796,8 @@ class SMI_Format(NVME):
         ret_code=0
         self.Print ("Check if SMART / Health Log is retained after the format NVM command successfully completes")
         self.Print ("")
-                
+        
+        StartTime = time.time()      
         self.Print ("Store SMART / Health Log ")
         OriginalValue=self.GetHealthLog()
         
@@ -813,18 +814,41 @@ class SMI_Format(NVME):
             self.Print ("Get current SMART / Health Log ")
             CurrentValue=self.GetHealthLog()
             
+            CurrentTime = time.time()   
+            timeUsage = int(CurrentTime-StartTime) +1
+            
+            self.Print ("")
+            self.Print ("Time used for format command: %d s "%timeUsage)            
+            self.Print ("")
             self.Print ("Check if SMART / Health Log is retained after the format command")
+            self.Print ("Note: tempture and HCTM infomations maybe changed")
             self.Print (""        )
             ValueRetained=True
             self.Print ("============================================")
-            for i in range(len(OriginalValue)):
-                # if Original Value = Current Value, pass
+            for i in range(len(OriginalValue)):                
                 original=OriginalValue[i][1] 
                 current=CurrentValue[i][1]
+                Name =  OriginalValue[i][0]
                 # print field name
-                print OriginalValue[i][0]
+                
+                self.Print(Name )
                 mStr = "{:<25}".format("Original: %s"%original) + "Current: %s"%current
-                if (original == current):                
+                # all the following have torlerance for time base values
+                if Name == "CompositeTemperature" \
+                    or Name == "WarningCompositeTemperatureTime" \
+                    or Name == "CriticalCompositeTemperatureTime" \
+                    or Name == "ThermalManagementTemperature1TransitionCount" \
+                    or Name == "ThermalManagementTemperature2TransitionCount" \
+                    or Name == "TotalTimeForThermalManagementTemperature1" \
+                    or Name == "TotalTimeForThermalManagementTemperature2":
+                    torlerance=timeUsage
+                else:
+                    torlerance=0
+
+                # check value
+                intOriginal = int(original)
+                intCurrent = int(current)
+                if (intOriginal <= intCurrent + torlerance) and (intOriginal >= intCurrent - torlerance) :                
                     self.Print(mStr, "p")
                 else:
                     self.Print(mStr, "f")

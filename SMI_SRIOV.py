@@ -369,10 +369,27 @@ class SMI_SRIOV(NVME):
             return False    
 
         # write 10M data with writeValue to remove Uncorrectable
-        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)  
-                
+        SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)                  
         return True     
-             
+
+    def nvme_reset(self, SubDUT, writeValue):
+        self.status="reset"    
+        rtcode = self.shell_cmd("  nvme reset %s; echo $? "%(SubDUT.dev_port), 0.5)
+        sleep(1)
+        self.status="normal"        
+        return True if rtcode=="0" else False
+    
+    def hot_reset(self, SubDUT, writeValue):
+        self.status="reset"
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(SubDUT.pcie_port), 0.1) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)     
+        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/unbind" %(SubDUT.pcie_port), 0.1) 
+        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/bind" %(SubDUT.pcie_port), 0.1)    
+        sleep(1)     
+        self.status="normal"
+        return True        
+    
+     
     
     def VerifyAllDevices(self, excludeDev=None, printInfo=True):
         # vierify if  '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc.. , for all VF/PV and exclude excludeDev device
@@ -399,13 +416,15 @@ class SMI_SRIOV(NVME):
             
         # verify    
         self.Print("Check the block 0 of all devices .")
-        if not self.VerifyAllDevices(excludeDev=None, printInfo=True): return 1
-            
+        if not self.VerifyAllDevices(excludeDev=None, printInfo=True): return False            
                 
         self.Print("")        
         # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
         SubDUT = NVME([SpecificDevice])        
-                
+
+        if self.TestModeOn:
+            SubDUT.RecordCmdToLogFile=True     
+                            
         # get test items for current device
         ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
         # run all test items
@@ -419,7 +438,7 @@ class SMI_SRIOV(NVME):
             if success:
                 self.Print("Done", "p"); 
             else:
-                self.Print("Fail, quit all", "f"); return 1
+                self.Print("Fail, quit all", "f"); return False
             
             # check data in other controllers     
             self.Print("Check if data in other controller has not been modified"); 
@@ -430,8 +449,9 @@ class SMI_SRIOV(NVME):
                 # print info again
                 self.VerifyAllDevices(excludeDev=SpecificDevice, printInfo=True)
                 self.Print("Quit all", "p");
-                return 1
+                return False
             self.Print("")
+        return True
     
     def Push(self, device, TestItemID,scriptName, writeValue, rtPass):
         # write info to mutex variable
@@ -449,7 +469,8 @@ class SMI_SRIOV(NVME):
         # get test items for current device
         ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
         # unmask below to get all command in /log/xxxx.cmdlog
-        # SubDUT.RecordCmdToLogFile=True        
+        if self.TestModeOn:
+            SubDUT.RecordCmdToLogFile=True        
         TotalItem=len(ThreadTestItem)
         TestItemID_old=None
         TestItemID=randint(1, 0xFF) % TotalItem
@@ -497,7 +518,8 @@ class SMI_SRIOV(NVME):
             if not rtPass: break                
             
     def MultiThreadTest(self, testTime): 
-        # if using GUI, show GUI by threading
+        rtResult=True
+        # if using GUI, create GUI by threading
         if self.UsingGUI:
             tGUI = threading.Thread(target = self.ThreadCreatUI)
             tGUI.start() 
@@ -565,14 +587,15 @@ class SMI_SRIOV(NVME):
                             elif result=="pass": 
                                 Lb.itemconfig("end", {'fg': 'green'})
                             else : 
-                                Lb.itemconfig("end", {'fg': 'red'})                            
-                                                               
-                                            
+                                Lb.itemconfig("end", {'fg': 'red'}) 
+                                rtResult=False                           
                         
         # if using GUI, close GUI
         if self.UsingGUI:
             sleep(2)
-            self.root.quit()                        
+            self.root.quit()   
+            
+        return rtResult                     
 
     def PrintAlignString(self,S0, S1, S2, PF="default"):            
         mStr = "{:<25}\t{:<40}\t{:<20}".format(S0, S1, S2)
@@ -600,9 +623,15 @@ class SMI_SRIOV(NVME):
         # if WriteUncSupported is supported , then add test item 'WriteUncSupported'
         WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
         ThreadTestItem.append(["Test_WriteUnc_Read", self.TestWriteUncRead]) if WriteUncSupported else None
+        # nvme_reset
+        ThreadTestItem.append(["Test_Controller_Reset", self.nvme_reset])
+        # hot_reset
+        ThreadTestItem.append(["Test_Hot_Reset", self.hot_reset])              
+        
         return ThreadTestItem
-        
-        
+
+
+            
     def GetNextTestItemID(self,TotalItem, TestItemID_old):
         # return random ID that is different from  TestItemID_old
         while True:
@@ -661,26 +690,36 @@ class SMI_SRIOV(NVME):
         
         for slot in range(numOfDev):
             # ---- per slot            
+            # (highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) for brown border color
             # create frame for put all slot elements there
-            F_slotView_oneSlot = tkinter.Frame(F_slotView)
+            F_slotView_oneSlot = tkinter.Frame(F_slotView, relief="flat",  highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0)
             F_slotView_oneSlot.pack(side="left")
             
             # add header
             Dev = self.AllDevices[slot]
-            slotHeader = tkinter.Label( F_slotView_oneSlot, text=Dev ,relief="solid", width= ListWidth) # Dev="nvme0n1"
+            slotHeader = tkinter.Label( F_slotView_oneSlot, text=Dev , width= ListWidth,relief="flat", highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) # Dev="nvme0n1"
             slotHeader.pack(side="top")      
                   
             # add listview for current testing item
-            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight, width= ListWidth)
+            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight, width= ListWidth, relief="flat")
             Lb.pack(side="top")
             # save to CurrItems for further processing, ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
             self.CurrItems.append([Dev, Lb])
             
+            # add header
+
+            slotHeader = tkinter.Label( F_slotView_oneSlot, text="Available test items" , width= ListWidth,relief="flat", highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) # Dev="nvme0n1"
+            slotHeader.pack(side="top")  
+                        
             # hight in characters for list available test item  
-            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight_ava, width= ListWidth_ava)
+            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight_ava, width= ListWidth_ava,relief="flat")
             Lb.pack(side="top")
             # save to CurrItems for further processing
             self.AvaItems.append([Dev, Lb]) 
+            
+            # create frame space
+            F_slotView_space = tkinter.Frame(F_slotView,  width=10)
+            F_slotView_space.pack(side="left")            
             # ---- end per slot
         
         F_Info = tkinter.Frame(self.root)
@@ -807,6 +846,63 @@ class SMI_SRIOV(NVME):
         # backup os nvme list            
         VFOff_NvmeList=self.GetCurrentNvmeList()
         
+        
+        self.Print("") 
+        self.Print("Set all VF online")
+        if not self.SetCurrentNumOfVF(len(self.SecondaryControllerList)):
+            self.Print("Fail, quit all", "f"); return 1               
+        
+        
+        # linux nvme list after enable VF
+        VFOn_NvmeList=self.GetCurrentNvmeList()
+        VFDevices = list(set(VFOn_NvmeList) - set(VFOff_NvmeList)).sort()
+        NumOfVF=len(self.SecondaryControllerList)
+        self.Print("Check if linux os create %s NVMe device under folder /dev/"%NumOfVF)
+        self.Print("")
+        for Dev in VFDevices:
+            self.Print(Dev)
+        if NumOfVF==len(VFDevices):
+            self.Print("Pass","p")
+        else:
+            self.Print("Fail, quit all", "f"); return 1
+        
+        '''
+        # append all devices for testing , where AllDevices[0] is PF, others is VF     
+        PFDevices= [self.dev]
+        self.AllDevices = PFDevices + ["/dev/nvme1n1"]
+                
+        # test all test item in one VF and other VF/PF should not be modified 
+        specificVF = self.AllDevices[1]
+        self.Print("Test when having testing in specific VF(%s), other VF should not be modified"%specificVF)
+        if not self.TestSpecificVFandOtherVFshouldNotBeModified(specificVF): return 1
+       
+        # test all test item in all VF and can't interfere with each other
+        specificVF = self.AllDevices[1]
+        self.Print("Test when having testing in all VF, the test can't interfere with each other")
+        if not self.MultiThreadTest(10): return 1        
+        
+
+
+        
+        return ret_code
+
+
+    '''
+    SubCase2TimeOut = 600
+    SubCase2Desc = "Enable all VF with all Flexible Resources"   
+    SubCase2KeyWord = ""
+    def SubCase2(self):
+        ret_code=0       
+        
+        
+        self.Print("") 
+        self.Print("Set all VF offline")
+        if not self.SetCurrentNumOfVF(0):
+            self.Print("Fail, quit all", "f"); return 1   
+        
+        # backup os nvme list            
+        VFOff_NvmeList=self.GetCurrentNvmeList()
+        
         self.Print("Try to set Primary Controller Resources to Minimum")
         self.Set_PF_ResourceMinimum(printInfo=True)
         self.Print("Done")        
@@ -909,48 +1005,25 @@ class SMI_SRIOV(NVME):
                 
         # test all test item in one VF and other VF/PF should not be modified 
         self.TestSpecificVFandOtherVFshouldNotBeModified(self.AllDevices[1])
-        '''
         
-        self.AllDevices = [self.dev] + ["/dev/nvme1n1"]
-        self.MultiThreadTest(10)
-        
-
-            
-        
-        
-        
-        
-        
-        
-        
-        
-        
-                
+        #--------------------
         self.Print("")     
         self.Print("Try to run SMI_DSM.py for nvme1n1")   
-        self.write
+        self.write        
+        print "rtcode=%s"%self.RunSMIScript("SMI_SubProcess/mtest.py", "%s 1,3"%self.dev)     
         
-        print "rtcode=%s"%self.RunSMIScript("SMI_SubProcess/mtest.py", "%s 1,3"%self.dev)
-        
-        
-        '''
         self.Print("")    
         if self.VI_ResourceSupported:
             VIResourcesFlexibleTotal=self.PCCStructure.VIFRT
-            
-            
-            
-            
-        # minimum number of VQ Resources that may be assigned is two    
-            
-            
-        '''
-        
+            # minimum number of VQ Resources that may be assigned is two 
+        # ----------------------        
+           
 
-
+        self.AllDevices = [self.dev] + ["/dev/nvme1n1"] + ["/dev/nvme2n1"]
+        self.MultiThreadTest(10)
         
         return ret_code
-
+    '''
     # </define sub item scripts>
 
     # define PostTest  
