@@ -937,8 +937,10 @@ class NVME(object, NVMECom):
             sleep(0.2)
             self.AttachNs(i)
             sleep(0.2)
-            self.shell_cmd("  nvme reset %s " % (self.dev_port))                              
-            return True     
+            self.shell_cmd("  nvme reset %s " % (self.dev_port)) 
+            sleep(1)
+            return self.dev_exist() # if device exist, return true, else false                        
+            
                
     def CreateMultiNs(self, NumOfNS=8, SizeInBlock=2097152):        
         # Create namespcaes form nsid 1 to nsid 8(default), size 1G(default), and attach to the controller

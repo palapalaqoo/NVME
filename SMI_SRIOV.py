@@ -299,7 +299,12 @@ class SMI_SRIOV(NVME):
     # SubDUT type is NVME
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
-        return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=writeValue, nsid=1) else False            
+        if SubDUT.fio_isequal(offset=0, size="10M", pattern=writeValue, nsid=1):
+            return True
+        else:
+            self.Print("Device: %s TestWriteRead fail: expected pattern is %s"%(SubDUT, writeValue), "f")
+            return False
+           
     
     def TestWriteCompare(self, SubDUT, writeValue):
         # write 10M data with writeValue
@@ -308,8 +313,12 @@ class SMI_SRIOV(NVME):
         oct_val=oct(writeValue)[-3:]
         mStr=SubDUT.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme compare %s  -s 0 -z 512 -c 0 2>&1"%(oct_val, SubDUT.dev))
         
-        # expected compare command is the same value, i.e. 'compare: Success"
-        return True if bool(re.search("compare: Success", mStr))  else False              
+        # expected compare command is the same value, i.e. 'compare: Success"    
+        if bool(re.search("compare: Success", mStr)):
+            return True
+        else:
+            self.Print("Device: %s TestWriteCompare fail: expected pattern is %s"%(SubDUT, writeValue), "f")
+            return False      
     
     def TestWriteFormatRead(self, SubDUT, writeValue):
         # write 10M data with writeValue
@@ -319,10 +328,13 @@ class SMI_SRIOV(NVME):
         mStr=SubDUT.shell_cmd(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1"%(SubDUT.dev_port, nsid, lbaf, ses, pil, pi, ms))
         retCommandSueess=bool(re.search("Success formatting namespace", mStr))  
         if not retCommandSueess:
-            self.Print("Fail to format %s, quit all"%SubDUT.dev, "f"); return False
-            
-        # after format, expected pattern = 0
-        return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1) else False  
+            self.Print("Fail to format %s, quit all"%SubDUT.dev, "f"); return False            
+        # after format, expected pattern = 0  
+        if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1):
+            return True
+        else:
+            self.Print("Device: %s TestWriteFormatRead fail: expected pattern is %s"%(SubDUT, 0), "f")
+            return False         
    
     def TestWriteSanitizeRead(self, SubDUT, writeValue):  
         # wait if sanitize is in progressing
@@ -340,11 +352,13 @@ class SMI_SRIOV(NVME):
             return False
 
         # wait if sanitize is in progressing
-        if not SubDUT.WaitSanitizeFinish(120): return False    
-        
+        if not SubDUT.WaitSanitizeFinish(240): return False            
         # expected pattern = 0
-        return True if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1) else False
-
+        if SubDUT.fio_isequal(offset=0, size="10M", pattern=0, nsid=1):
+            return True
+        else:
+            self.Print("Device: %s TestWriteSanitizeRead fail: expected pattern is %s"%(SubDUT, 0), "f")
+            return False    
     
     def TestWriteUncRead(self, SubDUT, writeValue):
         # write 10M data with writeValue
@@ -373,23 +387,19 @@ class SMI_SRIOV(NVME):
         return True     
 
     def nvme_reset(self, SubDUT, writeValue):
-        self.status="reset"    
         rtcode = self.shell_cmd("  nvme reset %s; echo $? "%(SubDUT.dev_port), 0.5)
-        sleep(1)
-        self.status="normal"        
+        sleep(1) 
         return True if rtcode=="0" else False
     
     def hot_reset(self, SubDUT, writeValue):
-        self.status="reset"
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(SubDUT.pcie_port), 0.1) 
-        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)     
-        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/unbind" %(SubDUT.pcie_port), 0.1) 
-        self.shell_cmd("  echo -n '%s' > /sys/bus/pci/drivers/nvme/bind" %(SubDUT.pcie_port), 0.1)    
+        self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)
         sleep(1)     
-        self.status="normal"
         return True        
     
-     
+    def DeleteCreateAttach_NS(self, SubDUT, writeValue):        
+        return SubDUT.ResetNS()                
+                      
     
     def VerifyAllDevices(self, excludeDev=None, printInfo=True):
         # vierify if  '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc.. , for all VF/PV and exclude excludeDev device
@@ -494,6 +504,8 @@ class SMI_SRIOV(NVME):
             
             # if iMain Thread is not Alive 
             if not self.isMainThreadAlive(): break
+            # if any thread fail
+            if not self.IsPass: break
                         
             # get test ID that is not the same with current one
             TestItemID=self.GetNextTestItemID(TotalItem, TestItemID_old)
@@ -514,8 +526,10 @@ class SMI_SRIOV(NVME):
             
             # backup ID
             TestItemID_old = TestItemID
-            # if return code is not zero, then quit
-            if not rtPass: break                
+            # if return code is not zero,set IsPass=false and quit
+            if not rtPass: 
+                self.IsPass=False
+                break                
             
     def MultiThreadTest(self, testTime): 
         rtResult=True
@@ -529,8 +543,9 @@ class SMI_SRIOV(NVME):
                 
         # call ThreadTest(self, device, testTime) for all devices to test their testitems at the same time
         mThreads = [] 
-        # clear mutex variable before any thread start
+        # clear mutex variable and IsPass=true before any thread start 
         self.MutexThreadOut=[]
+        self.IsPass=True
         for Dev in self.AllDevices:
             t = threading.Thread(target = self.ThreadTest, args=(Dev, testTime,))
             t.start() 
@@ -610,23 +625,28 @@ class SMI_SRIOV(NVME):
         # get current device test item, ex. /dev/nvme0n1 may test all feature
         ThreadTestItem=[]
         # add test items
-        ThreadTestItem.append(["Test_Write_Read", self.TestWriteRead])
-        ThreadTestItem.append(["Test_Write_Compare", self.TestWriteCompare])                
+        ThreadTestItem.append(["Write_Read", self.TestWriteRead])
+        ThreadTestItem.append(["Write_Compare", self.TestWriteCompare])                
         # if ibaf0 is supported, i.e.  lbaf0->lbads>9 , then add test item 'TestWriteFormatRead'
         LBAF=SubDUT.GetAllLbaf()
         LBAF0_LBADS=LBAF[0][SubDUT.lbafds.LBADS]
         LBAF0Supported = True if (LBAF0_LBADS >=  9) else False
-        ThreadTestItem.append(["Test_Write_Format_Read", self.TestWriteFormatRead]) if LBAF0Supported else None        
+        ThreadTestItem.append(["Write_Format_Read", self.TestWriteFormatRead]) if LBAF0Supported else None        
         # if BlockErase sanitize is supported, i.e.  sanicap_bit1=1 , then add test item 'TestWriteSanitizeRead'
         BlockEraseSupport = True if (SubDUT.IdCtrl.SANICAP.bit(1) == "1") else False
-        ThreadTestItem.append(["Test_Write_Sanitize_Read", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
+        ThreadTestItem.append(["Write_Sanitize_Read", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
         # if WriteUncSupported is supported , then add test item 'WriteUncSupported'
         WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
-        ThreadTestItem.append(["Test_WriteUnc_Read", self.TestWriteUncRead]) if WriteUncSupported else None
+        ThreadTestItem.append(["WriteUnc_Read", self.TestWriteUncRead]) if WriteUncSupported else None
         # nvme_reset
-        ThreadTestItem.append(["Test_Controller_Reset", self.nvme_reset])
+        ThreadTestItem.append(["Controller_Reset", self.nvme_reset])
         # hot_reset
-        ThreadTestItem.append(["Test_Hot_Reset", self.hot_reset])              
+        ThreadTestItem.append(["Hot_Reset", self.hot_reset])   
+        # DeleteCreateAttach_NS
+        NsSupported=True if SubDUT.IdCtrl.OACS.bit(3)=="1" else False
+        ThreadTestItem.append(["DeleteCreateAttach_NS", self.DeleteCreateAttach_NS]) if NsSupported else None        
+        
+                   
         
         return ThreadTestItem
 
@@ -776,6 +796,7 @@ class SMI_SRIOV(NVME):
         # Mutex for multi thread, [device, TestItemID,scriptName, writeValue, rtPass]
         self.lock=threading.Lock()
         self.MutexThreadOut=[]
+        self.IsPass=True
         
         # others
         self.Running=None
@@ -869,17 +890,19 @@ class SMI_SRIOV(NVME):
         '''
         # append all devices for testing , where AllDevices[0] is PF, others is VF     
         PFDevices= [self.dev]
-        self.AllDevices = PFDevices + ["/dev/nvme1n1"]
-                
+        self.AllDevices = PFDevices + ["/dev/nvme1n1"] +["/dev/nvme2n1"]  
+        
+        '''        
         # test all test item in one VF and other VF/PF should not be modified 
-        specificVF = self.AllDevices[1]
+        specificVF = self.AllDevices[1]        
         self.Print("Test when having testing in specific VF(%s), other VF should not be modified"%specificVF)
         if not self.TestSpecificVFandOtherVFshouldNotBeModified(specificVF): return 1
+        '''
        
         # test all test item in all VF and can't interfere with each other
         specificVF = self.AllDevices[1]
         self.Print("Test when having testing in all VF, the test can't interfere with each other")
-        if not self.MultiThreadTest(10): return 1        
+        if not self.MultiThreadTest(60): return 1        
         
 
 
