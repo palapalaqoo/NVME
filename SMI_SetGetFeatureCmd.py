@@ -260,6 +260,9 @@ class SMI_SetGetFeatureCMD(NVME):
             # Number of LBA Ranges is zero based, 0 means there is 1 LBA Range
             DS=self.CreateLBARangeDataStructure(value+1)
             self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)
+        elif fid==0xC:
+            DS='\\x0\\x0\\x0\\x0\\x0\\x0\\x0\\x0'
+            self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)            
         else:
             self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid)
     
@@ -330,7 +333,7 @@ class SMI_SetGetFeatureCMD(NVME):
             return False   
         
     # <sub item scripts>
-    SubCase1TimeOut = 60
+    SubCase1TimeOut = 600
     SubCase1Desc = "Test all the attributes in Select field"        
     def SubCase1(self):
         self.ret_code=0

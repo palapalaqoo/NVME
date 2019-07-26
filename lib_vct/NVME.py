@@ -50,7 +50,7 @@ class NVME(object, NVMECom):
             # created in subcase
             self.isSubCaseOBJ=True
             mArgv = argv # ['/dev/nvme0n1'], only 1 args
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -362,6 +362,7 @@ class NVME(object, NVMECom):
         # get rtCode from SubCase_rtCode
         self.rtCode = self.GetrtCodeFrom_SubCase_rtCode()
         
+        sleep(1)
         # reset controller to initial status
         self.ResetToInitStatus()
                 
@@ -592,18 +593,18 @@ class NVME(object, NVMECom):
         else:
             return "0"
     
-    def fio_write(self, offset, size, pattern, nsid=1, devPort=None):
+    def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1):
         devPort=self.dev_port if devPort==None else devPort
         DEV=devPort+"n%s"%nsid 
-        return self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=0 --verify=pattern --verify_pattern=%s" %(DEV, offset, size, pattern))
+        return self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
+        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, DEV, offset, size, pattern))
     
-    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None):
+    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1):
     #-- return boolean
         devPort=self.dev_port if devPort==None else devPort
         DEV=devPort+"n%s"%nsid 
-        msg =  self.shell_cmd("fio --direct=1 --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' " %(fio_bs, DEV, offset, size, pattern))
+        msg =  self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
+        --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' " %(fio_direct, fio_bs, DEV, offset, size, pattern))
 
         ret=False
         if msg:
@@ -649,6 +650,7 @@ class NVME(object, NVMECom):
 
     def set_feature(self, fid, value, SV=0, Data=None, nsid=0): 
     # feature id, value
+    # Data example = '\\255\\255\\255\\000' or '\\xff\\xff'
     # if sv=1 and have data in
     # CMD = echo "\\255\\255\\255\\255\\255\\255" |nvme set-feature %s -f %s -n %s -v %s -s 2>&1
         
@@ -663,6 +665,9 @@ class NVME(object, NVMECom):
         
         if nsid!=0:
             CMD = CMD +"-n %s "%nsid
+            
+        if Data!=None:
+            CMD = CMD +"-l %s "%Data.count('\\')
         
         CMD = CMD +"2>&1 "
 
@@ -795,6 +800,7 @@ class NVME(object, NVMECom):
         '''
         return 0  
     def FunctionLevel_reset(self):
+        '''
         self.status="reset"        
         self.write_pcie(self.PXCAP, 0x9, self.IFLRV)
         sleep(0.2)
@@ -802,7 +808,18 @@ class NVME(object, NVMECom):
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port))  
         self.hot_reset() 
         self.status="normal"
-        return 0      
+        return 0 
+        '''
+        self.status="reset"  
+        self.write_pcie(self.PXCAP, 0x9, self.IFLRV)
+        sleep(1)
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port), 1) 
+        self.status="normal"
+        if self.dev_alive:            
+            return 0        
+        else:
+            return 1        
+
         
     def por_reset(self):
         self.status="reset"

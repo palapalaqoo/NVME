@@ -1,3 +1,2 @@
 CASE 1 : Test if the operation of PF and VFs influences its controller only : Skip
 CASE 2 : Test power cycle : Skip
-CASE 3 : Test virtual machine : Fail

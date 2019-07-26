@@ -86,9 +86,8 @@ def nvme_write(ns, slba, nlb, data):
                                 0, # timeout_ms
                                 0, # result
     )
-    print "s"
+    
     ret = fcntl.ioctl(fd, NVME_IOCTL_IO_CMD, nvme_passthru_cmd)
-    print "e"
     os.close(fd)
     return ret
 
@@ -229,17 +228,43 @@ class SMI_PCIPowerStatus(NVME):
                             
 
     # <define sub item scripts>
-    SubCase1TimeOut = 2000
+    SubCase1TimeOut = 60
     SubCase1Desc = "Test Power State 0000"   
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=1
-        ret_code=1
-        ret_code=1
-        ret_code=1
         
-        self.FunctionLevel_reset()
+        cdw12=self.MaxNLBofCDW12()  
+        data = (((''.join(["%02x"%x for x in xrange(0x0, 0xff +1)]))*2)*cdw12).decode("hex")
+        self.timer.start()
+        if nvme_write(1, 0, cdw12, data):
+            print "Error"
+        self.timer.stop()
+        self.Print("time = %s,  cdw12 %s"%(self.timer.time,  cdw12), "f")        
         
+        cdw12=self.MaxNLBofCDW12() /2 
+        data = (((''.join(["%02x"%x for x in xrange(0x0, 0xff +1)]))*2)*cdw12).decode("hex")
+        self.timer.start()
+        if nvme_write(1, 0, cdw12, data):
+            print "Error"
+        self.timer.stop()
+        self.Print("time = %s,  cdw12 %s"%(self.timer.time,  cdw12), "f")         
+        
+        cdw12=self.MaxNLBofCDW12() /4 
+        data = (((''.join(["%02x"%x for x in xrange(0x0, 0xff +1)]))*2)*cdw12).decode("hex")
+        self.timer.start()
+        if nvme_write(1, 0, cdw12, data):
+            print "Error"
+        self.timer.stop()
+        self.Print("time = %s,  cdw12 %s"%(self.timer.time,  cdw12), "f")         
+        
+        cdw12=self.MaxNLBofCDW12() /8
+        data = (((''.join(["%02x"%x for x in xrange(0x0, 0xff +1)]))*2)*cdw12).decode("hex")
+        self.timer.start()
+        if nvme_write(1, 0, cdw12, data):
+            print "Error"
+        self.timer.stop()
+        self.Print("time = %s,  cdw12 %s"%(self.timer.time,  cdw12), "f")        
         
         
         

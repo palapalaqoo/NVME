@@ -386,6 +386,7 @@ class NVMECom():
         parser.add_argument("subcases", help="sub cases that will be tested, e.g. '1 2 3'", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")
+        parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
         
 
         args = parser.parse_args(args=argv)
@@ -397,9 +398,14 @@ class NVMECom():
             mSubItems=[]
         else:
             # split ',' and return int[]
-            mSubItems = [int(x) for x in args.subcases.split(',')]        
+            mSubItems = [int(x) for x in args.subcases.split(',')]     
+            
+        if args.s==None:
+            mTestTime=None
+        else:
+            mTestTime=args.s
         
-        return mDev, mSubItems, mTestModeOn, mScriptDoc
+        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format
@@ -419,9 +425,9 @@ class NVMECom():
         if re.search(mStr, buf):
             MSICAP=int(re.search(mStr, buf).group(1),16)
             
-        mStr="Capabilities: \[(.+?)\] Express Endpoint"
+        mStr="Capabilities: \[(.+?)\] Express (.*) Endpoint"    #group(2) is v1, v2, or none etc.
         if re.search(mStr, buf):
-            PXCAP=int(re.search(mStr, buf).group(1),16)
+            PXCAP=int(re.search(mStr, buf).group(1),16)                       
             
         mStr="Capabilities: \[(.+?)\] MSI-X"
         if re.search(mStr, buf):
@@ -446,6 +452,13 @@ class NVMECom():
     def rmFile(self, filePath):
         if os.path.exists(filePath):
             os.remove(filePath)
+            
+    def isCMDExist(self, cmd):
+        CMD= "command -v %s 2>&1 >/dev/null ; echo $?"%cmd
+        if self.shell_cmd(CMD)=="0":
+            return True
+        else:
+            return False    
    
     def readBinaryFileToList(self, filePath):
         mList=[]

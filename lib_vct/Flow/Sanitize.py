@@ -19,6 +19,7 @@ class FlowSanitizeStatus:
     TimeOut = 2
     SprogCountError = 3
     OverWriteCompletedPassesCountCountError = 4    
+    SanitizeGoFinishAfterEventTriger = 5
 
 class Sanitize_():
     # OverWriteCompletedPassesCount
@@ -98,7 +99,7 @@ class Sanitize_():
     # 4 completed passes count error(Overwrite)
     # or return 0
             
-        #self.Print ("Starting "  )
+        #self._mNVME.Print ("Starting "  )
         #print self.EventTriggeredMessage 
         event_trigged=0
         rtCode=FlowSanitizeStatus.Success
@@ -146,7 +147,7 @@ class Sanitize_():
                 per=self._mNVME.GetLog.SanitizeStatus.SPROG
                 if per_old!=per:
                     if self.ShowProgress and per!=0:
-                        #self.Print ("percentage = %s"%per)
+                        #self._mNVME.Print ("percentage = %s"%per)
                         mSuffix = 'Time: %s s'%(self.TimeOut-TimeElapsed) + ", Completed passes: %s"%rtOWCPC
                         self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:',suffix=mSuffix, length = 50)
                 else:
@@ -169,7 +170,7 @@ class Sanitize_():
                     rtOWCPC = OWCPC
 
                 
-                # if percent > 2% and  _EventTrigger!=None, then trigger event
+                # if percent > 2% and  _EventTrigger!=None, then trigger event -------------------------------------------------------
                 if per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
                     # excute event  
                     try:
@@ -177,13 +178,25 @@ class Sanitize_():
                             self._EventTrigger()
                         else:                    
                             self._EventTrigger(*self._args)
+
+                            
                     except Exception as e:
-                        self.Print ("")
+                        self._mNVME.Print ("")
                         self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
                         rtCode=FlowSanitizeStatus.ExceptionOccured
+                        break
                         
                     event_trigged=1        
-             
+                    
+                    # if Sanitize counter direct go to FFFF after reset/EventTrigger, Sanitize may not finish the operation,  according to the below message    
+                    # Once a sanitize operation is started, it cannot be aborted and continues after a Controller Level Reset including across power cycles.
+                    # check this once only                       
+                    per=self._mNVME.GetLog.SanitizeStatus.SPROG
+                    if per == 65535:    
+                        rtCode=FlowSanitizeStatus.SanitizeGoFinishAfterEventTriger            
+                        break 
+                # end of trigger event -------------------------------------------------------
+                
                 #if fininshed 
                 if per == 65535:                
                     break
@@ -191,7 +204,7 @@ class Sanitize_():
                 # if timeout
                 TimeElapsed= self._mNVME.Second-TimeStart
                 if TimeElapsed > self.TimeOut:
-                    self.Print ("")
+                    self._mNVME.Print ("")
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
                     rtCode=FlowSanitizeStatus.TimeOut              
                     break
@@ -212,42 +225,47 @@ class Sanitize_():
             # print Progress with 0% 
             if self.ShowProgress:
                 self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:',suffix='Time: %s s'%(self.TimeOut-TimeElapsed), length = 50)
+                
+            TryAgain = False
             while True:            
                 sleep (0.1)
                 # if per value changed, then print per
                 per=self._mNVME.GetLog.SanitizeStatus.SPROG
                 if per_old!=per:
                     if self.ShowProgress and per!=0:
-                        #self.Print ("percentage = %s"%per)
+                        #self._mNVME.Print ("percentage = %s"%per)
                         self._mNVME.PrintProgressBar(per, 65535, prefix = 'Progress:',suffix='Time: %s s'%(self.TimeOut-TimeElapsed), length = 50)
                 else:
                     sleep (0.1)
                 per_old=per
                 
-                # if percent changed and  _EventTrigger!=None, then trigger event
+                # if percent changed and  _EventTrigger!=None, then trigger event -------------------------------------------------------
                 if per!=initper and per!=0 and per!=65535 and  self._EventTrigger!=None:                              
                     # excute event  
                     try:
                         if len(self._args)==0:
                             self._EventTrigger()
-                            
-                            # if sanitize still in progress, then end flow
-                            if self._mNVME.GetLog.SanitizeStatus.SPROG != 65535:                
-                                break
-                                    
                         else:                    
-                            self._EventTrigger(*self._args)
-                            
-                            # if sanitize still in progress, then end flow
-                            if self._mNVME.GetLog.SanitizeStatus.SPROG != 65535:                
-                                break
-                                
+                            self._EventTrigger(*self._args)                                                       
                     except Exception as e:
-                        self.Print ("")
+                        self._mNVME.Print ("")
                         self._mNVME.Print("lib_vct/Flow/Sanitize: " + e, "f")
-                        rtCode=FlowSanitizeStatus.ExceptionOccured
+                        rtCode=FlowSanitizeStatus.ExceptionOccured    
+                    # if sanitize still in progress, then end flow
+                    if self._mNVME.GetLog.SanitizeStatus.SPROG != 65535:                
+                        break
+                    else:
+                        # if Sanitize counter direct go to FFFF, Sanitize may not finish the operation, do _EventTrigger again
+                        if TryAgain==False:
+                            TryAgain=True     
+                        # after do _EventTrigger again, still direct go to FFFF, the according to the below message    
+                        # Once a sanitize operation is started, it cannot be aborted and continues after a Controller Level Reset including across power cycles.                       
+                        else:
+                            rtCode=FlowSanitizeStatus.SanitizeGoFinishAfterEventTriger
+                            break;                        
+                # end of trigger event -------------------------------------------------------
 
-                # if sanitize still in progress, then end flow
+                # if sanitize not in progress, then issue cmd
                 if per==65535:                
                     if not self._IssueCommand():
                         rtCode=FlowSanitizeStatus.CommandError
@@ -256,12 +274,14 @@ class Sanitize_():
                 # if timeout
                 TimeElapsed= self._mNVME.Second-TimeStart
                 if TimeElapsed > self.TimeOut:
-                    self.Print ("")
+                    self._mNVME.Print ("")
                     self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Time out!, TimeElapsed = %s s "%self.TimeOut, "f")
                     rtCode=FlowSanitizeStatus.TimeOut            
                     break
         # == end for if self.Mode==FlowSanitizeMode.KeepSanitizeInProgress ========================================  
         # save rtOWCPC to static valuable
         Sanitize_.Static_LastOWCPC=rtOWCPC
+        
+        self._mNVME.Print ("")
           
         return rtCode

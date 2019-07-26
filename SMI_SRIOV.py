@@ -9,6 +9,7 @@ import time
 import threading
 tkinter = None
 import os
+import xml.etree.ElementTree as ET
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -24,6 +25,27 @@ class SMI_SRIOV(NVME):
     
     TypeInt=0x0
     TypeStr=0x1    
+
+    File_Config = "./CSV/In/config.csv"    
+    
+        
+    def ParseConfigFile(self):
+        if not self.isfileExist(self.File_Config):
+            return False
+        else:            
+            ParseCfgList = self.ReadCSVFile(self.File_Config)
+            for mItem in ParseCfgList:
+                # if start char=# means it is a comment, and quit it
+                mStr = "^#"
+                if re.search(mStr, mItem[0]):
+                    pass   
+                else:                 
+                    Name=mItem[0]        
+                    if Name=="numvfs":
+                        self.config_numvfs=int(mItem[1] )
+            return True
+            
+    
     
     # PrimaryControllerCapabilitiesStructure
     class PCCS(mStruct.Struct):
@@ -138,12 +160,46 @@ class SMI_SRIOV(NVME):
         else:
             return None
 
+    # set vf, if success, set AllDevices where AllDevices[0] is PF, others is VF 
     def SetCurrentNumOfVF(self, value):
+        value=int(value)
         path="/sys/class/block/%s/device/device/sriov_numvfs"%self.dev[5:]
         if self.isfileExist(path):
-            return True if self.shell_cmd("echo %s > %s 2>&1 >/dev/null ; echo $?"%(value, path))==0 else False
+            if self.shell_cmd("echo %s > %s 2>&1  ; echo $?"%(value, path))!="0" :
+                self.Print("command fail", "f"); return False
+            else:
+                if value!=0: 
+                    # wait for os to create drive        
+                    sleep(2)
+                    # linux nvme list after enable VF, and get created drive name
+                    self.VFon_NvmeList=self.GetCurrentNvmeList()
+                    # get VFDevices list
+                    VFDevices=[]
+                    for i in range(len(self.VFon_NvmeList)):
+                        find=False
+                        
+                        for j in range(len(self.VFoff_NvmeList)):
+                            if self.VFoff_NvmeList[j]==self.VFon_NvmeList[i]:
+                                find=True
+                                break;
+                        if not find:
+                            VFDevices.append(self.VFon_NvmeList[i]) 
+                    # end of get VFDevices list          
+
+                    # save to AllDevices
+                    self.AllDevices = [self.dev] + VFDevices
+                    self.Print("Check if linux os create %s NVMe device under folder /dev/"%value)
+                    self.Print("Created drive:")
+                    for Dev in VFDevices:
+                        self.Print("        %s"%Dev)
+                    if value==len(VFDevices):
+                        self.Print("Pass","p")
+                    else:
+                        self.Print("Fail", "f"); return False
         else:
-            return False
+            self.Print("Can't find file: %s"%path, "f"); return False
+        
+        return True 
         
     def VMC(self, CNTLID, RT, ACT, NR):
         CDW10=(CNTLID<<16) + (RT<<8) + ACT
@@ -397,6 +453,15 @@ class SMI_SRIOV(NVME):
         sleep(1)     
         return True        
     
+    def FunctionLevel_reset(self, SubDUT, writeValue):       
+        SubDUT.write_pcie(SubDUT.PXCAP, 0x9, SubDUT.IFLRV)
+        sleep(1)
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(SubDUT.pcie_port), 1) 
+        if SubDUT.dev_alive:            
+            return True        
+        else:
+            return False     
+    
     def DeleteCreateAttach_NS(self, SubDUT, writeValue):        
         return SubDUT.ResetNS()                
                       
@@ -414,7 +479,7 @@ class SMI_SRIOV(NVME):
                     self.Print("Check %s: Expected string at block 0 is '%s' : Fail"%(Dev, Dev), "f") if printInfo else None
                     mPass=False
         return mPass        
-    
+    '''
     def TestSpecificVFandOtherVFshouldNotBeModified(self, SpecificDevice):
         
         #write data to all devices, except SpecificDevice
@@ -462,7 +527,7 @@ class SMI_SRIOV(NVME):
                 return False
             self.Print("")
         return True
-    
+    '''
     def Push(self, device, TestItemID,scriptName, writeValue, rtPass):
         # write info to mutex variable
         self.lock.acquire()
@@ -470,14 +535,15 @@ class SMI_SRIOV(NVME):
         self.MutexThreadOut.append([device, TestItemID,scriptName, writeValue, rtPass])                
         self.lock.release()        
             
-    def ThreadTest(self, device, testTime): 
+    def ThreadTest(self, device, DevType, testTime): 
         # device = /dev/nvmeXn1
+        # DevType ="PF" of "VF"
         
         # create SubDUT to use NVME object for specific device, e.x. /dev/nvme2n1, note that argv is type list
         SubDUT = NVME([device])    
         
         # get test items for current device
-        ThreadTestItem=self.GetCurrentDutTestItem(SubDUT)
+        ThreadTestItem=self.GetCurrentDutTestItem(SubDUT, DevType)
         # unmask below to get all command in /log/xxxx.cmdlog
         if self.TestModeOn:
             SubDUT.RecordCmdToLogFile=True        
@@ -546,8 +612,16 @@ class SMI_SRIOV(NVME):
         # clear mutex variable and IsPass=true before any thread start 
         self.MutexThreadOut=[]
         self.IsPass=True
+        isPF=True
         for Dev in self.AllDevices:
-            t = threading.Thread(target = self.ThreadTest, args=(Dev, testTime,))
+            # first is PF, other if VF
+            if isPF:
+                DevType = "PF"
+                isPF=False
+            else:
+                DevType = "VF"
+            
+            t = threading.Thread(target = self.ThreadTest, args=(Dev, DevType, testTime,))
             t.start() 
             mThreads.append(t)            
         # check if all process finished 
@@ -621,31 +695,37 @@ class SMI_SRIOV(NVME):
         else:
             self.Print( mStr ) 
             
-    def GetCurrentDutTestItem(self, SubDUT):
+    def GetCurrentDutTestItem(self, SubDUT, DevType):
+        # DevType ="PF" of "VF"
         # get current device test item, ex. /dev/nvme0n1 may test all feature
         ThreadTestItem=[]
         # add test items
         ThreadTestItem.append(["Write_Read", self.TestWriteRead])
-        ThreadTestItem.append(["Write_Compare", self.TestWriteCompare])                
+        #ThreadTestItem.append(["Write_Compare", self.TestWriteCompare])                
         # if ibaf0 is supported, i.e.  lbaf0->lbads>9 , then add test item 'TestWriteFormatRead'
-        LBAF=SubDUT.GetAllLbaf()
-        LBAF0_LBADS=LBAF[0][SubDUT.lbafds.LBADS]
-        LBAF0Supported = True if (LBAF0_LBADS >=  9) else False
-        ThreadTestItem.append(["Write_Format_Read", self.TestWriteFormatRead]) if LBAF0Supported else None        
+        #LBAF=SubDUT.GetAllLbaf()
+        #LBAF0_LBADS=LBAF[0][SubDUT.lbafds.LBADS]
+        #LBAF0Supported = True if (LBAF0_LBADS >=  9) else False
+        #ThreadTestItem.append(["Write_Format_Read", self.TestWriteFormatRead]) if LBAF0Supported else None        
         # if BlockErase sanitize is supported, i.e.  sanicap_bit1=1 , then add test item 'TestWriteSanitizeRead'
-        BlockEraseSupport = True if (SubDUT.IdCtrl.SANICAP.bit(1) == "1") else False
-        ThreadTestItem.append(["Write_Sanitize_Read", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
+        #BlockEraseSupport = True if (SubDUT.IdCtrl.SANICAP.bit(1) == "1") else False
+        #ThreadTestItem.append(["Write_Sanitize_Read", self.TestWriteSanitizeRead]) if BlockEraseSupport else None        
         # if WriteUncSupported is supported , then add test item 'WriteUncSupported'
-        WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
-        ThreadTestItem.append(["WriteUnc_Read", self.TestWriteUncRead]) if WriteUncSupported else None
+        #WriteUncSupported = True if SubDUT.IsCommandSupported(CMDType="io", opcode=0x4) else False
+        #ThreadTestItem.append(["WriteUnc_Read", self.TestWriteUncRead]) if WriteUncSupported else None
         # nvme_reset
-        ThreadTestItem.append(["Controller_Reset", self.nvme_reset])
+        #ThreadTestItem.append(["Controller_Reset", self.nvme_reset])
         # hot_reset
-        ThreadTestItem.append(["Hot_Reset", self.hot_reset])   
+        #ThreadTestItem.append(["Hot_Reset", self.hot_reset])   
         # DeleteCreateAttach_NS
-        NsSupported=True if SubDUT.IdCtrl.OACS.bit(3)=="1" else False
-        ThreadTestItem.append(["DeleteCreateAttach_NS", self.DeleteCreateAttach_NS]) if NsSupported else None        
+        #NsSupported=True if SubDUT.IdCtrl.OACS.bit(3)=="1" else False
+        #ThreadTestItem.append(["DeleteCreateAttach_NS", self.DeleteCreateAttach_NS]) if NsSupported else None   
         
+        # if is VF     
+        #if DevType=="VF":
+        #    ThreadTestItem.append(["FunctionLevel_reset", self.FunctionLevel_reset]) 
+              
+            
                    
         
         return ThreadTestItem
@@ -654,6 +734,9 @@ class SMI_SRIOV(NVME):
             
     def GetNextTestItemID(self,TotalItem, TestItemID_old):
         # return random ID that is different from  TestItemID_old
+        # if TotalItem=1 return 0 to assign the only 1 item to be tested
+        if TotalItem==1:
+            return 0
         while True:
             NewID = randint(1, 0xFF) % TotalItem
             if NewID!=TestItemID_old:
@@ -747,9 +830,108 @@ class SMI_SRIOV(NVME):
         self.root.mainloop()
         return True       
                 
+                
+    def GetVMList(self):
+    # return [id, name, state]
+        rtList=[]
+        mStr=self.shell_cmd("virsh list --all")
+        OneVM = re.findall("\d+\s+\w+\s+\w+", mStr)
+        if OneVM!=None:
+            for mVM in OneVM:
+                Id =int(re.search("(\d+)\s+(\w+)\s+(\w+)", mVM).group(1))
+                Name =re.search("(\d+)\s+(\w+)\s+(\w+)", mVM).group(2)
+                State =re.search("(\d+)\s+(\w+)\s+(\w+)", mVM).group(3)
+                rtList.append([Id, Name, State])
+            return rtList
+        else:
+            return None
+                
+    def CreateXMLforAttachDetachPCIE(self, fileName, sBus, sSlot, sFunc, dBus,dSlot, dFunc):
+        domain='0x0000'
+        fullPath="./SRIOV_Resources/%s"%fileName
+        if self.isfileExist(fullPath):
+            self.rmFile(fullPath)
+            
+        # create the file structure
+        hostdev = ET.Element('hostdev')
+        source = ET.SubElement(hostdev, 'source')
+        source_address = ET.SubElement(source, 'address')
+        rom = ET.SubElement(hostdev, 'rom')
+        address = ET.SubElement(hostdev, 'address')
+        
+        hostdev.set('mode','subsystem')
+        hostdev.set('type','pci')
+        hostdev.set('managed','yes')
+        
+        # host pcie port, ex. 0000:01:00.0 
+        source_address.set('domain',domain)
+        source_address.set('bus',"0x%X"%sBus)
+        source_address.set('slot',"0x%X"%sSlot)
+        source_address.set('function',"0x%X"%sFunc)
+        
+        # rom bar
+        rom.set('bar','on')
+        
+        # VM pcie port, find a unused port in VM before fill this value
+        address.set('type','pci')
+        address.set('domain',domain)
+        address.set('bus',"0x%X"%dBus)
+        address.set('slot',"0x%X"%dSlot)
+        address.set('function',"0x%X"%dFunc)            
+        
+        # create a new XML file with the results
+        mydata = ET.tostring(hostdev)
+        myfile = open(fullPath, "w")
+        myfile.write(mydata)        
+    
+    def CreateVM(self, VMname):
+        TempFullPath=os.path.dirname(sys.argv[0]) + "/SRIOV_Resources/Template.qcow2"
+        VMfullPath=os.path.dirname(sys.argv[0]) + "/SRIOV_Resources/%s.qcow2"%VMname
+
+        if not self.isfileExist(TempFullPath):
+            self.Print("Template file not found: %s, quit"%TempFullPath)
+            return False
+        
+        
+        # if file exist, remove it
+        if self.isfileExist(VMfullPath):
+            self.rmFile(VMfullPath)
+            
+        # create Snapshot image
+        self.shell_cmd("qemu-img create -f qcow2 -o backing_file=%s %s"%(TempFullPath, VMfullPath))
+        
+        # create VM
+        self.shell_cmd("virt-install -n %s -r 1024 --os-type=linux --disk %s,device=disk,bus=ide -w  bridge=virbr0,model=virtio \
+        --vnc  --import   --os-variant rhel7 --noautoconsole"%(VMname, VMfullPath))
+
+        # verify
+        if self.shell_cmd("virsh list --all |grep %s 2>&1 >/dev/null; echo $?"%VMname)=="0":
+            return True
+        else:
+            return False
+        
+    def PowerOnVM(self, VMname):
+        self.shell_cmd("virsh start %s"%VMname)
+        
+    def PowerOffVM(self, VMname):
+        self.shell_cmd("virsh shutdown  %s"%VMname)       
+    
     def __init__(self, argv):
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
+        
+        # config file parameters
+        self.config_numvfs=None
+        #parse file
+        self.Print("parse config file if exist..")
+        if self.ParseConfigFile():
+            self.Print("done")        
+        else:
+            self.Print("file not found")  
+        
+        # change timeout
+        if self.mTestTime!=None:
+            SMI_SRIOV.SubCase1TimeOut = 200+self.mTestTime
         
         # UI define
         self.UsingGUI=self.CheckTkinter()
@@ -759,7 +941,8 @@ class SMI_SRIOV(NVME):
         self.root=None
                 
         # get TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)
-        self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
+        #self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
+        self.TotalVFs = self.shell_cmd("cat /sys/class/block/nvme0n1/device/device/sriov_totalvfs")
         
         # get PrimaryControllerCapabilitiesStructure
         self.PCCStructure = self.Get_PrimaryControllerCapabilitiesStructure()
@@ -792,6 +975,10 @@ class SMI_SRIOV(NVME):
         
         # device lists, first is PF, others is VF
         self.AllDevices=list(self.dev)
+        # vf all off, nvme list
+        self.VFoff_NvmeList=0
+        # vf on, nvme list
+        self.VFon_NvmeList=0
         
         # Mutex for multi thread, [device, TestItemID,scriptName, writeValue, rtPass]
         self.lock=threading.Lock()
@@ -804,7 +991,7 @@ class SMI_SRIOV(NVME):
         
     # define pretest  
     def PreTest(self): 
-        '''                    
+               
         self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
         self.Print("TotalVFs: %s"%self.TotalVFs)
         if self.TotalVFs>0:
@@ -812,6 +999,15 @@ class SMI_SRIOV(NVME):
         else:
             self.Print("PCIe device do not support SR-IOV, quit all", "w"); return False  
             
+        # if user define test number of VF 
+        if self.config_numvfs!=None:
+            self.TotalVFs=self.config_numvfs
+            
+        self.Print("")
+        self.Print("SR-IOV test number of VF : %s"%self.TotalVFs)
+
+        
+        '''    
         self.Print("")
         self.Print("Check if number of Secondary Controller List in identify structure is equal to the value of")
         self.Print("TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)")        
@@ -822,7 +1018,7 @@ class SMI_SRIOV(NVME):
             self.Print("Pass", "p"); 
         else: 
             self.Print("Fail, quit all", "f"); return False  
-        
+        '''
         self.Print("")
         if self.VirtualizationManagementCommandSupported:
             self.Print("Virtualization Management Command Supported: Yes")
@@ -848,68 +1044,177 @@ class SMI_SRIOV(NVME):
             self.Print("Linux's sysfs support SRIOV: Yes")
         else:
             self.Print("Linux's sysfs support SRIOV: No", "w")    
-        '''            
+        
+        # reset VF   
+        '''
+        nmuvfs = self.GetCurrentNumOfVF()
+        self.Print("Current Num Of VF: %s"%nmuvfs, "p")
+        if nmuvfs!="0":
+            self.Print("Set all VF offline")
+            if not self.SetCurrentNumOfVF(0):
+                self.Print("Fail, quit all", "f"); return False  
+        '''
+        # backup os nvme list            
+        self.VFoff_NvmeList=self.GetCurrentNvmeList()
+                
+        self.Print("")            
+        
         return True            
     
     # <define sub item scripts>
     SubCase1TimeOut = 600
-    SubCase1Desc = "Enable all VF with all Flexible Resources"   
+    SubCase1Desc = "Test if the operation of PF and VFs influences its controller only"   
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0       
+                              
+        self.Print("") 
+        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+        if not self.SetCurrentNumOfVF(self.TotalVFs):
+            self.Print("Create VF Fail, quit all", "f"); return 1               
+                
+       
+        # test all test item in all VF and can't interfere with each other
+        #specificVF = self.AllDevices[1]
+        #self.Print("Test when having testing in all VF, the testings can't interfere with each other")
+        self.Print("")
+        timeout=self.mTestTime if self.mTestTime!=None else 60
+        self.Print(" Test if the operation of PF and VFs influences its controller only, timeout : %s sceond"%self.mTestTime)
+        if not self.MultiThreadTest(timeout): return 1 
         
-        '''
         self.Print("") 
         self.Print("Set all VF offline")
         if not self.SetCurrentNumOfVF(0):
-            self.Print("Fail, quit all", "f"); return 1   
-        
-        # backup os nvme list            
-        VFOff_NvmeList=self.GetCurrentNvmeList()
-        
-        
-        self.Print("") 
-        self.Print("Set all VF online")
-        if not self.SetCurrentNumOfVF(len(self.SecondaryControllerList)):
-            self.Print("Fail, quit all", "f"); return 1               
-        
-        
-        # linux nvme list after enable VF
-        VFOn_NvmeList=self.GetCurrentNvmeList()
-        VFDevices = list(set(VFOn_NvmeList) - set(VFOff_NvmeList)).sort()
-        NumOfVF=len(self.SecondaryControllerList)
-        self.Print("Check if linux os create %s NVMe device under folder /dev/"%NumOfVF)
-        self.Print("")
-        for Dev in VFDevices:
-            self.Print(Dev)
-        if NumOfVF==len(VFDevices):
-            self.Print("Pass","p")
-        else:
             self.Print("Fail, quit all", "f"); return 1
         
-        '''
-        # append all devices for testing , where AllDevices[0] is PF, others is VF     
-        PFDevices= [self.dev]
-        self.AllDevices = PFDevices + ["/dev/nvme1n1"] +["/dev/nvme2n1"]  
-        
-        '''        
-        # test all test item in one VF and other VF/PF should not be modified 
-        specificVF = self.AllDevices[1]        
-        self.Print("Test when having testing in specific VF(%s), other VF should not be modified"%specificVF)
-        if not self.TestSpecificVFandOtherVFshouldNotBeModified(specificVF): return 1
-        '''
-       
-        # test all test item in all VF and can't interfere with each other
-        specificVF = self.AllDevices[1]
-        self.Print("Test when having testing in all VF, the test can't interfere with each other")
-        if not self.MultiThreadTest(60): return 1        
-        
-
-
+        self.Print("Done!")
         
         return ret_code
 
 
+    SubCase2TimeOut = 600
+    SubCase2Desc = "Test power cycle"   
+    SubCase2KeyWord = ""
+    def SubCase2(self):
+        ret_code=0       
+                                    
+        
+        #self.AllDevices = [self.dev] + ["/dev/nvme1n1"] + ["/dev/nvme2n1"]+["/dev/nvme3n1"] + ["/dev/nvme4n1"]
+                             
+        self.Print("") 
+        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+        if not self.SetCurrentNumOfVF(self.TotalVFs):
+            self.Print("Create VF Fail, quit all", "f"); return 1               
+               
+       
+        # test all test item in all VF and can't interfere with each other
+        #specificVF = self.AllDevices[1]
+        #self.Print("Test when having testing in all VF, the testings can't interfere with each other")
+        self.Print("")
+        dataPattern_List=[]
+        self.Print(" Write data to PF and all VFs: %s"%self.AllDevices)
+        for device in self.AllDevices:
+            dataPattern=randint(1, 0xFF)    
+            dataPattern_List.append(dataPattern)     
+            SubDUT = NVME([device])  
+            SubDUT.fio_write(offset=0, size="10M", pattern=dataPattern, fio_direct=0)
+            if not SubDUT.fio_isequal(offset=0, size="10M", pattern=dataPattern, fio_direct=0):
+                self.Print("Fail!, FIO write data to %s with pattern %s fail, quit test", "f")
+                return 0
+        self.Print("Done")
+        
+        self.Print("")
+        self.Print("Power off device and then power on..")
+        self.por_reset()
+        sleep(1)
+        self.Print("Done")   
+             
+        self.Print("")            
+        self.Print("Check data petterns in all VF and PF") 
+        cnt=0
+        for device in range(len(self.AllDevices)):
+            dataPattern = dataPattern_List[cnt]
+            if not SubDUT.fio_isequal(offset=0, size="10M", pattern=dataPattern, fio_direct=0):
+                self.Print("Fail!, data changed, expect pattern = %s"%dataPattern, "f")
+                self.Print("hexdump data blow ..", "f")
+                self.shell_cmd("hexdump %s -n 512 -C"%SubDUT.dev)
+                self.Print("")   
+                self.Print("quit", "f") 
+                return 1  
+            
+        self.Print("Pass")
+            
+        
+        self.Print("") 
+        self.Print("Set all VF offline")
+        if not self.SetCurrentNumOfVF(0):
+            self.Print("Fail, quit all", "f"); return 1
+        
+        self.Print("Done!")
+        
+        return ret_code
+
+    SubCase3TimeOut = 600
+    SubCase3Desc = "Test virtual machine"   
+    SubCase3KeyWord = ""
+    def SubCase3(self):
+        # note: using TotalVFs to decide the number of VM
+        ret_code=0   
+        
+        self.Print("Check if kernel boot parameter intel_iommu=on at boot option(/etc/default/grub)")      
+        if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
+            self.Print("Pass!", "p")
+        else:
+            self.Print("intel_iommu=off, quit", "p")
+            return 255
+        
+        self.Print("")  
+        self.Print("Check if tools was installed")
+        if not self.isCMDExist("virsh"):
+            self.Print("Cant find virsh, please install libvirt before test, quit")
+            return 255
+        else:
+            self.Print("Pass!", "p")
+            
+        self.Print("")        
+        self.Print("Create virtual machines VF0 to VF%s"%(self.TotalVFs-1))        
+        for i in range(self.TotalVFs):
+            VMname="VF%s"%i
+            if not self.CreateVM(VMname):
+                self.Print("Fail to create %s"%VMname)
+                return 1
+        self.Print("Done")
+            
+        self.Print("")
+        self.Print("Power on virtual machines VF0 to VF%s"%(self.TotalVFs-1))    
+        for i in range(self.TotalVFs):
+            VMname="VF%s"%i
+            self.PowerOnVM(VMname)
+            
+            
+        VirshList = self.GetVMList(self.TotalVFs)
+        
+        
+        
+        self.CreateXMLforAttachDetachPCIE("mtest", 1, 0, 0, 6, 2, 0)
+        
+        
+        
+        self.Print("")
+        self.Print("Remove all virtual machines")
+        test = self.GetVMList()
+                    
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        return ret_code
+        
     '''
     SubCase2TimeOut = 600
     SubCase2Desc = "Enable all VF with all Flexible Resources"   
@@ -924,7 +1229,7 @@ class SMI_SRIOV(NVME):
             self.Print("Fail, quit all", "f"); return 1   
         
         # backup os nvme list            
-        VFOff_NvmeList=self.GetCurrentNvmeList()
+        self.VFoff_NvmeList=self.GetCurrentNvmeList()
         
         self.Print("Try to set Primary Controller Resources to Minimum")
         self.Set_PF_ResourceMinimum(printInfo=True)
@@ -997,8 +1302,8 @@ class SMI_SRIOV(NVME):
 
         
         # linux nvme list after enable VF
-        VFOn_NvmeList=self.GetCurrentNvmeList()
-        VFDevices = list(set(VFOn_NvmeList) - set(VFOff_NvmeList)).sort()
+        self.VFon_NvmeList=self.GetCurrentNvmeList()
+        VFDevices = list(set(self.VFon_NvmeList) - set(self.VFoff_NvmeList)).sort()
         NumOfVF=len(self.SecondaryControllerList)
         self.Print("Check if linux os create %s NVMe device under folder /dev/"%NumOfVF)
         self.Print("")
@@ -1063,3 +1368,4 @@ if __name__ == "__main__":
     
     
     
+

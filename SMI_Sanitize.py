@@ -75,7 +75,24 @@ class SMI_Sanitize(NVME):
             self.Flow.Sanitize.SetOptions("-a %s"%self.SANACT)
             # 0< Threshold <65535
             self.Flow.Sanitize.Mode=FlowSanitizeMode.KeepSanitizeInProgress
-            self.Flow.Sanitize.Start()
+            Status = self.Flow.Sanitize.Start()
+            # if error
+            if Status != FlowSanitizeStatus.Success:
+                if Status==FlowSanitizeStatus.CommandError:
+                    self.Print("Sanitize status: CommandError", "f")
+                if Status==FlowSanitizeStatus.ExceptionOccured:
+                    self.Print("Sanitize status: ExceptionOccured", "f")
+                if Status==FlowSanitizeStatus.TimeOut:
+                    self.Print("Sanitize status: TimeOut", "f")
+                if Status==FlowSanitizeStatus.SprogCountError:
+                    self.Print("Sanitize status: SprogCountError", "f")                                    
+                if Status==FlowSanitizeStatus.OverWriteCompletedPassesCountCountError:
+                    self.Print("Sanitize status: OverWriteCompletedPassesCountCountError", "f")
+                #if Status==FlowSanitizeStatus.SanitizeGoFinishAfterEventTriger: implement at hot reset
+                    #self.Print("Sanitize status: SanitizeGoFinishAfterEventTriger", "f")               
+            
+            
+            
     
     def TestCommandAllowed(self, CMDType, Opcode, ExpectedResult, LogPageID=0):  
     # CMDType:  admin or io
@@ -157,6 +174,7 @@ class SMI_Sanitize(NVME):
     def TestOverwriteMechanism(self, OIPBP=0, OWPASS=1):
         rtCode=0
         if not self.OverwriteSupport :
+            rtCode=255
             self.Print ("Overwrite sanitize not supported, quit this test!")
         else:
             self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
@@ -205,6 +223,7 @@ class SMI_Sanitize(NVME):
     def TestBlockEraseMechanism(self):
         rtCode=0
         if not self.BlockEraseSupport :
+            rtCode=255
             self.Print ("Block Erase sanitize not supported, quit this test!")
         else:
             self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
@@ -245,6 +264,7 @@ class SMI_Sanitize(NVME):
     def TestCryptoEraseMechanism(self):
         rtCode=0
         if not self.CryptoEraseSupport :
+            rtCode=255
             self.Print ("Crypto Erase sanitize not supported, quit this test!")
         else:
             self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
@@ -412,7 +432,7 @@ class SMI_Sanitize(NVME):
 
         ret_code=0
         self.Print ("")
-
+        
         self.Print ("Delete I/O Submission Queue")
         self.TestCommandAllowed("admin", 0x0, "Allow")
         
@@ -518,6 +538,7 @@ class SMI_Sanitize(NVME):
         self.Print ("Sanitize")
         self.TestCommandAllowed("admin", 0x84, "Deny")            
 
+        
         self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code
     
@@ -621,29 +642,41 @@ class SMI_Sanitize(NVME):
             self.Print ("")
             self.Print ("Start to test hot reset while Sanitize Progress(SPROG)>=0x1FFF, Time out=120s"     )
             self.Flow.Sanitize.ShowProgress=True   
-            self.Flow.Sanitize.SetEventTrigger(self.nvme_reset)
+            self.Flow.Sanitize.SetEventTrigger(self.link_reset)
             self.Flow.Sanitize.SetOptions("-a %s"%self.SANACT)
             # 0< Threshold <65535
             self.Flow.Sanitize.SetEventTriggerThreshold(0x1FFF)      
             self.Flow.Sanitize.Mode=FlowSanitizeMode.Normal
             self.Flow.Sanitize.TimeOut=120
-            FlowStatus = self.Flow.Sanitize.Start()       
+            Status = self.Flow.Sanitize.Start()       
             
-            if  FlowStatus==0:
+            if  Status==FlowSanitizeStatus.Success:
                 self.Print("Pass", "p")
-            elif FlowStatus==2:
+            else:
+                if Status==FlowSanitizeStatus.CommandError:
+                    self.Print("Sanitize status: CommandError", "f")
+                if Status==FlowSanitizeStatus.ExceptionOccured:
+                    self.Print("Sanitize status: ExceptionOccured", "f")
+                if Status==FlowSanitizeStatus.TimeOut:
+                    self.Print("Sanitize status: TimeOut", "f")
+                if Status==FlowSanitizeStatus.SprogCountError:
+                    self.Print("Sanitize status: SprogCountError", "f")                                    
+                if Status==FlowSanitizeStatus.OverWriteCompletedPassesCountCountError:
+                    self.Print("Sanitize status: OverWriteCompletedPassesCountCountError", "f")
+                if Status==FlowSanitizeStatus.SanitizeGoFinishAfterEventTriger:
+                    self.Print("Sanitize status: After hot reset, Sprog = 0xFFFF(It may not continues after a Controller Level Reset ) ", "f")                      
+                
                 self.Print("Fail", "f")
                 self.Print ("Do POR(power off reset) to reset controller")
                 self.por_reset()
                 ret_code=1
-            else:
-                self.Print("Pass", "p")
+
                 
         self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
         return ret_code    
     
     SubCase6TimeOut = 60
-    SubCase6Desc = "Test Get Log Page – Sanitize Status Log"    
+    SubCase6Desc = "Test Get Log Page - Sanitize Status Log"    
     def SubCase6(self):    
 
         ret_code=0           
@@ -755,7 +788,7 @@ class SMI_Sanitize(NVME):
         
         if DSMSupported:
 
-            self.Print ("CDW10 - No Deallocate After Sanitize, If set to ‘1’ then the controller shall not deallocate any logical blocks ")
+            self.Print ("CDW10 - No Deallocate After Sanitize, If set to 1 then the controller shall not deallocate any logical blocks ")
             self.Print ("Start to deallocate the first block at nsid= 1")
             self.shell_cmd("nvme dsm %s -s 0 -b 1 -n 1 -d" % (self.device))                     
             #self.Print ("Check the value read from the first block, expected value: 0x5A")
