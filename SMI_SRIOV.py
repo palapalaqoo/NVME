@@ -10,7 +10,8 @@ import threading
 tkinter = None
 import os
 import xml.etree.ElementTree as ET
-
+import paramiko
+import json
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
@@ -68,7 +69,14 @@ class SMI_SRIOV(NVME):
         VIPRT=mStruct.Type.Byte2
         VIFRSM=mStruct.Type.Byte2
         VIGRAN=mStruct.Type.Byte2
-                
+    
+    class VMinfoClass():            
+        # VM
+        vmName=None
+        vmHostNVMEname=None
+        vmXmlFile=None
+        vmPciePort=None   
+        vmIpAddr=None
                     
     def Get_PrimaryControllerCapabilitiesStructure(self, printInfo=False):
         # expected data length from shell command
@@ -173,8 +181,8 @@ class SMI_SRIOV(NVME):
                     sleep(2)
                     # linux nvme list after enable VF, and get created drive name
                     self.VFon_NvmeList=self.GetCurrentNvmeList()
-                    # get VFDevices list
-                    VFDevices=[]
+                    # get self.VFDevices list
+                    self.VFDevices=[]
                     for i in range(len(self.VFon_NvmeList)):
                         find=False
                         
@@ -183,16 +191,16 @@ class SMI_SRIOV(NVME):
                                 find=True
                                 break;
                         if not find:
-                            VFDevices.append(self.VFon_NvmeList[i]) 
-                    # end of get VFDevices list          
+                            self.VFDevices.append(self.VFon_NvmeList[i]) 
+                    # end of get self.VFDevices list          
 
                     # save to AllDevices
-                    self.AllDevices = [self.dev] + VFDevices
+                    self.AllDevices = [self.dev] + self.VFDevices
                     self.Print("Check if linux os create %s NVMe device under folder /dev/"%value)
                     self.Print("Created drive:")
-                    for Dev in VFDevices:
+                    for Dev in self.VFDevices:
                         self.Print("        %s"%Dev)
-                    if value==len(VFDevices):
+                    if value==len(self.VFDevices):
                         self.Print("Pass","p")
                     else:
                         self.Print("Fail", "f"); return False
@@ -834,55 +842,86 @@ class SMI_SRIOV(NVME):
     def GetVMList(self):
     # return [id, name, state]
         rtList=[]
-        mStr=self.shell_cmd("virsh list --all")
-        OneVM = re.findall("\d+\s+\w+\s+\w+", mStr)
+        mStr=self.shell_cmd("virsh list --all| sed 1,2d")   # remove first line for re.search            
+        OneVM = re.findall("\S+\s+\w+\s+\w+", mStr)
         if OneVM!=None:
             for mVM in OneVM:
-                Id =int(re.search("(\d+)\s+(\w+)\s+(\w+)", mVM).group(1))
-                Name =re.search("(\d+)\s+(\w+)\s+(\w+)", mVM).group(2)
-                State =re.search("(\d+)\s+(\w+)\s+(\w+)", mVM).group(3)
+                # id may equal '-', means not active
+                Id =re.search("(\S+)\s+(\w+)\s+(\w+)", mVM).group(1)
+                if Id=="-":
+                    Id=0
+                else:
+                    Id =int(Id)
+                    
+                Name =re.search("(\S+)\s+(\w+)\s+(\w+)", mVM).group(2)
+                State =re.search("(\S+)\s+(\w+)\s+(\w+)", mVM).group(3)
                 rtList.append([Id, Name, State])
             return rtList
         else:
             return None
                 
-    def CreateXMLforAttachDetachPCIE(self, fileName, sBus, sSlot, sFunc, dBus,dSlot, dFunc):
-        domain='0x0000'
-        fullPath="./SRIOV_Resources/%s"%fileName
-        if self.isfileExist(fullPath):
-            self.rmFile(fullPath)
+    def AttachPCIEtoVM(self, VMname, XMLfile):
+        fullPath="./SRIOV_Resources/%s"%XMLfile
+        self.shell_cmd("virsh attach-device %s %s"%(VMname, fullPath))
+        
+    def DetachPCIEtoVM(self, VMname, XMLfile):
+        fullPath="./SRIOV_Resources/%s"%XMLfile
+        self.shell_cmd("virsh detach-device %s %s"%(VMname, fullPath))    
+    
+    def CreateXMLforAttachDetachPCIE(self):
+        #Create XML("AttachDetachPCIE.xml") file for attach/detach pci, command as below(VF0 is the name of VM)
+        # virsh attach-device VF0 AttachDetachPCIE.xml 
+        # virsh detach-device VF0 AttachDetachPCIE.xml  
+        
+        VM_xml_list=[]
+        
+        # for all VF devices
+        for device in self.VFDevices:
+                              
+            SubDUT = NVME([device]) 
+            fileName = "AttachDetachPCIE_%s.xml"%SubDUT.pcie_port
+            # get nvme pci port                 
+            sBus, sSlot, sFunc = self.GetPortBusSlotFunc(SubDUT)        
+    
+            sBus = int(sBus)
+            sSlot = int(sSlot)
+            sFunc= int(sFunc)
+            domain='0x0000'
+            fullPath="./SRIOV_Resources/%s"%fileName
+            if self.isfileExist(fullPath):
+                self.rmFile(fullPath)
+                
+            # create the file structure
+            hostdev = ET.Element('hostdev')
+            source = ET.SubElement(hostdev, 'source')
+            source_address = ET.SubElement(source, 'address')
+            rom = ET.SubElement(hostdev, 'rom')
+            address = ET.SubElement(hostdev, 'address')
             
-        # create the file structure
-        hostdev = ET.Element('hostdev')
-        source = ET.SubElement(hostdev, 'source')
-        source_address = ET.SubElement(source, 'address')
-        rom = ET.SubElement(hostdev, 'rom')
-        address = ET.SubElement(hostdev, 'address')
-        
-        hostdev.set('mode','subsystem')
-        hostdev.set('type','pci')
-        hostdev.set('managed','yes')
-        
-        # host pcie port, ex. 0000:01:00.0 
-        source_address.set('domain',domain)
-        source_address.set('bus',"0x%X"%sBus)
-        source_address.set('slot',"0x%X"%sSlot)
-        source_address.set('function',"0x%X"%sFunc)
-        
-        # rom bar
-        rom.set('bar','on')
-        
-        # VM pcie port, find a unused port in VM before fill this value
-        address.set('type','pci')
-        address.set('domain',domain)
-        address.set('bus',"0x%X"%dBus)
-        address.set('slot',"0x%X"%dSlot)
-        address.set('function',"0x%X"%dFunc)            
-        
-        # create a new XML file with the results
-        mydata = ET.tostring(hostdev)
-        myfile = open(fullPath, "w")
-        myfile.write(mydata)        
+            hostdev.set('mode','subsystem')
+            hostdev.set('type','pci')
+            hostdev.set('managed','yes')
+            
+            # host pcie port, ex. 0000:01:00.0 
+            source_address.set('domain',domain)
+            source_address.set('bus',"0x%X"%sBus)
+            source_address.set('slot',"0x%X"%sSlot)
+            source_address.set('function',"0x%X"%sFunc)
+            
+            # rom bar
+            rom.set('bar','on')
+            
+            # VM pcie port, find a unused port in VM before fill this value
+            address.set('type','pci')         
+            
+            # create a new XML file with the results
+            mydata = ET.tostring(hostdev)
+            myfile = open(fullPath, "w")
+            myfile.write(mydata) 
+            
+            # save to VM_xml_list, example [ '/dev/nvme1n1' , 'AttachDetachPCIE_0000:01:00.1', '0000:01:00.1' ]
+            VM_xml_list.append([ device, fileName, SubDUT.pcie_port])   
+        return VM_xml_list    
     
     def CreateVM(self, VMname):
         TempFullPath=os.path.dirname(sys.argv[0]) + "/SRIOV_Resources/Template.qcow2"
@@ -891,6 +930,19 @@ class SMI_SRIOV(NVME):
         if not self.isfileExist(TempFullPath):
             self.Print("Template file not found: %s, quit"%TempFullPath)
             return False
+        
+        # if VM exist, delete it
+        VirshList = self.GetVMList()
+        if VirshList!= None:
+            for List in VirshList:     
+                ListVMname=List[1]     
+                if ListVMname==VMname:
+                    self.Print("Previous %s exist, try to remove it and rebulid"%ListVMname)
+                    ListState = List[2]
+                    # if is running, do shut down first
+                    if ListState=="running":
+                        self.shell_cmd("virsh destroy  --domain %s"%ListVMname)
+                    self.shell_cmd("virsh undefine --domain %s"%ListVMname)
         
         
         # if file exist, remove it
@@ -901,8 +953,9 @@ class SMI_SRIOV(NVME):
         self.shell_cmd("qemu-img create -f qcow2 -o backing_file=%s %s"%(TempFullPath, VMfullPath))
         
         # create VM
-        self.shell_cmd("virt-install -n %s -r 1024 --os-type=linux --disk %s,device=disk,bus=ide -w  bridge=virbr0,model=virtio \
-        --vnc  --import   --os-variant rhel7 --noautoconsole"%(VMname, VMfullPath))
+        CMD="virt-install -n %s -r 1024 --os-type=linux --disk %s,device=disk,bus=ide -w  bridge=virbr0,model=virtio \
+        --vnc  --import   --os-variant rhel7 --noautoconsole"%(VMname, VMfullPath)
+        self.shell_cmd(CMD)
 
         # verify
         if self.shell_cmd("virsh list --all |grep %s 2>&1 >/dev/null; echo $?"%VMname)=="0":
@@ -916,6 +969,67 @@ class SMI_SRIOV(NVME):
     def PowerOffVM(self, VMname):
         self.shell_cmd("virsh shutdown  %s"%VMname)       
     
+    def VM_shell_cmd(self, IP, CMD):
+        s = paramiko.SSHClient()
+        s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        s.connect(hostname=IP, port=22, username="root", password="Smi888")
+        stdin, stdout, stderr = s.exec_command(CMD)
+        return stdout.read()
+    
+    def GetPortBusSlotFunc(self, SubDUT):
+        mPort = SubDUT.pcie_port # 0000:01:00.0
+        Bus = re.search(":(\d+):(\d+).(\d+)", mPort).group(1)
+        Slot = re.search(":(\d+):(\d+).(\d+)", mPort).group(2)
+        Func = re.search(":(\d+):(\d+).(\d+)", mPort).group(3)
+        return Bus, Slot, Func
+        
+    def GetVM_IPaddr(self, VMname, timeout):
+        # ex. ? (192.168.122.222) at 52:54:00:5c:1c:2b [ether] on virbr0
+        StartTime=time.time()
+        while True:            
+            rtArp = self.shell_cmd("arp -na | grep $(virsh domiflist %s | tail -n +3 | awk '{print$5}' | sed '/^$/d') "%VMname)
+            if re.search("\((.*)\)", rtArp):
+                IP = re.search("\((.*)\)", rtArp).group(1)    
+            else:
+                IP =None    
+            
+            # got ip    
+            if IP!=None: break                            
+            # timeout          
+            CurrentTime = time.time()
+            if (CurrentTime-StartTime)>timeout: break
+            sleep(1)
+            
+        return IP
+    
+    def GetFIO_Speed(self, FIOresult):
+        # FIOresult, where command  --output-format=terse 
+        findall = re.findall("([^;]*);", FIOresult)
+        if len(findall)>0:
+            read_BW_in_KBs = findall[6]
+            write_BW_in_KBs = findall[47]
+            return int(write_BW_in_KBs)
+        else:
+            return None    
+        
+    def DoFIOtest(self, info):
+        # all nvme device in VM is /dev/nvme0n1
+        FIO_CMD = self.FIO_CMD("/dev/nvme0n1")
+        IP=info.vmIpAddr
+        device= info.vmName
+        mStr = self.VM_shell_cmd(IP, FIO_CMD)
+        speedInKbyte = self.GetFIO_Speed(mStr)
+        if speedInKbyte==None:
+            self.Print("FIO fail", "f")
+            return False  
+        else:
+            self.Print("FIO write %s: bw=%s MB/s"%(device, speedInKbyte/1024), "f")      
+            return True
+        
+    def FIO_CMD(self, device):
+        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=write --numjobs=1 \
+            --offset=0 --filename=%s --name=mdata --do_verify=0  --output-format=terse --runtime=5 "%device        
+        
     def __init__(self, argv):
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
@@ -973,8 +1087,9 @@ class SMI_SRIOV(NVME):
         self.FormatTestItems=[]
         self.InitFormatTestItems()
         
-        # device lists, first is PF, others is VF
+        # device lists, first is PF, others is VF, e.g [self.dev ] + self.VFDevices[]
         self.AllDevices=list(self.dev)
+        self.VFDevices=[]
         # vf all off, nvme list
         self.VFoff_NvmeList=0
         # vf on, nvme list
@@ -984,6 +1099,11 @@ class SMI_SRIOV(NVME):
         self.lock=threading.Lock()
         self.MutexThreadOut=[]
         self.IsPass=True
+        
+        # VM
+        
+        self.VMinfo=[]  # [ VMinfoClass, VMinfoClass ...]
+        
         
         # others
         self.Running=None
@@ -1161,6 +1281,17 @@ class SMI_SRIOV(NVME):
         # note: using TotalVFs to decide the number of VM
         ret_code=0   
         
+        
+        '''
+        self.Print("") 
+        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+        if not self.SetCurrentNumOfVF(self.TotalVFs):
+            self.Print("Create VF Fail, quit all", "f"); return 1         
+        '''
+        # snchan
+        self.VFDevices=["/dev/nvme1n1"]+["/dev/nvme2n1"]+["/dev/nvme3n1"]+["/dev/nvme4n1"]
+
+        
         self.Print("Check if kernel boot parameter intel_iommu=on at boot option(/etc/default/grub)")      
         if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
             self.Print("Pass!", "p")
@@ -1175,35 +1306,133 @@ class SMI_SRIOV(NVME):
             return 255
         else:
             self.Print("Pass!", "p")
-            
+        
+        # start ------------------------------------------------------------------------------    
+        # init VMinfo and VMname
+        for i in range(self.TotalVFs):    
+            info = self.VMinfoClass()
+            info.vmName="VF%s"%i
+            self.VMinfo.append(info)
+        ''' snchan
         self.Print("")        
         self.Print("Create virtual machines VF0 to VF%s"%(self.TotalVFs-1))        
-        for i in range(self.TotalVFs):
-            VMname="VF%s"%i
-            if not self.CreateVM(VMname):
-                self.Print("Fail to create %s"%VMname)
+        for info in self.VMinfo:
+            name = info.vmName
+            if not self.CreateVM(name):
+                self.Print("Fail to create %s"%name)
                 return 1
         self.Print("Done")
-            
+        '''
         self.Print("")
-        self.Print("Power on virtual machines VF0 to VF%s"%(self.TotalVFs-1))    
-        for i in range(self.TotalVFs):
-            VMname="VF%s"%i
-            self.PowerOnVM(VMname)
+        timeout=60
+        self.Print("Get IP address of all VMs, timeout %s s"%timeout)
+        for info in self.VMinfo:
+            name = info.vmName
+            IP = self.GetVM_IPaddr(name, timeout)
+            if IP==None:
+                self.Print("Fail to get ip address : %s"%(name))
+                return 1
+            self.Print("%s : %s"%(name, IP))
+            info.vmIpAddr=IP
+        ''' snchan  
+        self.Print("")
+        self.Print("Host FIO write speed test")   
+        self.Print("--------------------------------------")     
+        for device in self.VFDevices:
+            SubDUT = NVME([device])
+            FIO_CMD = self.FIO_CMD(device)   
+            mStr = SubDUT.shell_cmd(FIO_CMD)
+            speedInKbyte = self.GetFIO_Speed(mStr)
+            if speedInKbyte==None:
+                self.Print("FIO fail", "f")
+                return 1
+            else:
+                self.Print("FIO write %s: bw=%s MB/s"%(device, speedInKbyte/1024), "f")
+        self.Print("--------------------------------------") 
+          
+        self.Print("")     
+        self.Print("Create XML files for Attach Detach PCIE to VM")
+        # create xml file for attach/detach command
+        VM_xml_list = self.CreateXMLforAttachDetachPCIE()        
+        # check if VMname =  xml file for attach/detach command
+        if len(self.VMinfo)!=len(VM_xml_list)  :
+            self.Print("Number of VM != number of XML files", "f")
+            return 1
+        else:
+            # copy to VMinfo
+            for i in range(len(self.VMinfo)):
+                info=self.VMinfo[i];
+                info.vmHostNVMEname=VM_xml_list[i][0]
+                info.vmXmlFile=VM_xml_list[i][1]
+                info.vmPciePort=VM_xml_list[i][2]
+            self.Print("Done")
             
-            
-        VirshList = self.GetVMList(self.TotalVFs)
-        
-        
-        
-        self.CreateXMLforAttachDetachPCIE("mtest", 1, 0, 0, 6, 2, 0)
-        
-        
         
         self.Print("")
-        self.Print("Remove all virtual machines")
-        test = self.GetVMList()
-                    
+        self.Print("Attach SR-IOV PCIE device to guest VMs and do FIO test")
+        for info in self.VMinfo:
+            VMname = info.vmName
+            PCIEport = info.vmPciePort
+            XMLfile = info.vmXmlFile
+            NVMEname= info.vmHostNVMEname
+            self.Print("Attach PCIe %s(%s) to %s"%(PCIEport, NVMEname, VMname))
+            self.AttachPCIEtoVM(VMname, XMLfile)
+        
+        
+        '''
+        '''
+        self.Print("")
+        self.Print("Virtual machine FIO write speed test") 
+        self.Print("--------------------------------------") 
+        for info in self.VMinfo:            
+            if not self.DoFIOtest(info): return 1                
+        self.Print("--------------------------------------") 
+        '''
+        self.Print("")
+        self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously ")
+        mThreads = [] 
+        '''
+        for info in self.VMinfo:            
+            t = threading.Thread(target = self.DoFIOtest, args=(info,))
+            t.start() 
+            mThreads.append(t) 
+        '''           
+        t = threading.Thread(target = self.DoFIOtest, args=(self.VMinfo[0],))
+        t.start() 
+        mThreads.append(t)         
+        t = threading.Thread(target = self.DoFIOtest, args=(self.VMinfo[1],))
+        t.start() 
+        mThreads.append(t)           
+        t = threading.Thread(target = self.DoFIOtest, args=(self.VMinfo[2],))
+        t.start() 
+        mThreads.append(t)           
+        # check if all process finished 
+        while True:
+            allfinished=1
+            for process in mThreads:
+                if process.is_alive():
+                    allfinished=0
+                    break        
+                
+            # if all process finished then, quit while loop, else  send reset command
+            if allfinished==1:        
+                break
+            else:               
+                sleep(1)             
+        
+        self.Print("")
+        self.Print("")
+        self.Print("")
+
+        
+        
+        
+        
+        
+            
+
+        
+        
         
         
         
@@ -1303,13 +1532,13 @@ class SMI_SRIOV(NVME):
         
         # linux nvme list after enable VF
         self.VFon_NvmeList=self.GetCurrentNvmeList()
-        VFDevices = list(set(self.VFon_NvmeList) - set(self.VFoff_NvmeList)).sort()
+        self.VFDevices = list(set(self.VFon_NvmeList) - set(self.VFoff_NvmeList)).sort()
         NumOfVF=len(self.SecondaryControllerList)
         self.Print("Check if linux os create %s NVMe device under folder /dev/"%NumOfVF)
         self.Print("")
-        for Dev in VFDevices:
+        for Dev in self.VFDevices:
             self.Print(Dev)
-        if NumOfVF==len(VFDevices):
+        if NumOfVF==len(self.VFDevices):
             self.Print("Pass","p")
         else:
             self.Print("Fail, quit all", "f"); return 1

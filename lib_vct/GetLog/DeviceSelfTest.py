@@ -13,6 +13,8 @@ class SelfTestResultDataStructure_Descriptor(object,NVMECom):
         # DataStructureOffset in get log page- device self test log
         self.DataStructureOffset = 4+(WhichNumber-1)*28
         self._mNVME = obj    
+        # init NVMECom
+        NVMECom.__init__(self, obj)          
         self._LogPageOffsetSupport = True if self._mNVME.IdCtrl.LPA.bit(2)=="1" else False
     
     def GetDataInInt(self, startbyte, stopbyte):
@@ -79,16 +81,17 @@ class DeviceSelfTest_(object, NVMECom):
     def CDSTO(self):
         # Current Device Self-Test Operation
         # ret int
-        return self.str2int(self.get_log(0x6, 20)[0:2])
+        return self._mNVME.str2int(self._mNVME.get_log(0x6, 20)[0:2])
     @property
     def CDSTC(self):
         # Current Device Self-Test Completion
         # ret int
-        return self.str2int(self.get_log(0x6, 20)[2:4])    
+        return self._mNVME.str2int(self._mNVME.get_log(0x6, 20)[2:4])    
             
     def __init__(self, obj):
         self._mNVME = obj    
-        
+        # init NVMECom
+        #NVMECom.__init__(self, obj)
         self.TestResultDataStructure_1th=SelfTestResultDataStructure_Descriptor(obj, 1)
         self.TestResultDataStructure_2th=SelfTestResultDataStructure_Descriptor(obj, 2)
         self.TestResultDataStructure_3th=SelfTestResultDataStructure_Descriptor(obj, 3)

@@ -6,6 +6,7 @@ Created on Jul 26, 2019
 import re
 import os
 import sys
+from time import sleep
 
 def shell_cmd(cmd):
     #print to command log      
@@ -14,6 +15,35 @@ def shell_cmd(cmd):
     fd.close()
     return msg 
 
+def isCMDExist(self, cmd):
+    CMD= "command -v %s 2>&1 >/dev/null ; echo $?"%cmd
+    if self.shell_cmd(CMD)=="0":
+        return True
+    else:
+        return False  
+
+
+#------------------------------------------------------------------------------------------------------------------------------------------
+package = "paramiko"
+print "check if module %s was installed"%package
+try:
+    __import__(package)
+except ImportError:
+    print "Not install , Try to install package"   
+    shell_cmd("tar -xzf pycrypto-2.6.tar.gz ; cd pycrypto-2.6 ; python setup.py install")
+    shell_cmd("tar -xzf paramiko-1.14.0.tar.gz ; cd paramiko-1.14.0 ; python setup.py install")
+    shell_cmd("tar -xzf ecdsa-0.11.tar.gz ; cd ecdsa-0.11 ; python setup.py install")
+    sleep(0.5)
+    
+    
+    try:
+        __import__(package)
+        print "Install success!"
+    except ImportError:
+        print "Install fail!" 
+        return 1
+    
+#------------------------------------------------------------------------------------------------------------------------------------------
 BootType=""
 print "Check system booted as EFI/UEFI or BIOS"
 if shell_cmd("[ -d /sys/firmware/efi ] && echo UEFI || echo BIOS")=="UEFI":

@@ -13,14 +13,28 @@ from shutil import copyfile
 copyType=1
 
 copyFileName=[]
-#copyFileName.append("lib_vct/NVMECom")
+#copyFileName.append("lib_vct/NVME.py")
 #copyFileName.append("Flow/Sanitize")
 #copyFileName.append("SMI_Format.py")
-copyFileName.append("SMI_SetGetFeatureCmd.py")
-copyFileName.append("SMI_FeatureHCTM.py")
+#copyFileName.append("SMI_SetGetFeatureCmd.py")
+#copyFileName.append("SMI_FeatureHCTM.py")
 
+copyFileName.append("lib_vct/NVME.py")
+copyFileName.append("lib_vct/NVMECom.py")
+copyFileName.append("lib_vct/IdCtrl.py")
+copyFileName.append("lib_vct/IdNs.py")
+copyFileName.append("lib_vct/IOCTL.py")
+copyFileName.append("lib_vct/RegDescriptor.py")
+copyFileName.append("lib_vct/ControllerRegister.py")
 
+copyFileName.append("lib_vct/Flow/DST.py")
+copyFileName.append("lib_vct/Flow/Flow.py")
+copyFileName.append("lib_vct/Flow/Sanitize.py")
 
+copyFileName.append("lib_vct/GetLog/DeviceSelfTest.py")
+copyFileName.append("lib_vct/GetLog/GetLog.py")
+copyFileName.append("lib_vct/GetLog/SanitizeStatus.py")
+copyFileName.append("lib_vct/GetLog/SMART.py")
 
 
 
@@ -79,10 +93,10 @@ def doCopy(src_file, dst_file):
 
 
 def mCopy(name):
-    srcDir="/root/sam/Eclipse/NVME/"
+    srcDir="/root/sam/eclipse/NVME/"
 
     #dstPath="/root/sam/share/Git/Linux/Linux_regress/Script/" 
-    dstPath="/root/sam/Git/test/Linux/Linux_regress/Script/" 
+    dstPath="/root/sam/git/linux/regress/Script/" 
     #dstPath="/root/sam/buf/"
        
     # copy lib_vct
@@ -137,8 +151,10 @@ mCopy(Name)
 
 Name="SMI_StatusCode"
 mCopy(Name)
-
-
+Name="SMI_PCIPowerStatus"
+mCopy(Name)
+Name="SMI_MetadataTest"
+mCopy(Name)
 
 print "copy counter : %s"%copyCnt
 print "Done"

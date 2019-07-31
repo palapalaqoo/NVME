@@ -379,7 +379,7 @@ class SMI_NVMeReset(NVME):
         ret_code = self.TestStopsProcessingAnyOutstandingAdminCommand(self.FunctionLevelReset)
         return ret_code    
     
-
+    '''
     SubCase8TimeOut = 1200
     SubCase8Desc = "Test if stop processing any outstanding IO command - Controller Reset"        
     def SubCase8(self):        
@@ -409,7 +409,7 @@ class SMI_NVMeReset(NVME):
     def SubCase12(self):        
         ret_code = self.TestStopsProcessingAnyOutstandingIOCommand(self.FunctionLevelReset)
         return ret_code                  
-
+    '''
     # </sub item scripts> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     
