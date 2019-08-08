@@ -1012,7 +1012,24 @@ class SMI_SRIOV(NVME):
         else:
             return None    
         
-    def DoFIOtest(self, info):
+    def DoHost_FIOtest(self, device, outputFilename):
+        # issue command
+        FIO_CMD = self.FIO_CMD(device)
+        mStr = self.shell_cmd(FIO_CMD)
+        
+        # save to file, FilePath=./Log/FIO_devnvme0n1.txt
+        FilePath = "./Log/%s"%outputFilename
+        with open(FilePath, "w") as text_file:
+            text_file.write(mStr)
+        
+        # check if get fio bw    
+        speedInKbyte = self.GetFIO_Speed(mStr)
+        if speedInKbyte==None:
+            return False  
+        else:       
+            return True        
+        
+    def DoVM_FIOtest(self, info):
         # all nvme device in VM is /dev/nvme0n1
         FIO_CMD = self.FIO_CMD("/dev/nvme0n1")
         IP=info.vmIpAddr
@@ -1022,13 +1039,106 @@ class SMI_SRIOV(NVME):
         if speedInKbyte==None:
             self.Print("FIO fail", "f")
             return False  
-        else:
-            self.Print("FIO write %s: bw=%s MB/s"%(device, speedInKbyte/1024), "f")      
+        else:   
+            self.Print("FIO write %s: bw=%.1f MiB/s,  bandwidth (KB/s):%s"%(device, speedInKbyte/float(1024), speedInKbyte), "f") 
             return True
+
+    def DoHostStandaloneAllDeviceFIOtest(self):
+    # HostFIOsimuOutList, simultaneously test result file        
+        HostFIOoutList=[]
+        for device in self.AllDevices:
+            self.Print("Do FIO for  %s"%device)
+            FileName = "HostFIO_%s.txt"%device.replace("/","")
+            HostFIOoutList.append(FileName)
+            if not self.DoHost_FIOtest(device, FileName):
+                return 1
+            else:                
+                mStr =self.ReadFile(FileName)
+                speedInKbyte = self.GetFIO_Speed(mStr)
+                if speedInKbyte==None:
+                    self.Print("FIO fail", "f")
+                    return 1
+                else:
+                    self.Print("Result: FIO write %s: bw=%.1f MiB/s,  bandwidth (KB/s):%s"%(device, speedInKbyte/float(1024), speedInKbyte), "f")    
+        return HostFIOoutList
+    
+    def DoHostSimultaneouslyFIOtest(self,deviceList):
+    # deviceList, device will be compared
+    # HostFIOsimuOutList, simultaneously test result file
+        mThreads = [] 
+        HostFIOsimuOutList=[]
+        for device in deviceList:
+            FileName = "HostFIOsimu_%s.txt"%device.replace("/","")
+            HostFIOsimuOutList.append(FileName)
+            t = threading.Thread(target = self.DoHost_FIOtest, args=(device,FileName,))
+            t.start() 
+            mThreads.append(t) 
+                        
+        # check if all process finished 
+        while True:
+            allfinished=1
+            for process in mThreads:
+                if process.is_alive():
+                    allfinished=0
+                    break        
+                
+            # if all process finished then, quit while loop, else  send reset command
+            if allfinished==1:        
+                break
+            else:               
+                sleep(1)   
+        return HostFIOsimuOutList
+          
+    def DoSpeedCompare(self,deviceList, HostFIOoutList, HostFIOsimuOutList):
+    # deviceList, device will be compared
+    # HostFIOoutList, standalone test result file
+    # HostFIOsimuOutList, simultaneously test result file
+        self.Print("------------------------------------------------------")   
+        self.PrintAlignString("Device", "standalone", "simultaneously")
+        cnt=0
+        sumSpeedSimu=0
+        sumSpeedStand=0
+        for device in deviceList:
+            mStr =self.ReadFile(HostFIOoutList[cnt])
+            speedInKbyteStand = self.GetFIO_Speed(mStr)
+            mStr =self.ReadFile(HostFIOsimuOutList[cnt])
+            speedInKbyteSimu = self.GetFIO_Speed(mStr) 
+                
+            speedStand = speedInKbyteStand/float(1024)
+            sumSpeedStand = sumSpeedStand+speedStand
+            speedSimu = speedInKbyteSimu/float(1024)
+            sumSpeedSimu = sumSpeedSimu + speedSimu
+            self.PrintAlignString(device, "%.1f MB/s"%speedStand, "%.1f MB/s"%speedSimu, "pass")
+            cnt=cnt+1
+            
+        self.Print("") 
+        self.Print("------------------------------------------------------") 
+        SpeedStandAverage=sumSpeedStand/len(deviceList)
+        speedText = self.UseStringStyle("%.1f MB/s"%SpeedStandAverage, fore="green")
+        self.Print("Average speed for %s, %s .. :  %s"%(deviceList[0], deviceList[1], speedText)) 
+        speedText = self.UseStringStyle("%.1f MB/s"%sumSpeedSimu, fore="green")
+        self.Print("Simultaneously test sum of bw for %s, %s .. :  %s"%(deviceList[0], deviceList[1], speedText)) 
+        self.Print("") 
+        percent = 0.9
+        self.Print("Check if sum of bw for Simultaneously test is > Average speed * %s (tolerance)"%percent) 
+        if sumSpeedSimu>=SpeedStandAverage*percent:
+            self.Print("Pass", "p") 
+            return True
+        else:
+            self.Print("Fail", "f")  
+            return False
+                
+        
+    def ReadFile(self, Filename):    
+        with open("./Log/%s"%Filename, 'r') as content_file:
+            content = content_file.read()      
+        return content  
         
     def FIO_CMD(self, device):
-        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=write --numjobs=1 \
-            --offset=0 --filename=%s --name=mdata --do_verify=0  --output-format=terse --runtime=5 "%device        
+        # output format terse,normal
+        return "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=2M --rw=write --numjobs=1 \
+            --offset=0 --filename=%s --name=mdata --do_verify=0  \
+            --output-format=terse,normal --runtime=5"%(device)        
         
     def __init__(self, argv):
         # initial parent class
@@ -1183,7 +1293,7 @@ class SMI_SRIOV(NVME):
     
     # <define sub item scripts>
     SubCase1TimeOut = 600
-    SubCase1Desc = "Test if the operation of PF and VFs influences its controller only"   
+    SubCase1Desc = "Test if the operation of PF and VFs influences itself only"   
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0       
@@ -1202,11 +1312,12 @@ class SMI_SRIOV(NVME):
         self.Print(" Test if the operation of PF and VFs influences its controller only, timeout : %s sceond"%self.mTestTime)
         if not self.MultiThreadTest(timeout): return 1 
         
+        '''
         self.Print("") 
         self.Print("Set all VF offline")
         if not self.SetCurrentNumOfVF(0):
             self.Print("Fail, quit all", "f"); return 1
-        
+        '''
         self.Print("Done!")
         
         return ret_code
@@ -1275,7 +1386,7 @@ class SMI_SRIOV(NVME):
         return ret_code
 
     SubCase3TimeOut = 600
-    SubCase3Desc = "Test virtual machine"   
+    SubCase3Desc = "Test SR-IOV in virtual machines"   
     SubCase3KeyWord = ""
     def SubCase3(self):
         # note: using TotalVFs to decide the number of VM
@@ -1311,11 +1422,11 @@ class SMI_SRIOV(NVME):
         # init VMinfo and VMname
         for i in range(self.TotalVFs):    
             info = self.VMinfoClass()
-            info.vmName="VF%s"%i
+            info.vmName="VM%s"%i
             self.VMinfo.append(info)
         ''' snchan
         self.Print("")        
-        self.Print("Create virtual machines VF0 to VF%s"%(self.TotalVFs-1))        
+        self.Print("Create virtual machines VM0 to VM%s"%(self.TotalVFs-1))        
         for info in self.VMinfo:
             name = info.vmName
             if not self.CreateVM(name):
@@ -1325,7 +1436,7 @@ class SMI_SRIOV(NVME):
         '''
         self.Print("")
         timeout=60
-        self.Print("Get IP address of all VMs, timeout %s s"%timeout)
+        self.Print("Get IP address of all VMs for ssh connection, timeout %s s"%timeout)
         for info in self.VMinfo:
             name = info.vmName
             IP = self.GetVM_IPaddr(name, timeout)
@@ -1369,7 +1480,7 @@ class SMI_SRIOV(NVME):
             
         
         self.Print("")
-        self.Print("Attach SR-IOV PCIE device to guest VMs and do FIO test")
+        self.Print("Attach all SR-IOV PCIE device to guest VMs")
         for info in self.VMinfo:
             VMname = info.vmName
             PCIEport = info.vmPciePort
@@ -1385,7 +1496,7 @@ class SMI_SRIOV(NVME):
         self.Print("Virtual machine FIO write speed test") 
         self.Print("--------------------------------------") 
         for info in self.VMinfo:            
-            if not self.DoFIOtest(info): return 1                
+            if not self.DoVM_FIOtest(info): return 1                
         self.Print("--------------------------------------") 
         '''
         self.Print("")
@@ -1393,17 +1504,17 @@ class SMI_SRIOV(NVME):
         mThreads = [] 
         '''
         for info in self.VMinfo:            
-            t = threading.Thread(target = self.DoFIOtest, args=(info,))
+            t = threading.Thread(target = self.DoVM_FIOtest, args=(info,))
             t.start() 
             mThreads.append(t) 
         '''           
-        t = threading.Thread(target = self.DoFIOtest, args=(self.VMinfo[0],))
+        t = threading.Thread(target = self.DoVM_FIOtest, args=(self.VMinfo[0],))
         t.start() 
         mThreads.append(t)         
-        t = threading.Thread(target = self.DoFIOtest, args=(self.VMinfo[1],))
+        t = threading.Thread(target = self.DoVM_FIOtest, args=(self.VMinfo[1],))
         t.start() 
         mThreads.append(t)           
-        t = threading.Thread(target = self.DoFIOtest, args=(self.VMinfo[2],))
+        t = threading.Thread(target = self.DoVM_FIOtest, args=(self.VMinfo[2],))
         t.start() 
         mThreads.append(t)           
         # check if all process finished 
@@ -1444,6 +1555,53 @@ class SMI_SRIOV(NVME):
         
         return ret_code
         
+        
+
+    SubCase4TimeOut = 600
+    SubCase4Desc = "Test NVMe device speed"   
+    SubCase4KeyWord = ""
+    def SubCase4(self):
+        # note: using TotalVFs to decide the number of VM
+        ret_code=0   
+        
+        self.AllDevices = [self.dev] + ["/dev/nvme1n1"] + ["/dev/nvme2n1"]+["/dev/nvme3n1"] + ["/dev/nvme4n1"]
+        '''                
+        self.Print("") 
+        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+        if not self.SetCurrentNumOfVF(self.TotalVFs):
+            self.Print("Create VF Fail, quit all", "f"); return 1                  
+        '''
+        sleep(1)
+        
+        self.Print("Devices do FIO test  ")        
+        self.Print("")
+        HostFIOoutList=self.DoHostStandaloneAllDeviceFIOtest()                 
+            
+            
+        self.Print("")                 
+        # do FIO simultaneously test, start from first two nvme device, e.x.  ["/dev/nvme0n1"] and  ["/dev/nvme1n1"] 
+        for num in range(1, len(self.AllDevices)):
+            deviceList=self.AllDevices[:num+1]  
+            self.Print("Do FIO simultaneously write test for %s"%deviceList)               
+            HostFIOsimuOutList = self.DoHostSimultaneouslyFIOtest(deviceList)
+            if not self.DoSpeedCompare(deviceList, HostFIOoutList, HostFIOsimuOutList): ret_code=1
+            self.Print("")
+        
+        
+        
+         
+         
+        ''' 
+        self.Print("") 
+        self.Print("Set all VF offline")
+        if not self.SetCurrentNumOfVF(0):
+            self.Print("Fail, quit all", "f"); return 1
+        '''
+        self.Print("Done!")         
+         
+        self.Print("") 
+        return ret_code
+                
     '''
     SubCase2TimeOut = 600
     SubCase2Desc = "Enable all VF with all Flexible Resources"   

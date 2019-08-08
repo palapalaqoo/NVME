@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20190306"
+    Version = "20190808"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -142,7 +142,7 @@ class SMI_Sanitize(NVME):
         self.Flow.Sanitize.SetEventTriggerThreshold(100)
         self.Flow.Sanitize.Start()
         
-    def WaitSanitizeOperationFinish(self, timeout=120, printInfo=False):
+    def WaitSanitizeOperationFinish(self, timeout=600, printInfo=False):
     # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout )         
         if printInfo:
             self.Print ("")
@@ -178,7 +178,7 @@ class SMI_Sanitize(NVME):
             self.Print ("Overwrite sanitize not supported, quit this test!")
         else:
             self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
-            if not self.WaitSanitizeOperationFinish(120):
+            if not self.WaitSanitizeOperationFinish(600):
                 self.Print("Time out!, exit all test ", "f")  
                 rtCode=1
             else:   
@@ -227,7 +227,7 @@ class SMI_Sanitize(NVME):
             self.Print ("Block Erase sanitize not supported, quit this test!")
         else:
             self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
-            if not self.WaitSanitizeOperationFinish(120):
+            if not self.WaitSanitizeOperationFinish(600):
                 self.Print("Time out!, exit all test ", "f")  
                 rtCode=1
             else:   
@@ -268,7 +268,7 @@ class SMI_Sanitize(NVME):
             self.Print ("Crypto Erase sanitize not supported, quit this test!")
         else:
             self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
-            if not self.WaitSanitizeOperationFinish(120):
+            if not self.WaitSanitizeOperationFinish(600):
                 self.Print("Time out!, exit all test ", "f")  
                 rtCode=1
             else:   
@@ -369,7 +369,7 @@ class SMI_Sanitize(NVME):
         
         self.Print ("")
         self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
-        if self.WaitSanitizeOperationFinish(120):
+        if self.WaitSanitizeOperationFinish(600):
             self.Print("Done", "p")
             return True
         else:
@@ -399,7 +399,7 @@ class SMI_Sanitize(NVME):
               
         
     # <sub item scripts>
-    SubCase1TimeOut = 60
+    SubCase1TimeOut = 1000
     SubCase1Desc = "Test Command Completion Queue"      
     def SubCase1(self):
         ret_code=0
@@ -421,10 +421,10 @@ class SMI_Sanitize(NVME):
             self.Print("Fail", "f")
             ret_code=1 
         
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
     
-    SubCase2TimeOut = 180
+    SubCase2TimeOut = 1000
     SubCase2Desc = "Test if only process the Admin commands listed in Figure 287"    
     def SubCase2(self):
         self.Print ("Test While a sanitize operation is in progress")
@@ -539,10 +539,10 @@ class SMI_Sanitize(NVME):
         self.TestCommandAllowed("admin", 0x84, "Deny")            
 
         
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
     
-    SubCase3TimeOut = 180
+    SubCase3TimeOut = 1000
     SubCase3Desc = "Test All I/O Commands shall be aborted"    
     def SubCase3(self):
         self.Print ("Test While a sanitize operation is in progress")
@@ -583,10 +583,10 @@ class SMI_Sanitize(NVME):
         self.Print ("Reservation Release")
         self.TestCommandAllowed("io", 0x15, "Deny")
 
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
             
-    SubCase4TimeOut = 60
+    SubCase4TimeOut = 1000
     SubCase4Desc = "Test if controller return zeros in the LBA field for get Error log command"    
     def SubCase4(self):    
         self.Print ("Test While a sanitize operation is in progress and check if controller return zeros in the LBA field for get Error Information log command")
@@ -623,10 +623,10 @@ class SMI_Sanitize(NVME):
                 self.Print("Fail", "f")
                 ret_code=1    
                 
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)  
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)  
         return ret_code
 
-    SubCase5TimeOut = 60
+    SubCase5TimeOut = 1000
     SubCase5Desc = "Test hot reset while sanitize operation is in progress"    
     def SubCase5(self):    
         self.Print ("Test Issue hot reset while a sanitize operation is in progress, and check if controller resume the sanitize operation after reset or not")
@@ -634,7 +634,7 @@ class SMI_Sanitize(NVME):
         
         self.Print ("")
         self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
-        if not self.WaitSanitizeOperationFinish(120):
+        if not self.WaitSanitizeOperationFinish(600):
             self.Print("Time out!, exit all test ", "f")  
             ret_code=1
         else:   
@@ -672,17 +672,17 @@ class SMI_Sanitize(NVME):
                 ret_code=1
 
                 
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code    
     
-    SubCase6TimeOut = 60
+    SubCase6TimeOut = 1000
     SubCase6Desc = "Test Get Log Page - Sanitize Status Log"    
     def SubCase6(self):    
 
         ret_code=0           
         self.Print ("")
         self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
-        if not self.WaitSanitizeOperationFinish(120):
+        if not self.WaitSanitizeOperationFinish(600):
             self.Print("Time out!, exit all test ", "f")  
             ret_code=1
         else:   
@@ -730,7 +730,7 @@ class SMI_Sanitize(NVME):
                 self.Print("Fail", "f")
                 ret_code=1
                 
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)        
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)        
         return ret_code    
 
     # timeout 1.1hr
@@ -739,7 +739,7 @@ class SMI_Sanitize(NVME):
     def SubCase7(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=0, OWPASS=1)      
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
             
     # timeout 1.1hr
@@ -748,7 +748,7 @@ class SMI_Sanitize(NVME):
     def SubCase8(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=1, OWPASS=1)      
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
 
     # timeout 1.1hr
@@ -757,23 +757,23 @@ class SMI_Sanitize(NVME):
     def SubCase9(self):
         self.Print("")
         ret_code=self.TestOverwriteMechanism(OIPBP=1, OWPASS=2)      
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
         
-    SubCase10TimeOut = (1200)
+    SubCase10TimeOut = (4000)
     SubCase10Desc = "Test Logical Block Data - Block Erase sanitize operation"      
     def SubCase10(self):
         self.Print("")
         ret_code=self.TestBlockEraseMechanism()      
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
 
-    SubCase11TimeOut = (1200)
+    SubCase11TimeOut = (4000)
     SubCase11Desc = "Test Logical Block Data - Crypto Erase sanitize operation"      
     def SubCase11(self):
         self.Print("")
         ret_code=self.TestCryptoEraseMechanism()     
-        self.WaitSanitizeOperationFinish(timeout=180, printInfo=True)
+        self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
                     
     # </sub item scripts> 

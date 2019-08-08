@@ -196,16 +196,32 @@ class SMI_Read(NVME):
 
     def SubCase3(self):
         ret_code=0
-        self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if read command success(expected result: command success) ")
-
-        for i in range(0x40):  
         
-            bit26to31=i
-            PRINFO=bit26to31 & 0xF
-            FUA=(bit26to31 & 0x10) >> 4
-            LR=(bit26to31 & 0x20) >> 5
-            NLB=0    
-            ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1
+        DPC = self.IdNs.DPC.int
+        DataProtectionsupported= True if (DPC>0) else False
+        self.Print ("End-to-end Data Protection Capabilities (DPC): 0x%X"%DPC)
+        self.Print ("End-to-end Data Protection supported") if DataProtectionsupported else self.Print ("End-to-end Data Protection not supported") 
+
+
+        if (DataProtectionsupported):
+            self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if read command success(expected result: command success) ")
+            for i in range(0x40):          
+                bit26to31=i
+                PRINFO=bit26to31 & 0xF
+                FUA=(bit26to31 & 0x10) >> 4
+                LR=(bit26to31 & 0x20) >> 5
+                NLB=0    
+                ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1
+        else:
+            self.Print ("set  cdw[31:30] from 0x0 to 0x3 and check if read command success(expected result: command success) ")
+            for i in range(0x4):          
+                bit26to31=i
+                FUA=(bit26to31 & 0x1)
+                LR=(bit26to31 & 0x2) >> 1
+                NLB=0    
+                PRINFO=0
+                ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1                    
+                
             
         if ret_code==0:
             self.Print("PASS", "p") 

@@ -233,12 +233,12 @@ class SMI_PCIPowerStatus(NVME):
     SubCase1Desc = "Test Power State 0000"   
     SubCase1KeyWord = ""
     def SubCase1(self):
-        ret_code=1
-        ret_code=1
-        ret_code=1
-        ret_code=1
+        ret_code=0
         
-        self.FunctionLevel_reset()
+        
+        self.ResetNS()
+        
+        #self.FunctionLevel_reset()
         
         
         
@@ -260,7 +260,7 @@ class SMI_PCIPowerStatus(NVME):
         '''
                 
         return ret_code
-    
+    '''
     def SubCase2(self):
         ret_code=1
         cdw12=0       
@@ -274,6 +274,7 @@ class SMI_PCIPowerStatus(NVME):
         self.Print("time = %s, msg %s, cdw12 %s"%(self.timer.time, mStr, cdw12), "f")
                 
         return ret_code
+    '''
     # </define sub item scripts>
 
     # define PostTest  
