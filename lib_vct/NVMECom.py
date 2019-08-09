@@ -34,38 +34,80 @@ def deadline(timeout, *args):
         return new_f
     return decorate    
 
+   
+        
 class NVMECom():   
     mTestModeOn=False
     SubItemNumValue=0
     RecordCmdToLogFile=False
-    LogName="log"
-    LogNameColor="log"
-    LogNameCmd="log"
+    LogName_summary="log"
+    LogName_SummaryColor="log"
+    LogName_CmdDetail="log"
+    LogName_ConsoleOut="log"
     
     def SubItemNum(self):
         self.SubItemNumValue+=1
         return self.SubItemNumValue
     
+
+            
     def InitLogFile(self):
-        
+        # self.LogPath default ='Log\'
         # remove all dir
-        if os.path.exists("Log"):
-            shutil.rmtree('Log') 
+        if os.path.exists(self.LogPath):
+            shutil.rmtree(self.LogPath) 
         # Create dir
-        if not os.path.exists("Log"):
-            os.makedirs("Log")
+        if not os.path.exists(self.LogPath):
+            os.makedirs(self.LogPath)
         #create log
-        NVMECom.LogName =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
-        f = open(NVMECom.LogName, "w")
+        NVMECom.LogName_Summary =  self.LogPath + "summary_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        f = open(NVMECom.LogName_Summary, "w")
         f.close()
         #create color log
-        NVMECom.LogNameColor =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".logcolor"
-        f = open(NVMECom.LogNameColor, "w")
+        NVMECom.LogName_SummaryColor = self.LogPath + "summary_color_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        f = open(NVMECom.LogName_SummaryColor, "w")
         f.close()    
         #create command log for save all host command that issue to the controller 
-        NVMECom.LogNameCmd =  "Log/output_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".logcmd"
-        f = open(NVMECom.LogNameCmd, "w")
-        f.close()          
+        NVMECom.LogName_CmdDetail =  self.LogPath + "detail_cmd_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        f = open(NVMECom.LogName_CmdDetail, "w")
+        f.close() 
+        #create command log for save all console output
+        NVMECom.LogName_ConsoleOut =  self.LogPath + "console_out_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        f = open(NVMECom.LogName_ConsoleOut, "w")
+        f.close()     
+
+        f.close() 
+        #create readme file
+        NVMECom.LogName_Readme =  self.LogPath + "readme.txt"
+        f = open(NVMECom.LogName_Readme, "w") 
+        mStr ="summary_xxx:        summary for regression tool \n" + \
+                    "summary_color_xxx:    color summary log \n" + \
+                    "detail_cmd_xxx:        all the commands issued in this test \n" + \
+                    "console_out_xxx:    color console output  \n" 
+        f.write(mStr)
+        f.write("\n")        
+        f.close()        
+        
+                
+        # redirect console output to file by using tee class
+        sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)
+        
+    class tee(object):
+        def __init__(self, logFile):
+            self.terminal = sys.stdout
+            self.log = open(logFile, "a")
+        
+        def write(self, message):
+            self.terminal.write(message)
+            self.log.write(message)  
+        
+        def flush(self):
+                #this flush method is needed for python 3 compatibility.
+                #this handles the flush command by doing nothing.
+                #you might want to specify some extra behavior here.
+            pass 
+        
+                 
             
     def __init__(self, son):        
         # set NVMECom parameters from subclass
@@ -74,6 +116,9 @@ class NVMECom():
         self.mTestModeOn=son.TestModeOn
         self.StartLocalTime=son.StartLocalTime
         self.SubCasePoint=son.SubCasePoint
+        self.LogPath=son.LogPath if  son.LogPath!=None else  'Log/'  # default = 'Log/'
+        self.LogPath='%s/'%self.LogPath if self.LogPath[-1]!='/' else self.LogPath # add / if forgot to add /
+        self.LogPath=self.LogPath[1:] if self.LogPath[0]=='/' else self.LogPath # remove / if first char is /
         
         # if object is created in subcase of main script, then do not init log files
         self.InitLogFile() if not son.isSubCaseOBJ else None
@@ -279,13 +324,13 @@ class NVMECom():
         
     def WriteLogFile(self, mStr, mfile="default"):
     # append new lines
-    # mfile: "default"= default log file, "color"= color log, "cmd"= command log
+    # mfile: "default"= default summary log file, "color"= summary color log, "cmd"= command log
         if mfile=="color":
-            f = open(NVMECom.LogNameColor, "a")
+            f = open(NVMECom.LogName_SummaryColor, "a")
         elif mfile=="cmd":
-            f = open(NVMECom.LogNameCmd, "a")            
+            f = open(NVMECom.LogName_CmdDetail, "a")            
         else:
-            f = open(NVMECom.LogName, "a")       
+            f = open(NVMECom.LogName_Summary, "a")       
         
         f.write(mStr)
         f.write("\n")        
@@ -295,11 +340,11 @@ class NVMECom():
     # append new lines
     # mfile: "default"= default log file, "color"= color log, "cmd"= command log
         if mfile=="color":
-            f = open(NVMECom.LogNameColor, "r")
+            f = open(NVMECom.LogName_SummaryColor, "r")
         elif mfile=="cmd":
-            f = open(NVMECom.LogNameCmd, "a")          
+            f = open(NVMECom.LogName_CmdDetail, "a")          
         else:
-            f = open(NVMECom.LogName, "r")       
+            f = open(NVMECom.LogName_Summary, "r")       
         
         mStr = f.read()    
         f.close()   
@@ -344,7 +389,7 @@ class NVMECom():
             # bold
             mStr = self.UseStringStyle(msg, mode="bold")            
                         
-        print self.PrefixString()+mStr
+        print self.PrefixString()+mStr 
         
             
     def PrefixString(self):
@@ -387,6 +432,7 @@ class NVMECom():
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
+        parser.add_argument("-p", "--logpath", help="log path that store logs", type=str, nargs='?')
         
 
         args = parser.parse_args(args=argv)
@@ -400,12 +446,11 @@ class NVMECom():
             # split ',' and return int[]
             mSubItems = [int(x) for x in args.subcases.split(',')]     
             
-        if args.s==None:
-            mTestTime=None
-        else:
-            mTestTime=args.s
+        mTestTime=None if args.s==None else args.s
+            
+        mLogPath=None if args.logpath==None else args.logpath
         
-        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime
+        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format
@@ -595,25 +640,41 @@ class NVMECom():
         retcode = p.returncode
         return retcode
         
-    def RunSMIScript(self, pyPath, DevAndArgs="/dev/nvme0n1" ):
-        # pyPath:             ex. 'SMI_SubProcess/SMI_Read.py'
+    def RunSMIScript(self, scriptPath=None, scriptName=None, DevAndArgs="/dev/nvme0n1", LogPath="Log/SubLog/" ):
+        # scriptPath:             ex. 'SMI_SubProcess/'
+        # scriptName:             ex. 'SMI_Read.py'
         # DevAndArgs:    ex. '/dev/nvme0n1' for all subcase or '/dev/nvme0n1 1,3,4' for subcase1,3,4
+        # LogPath:            log path that store logs
         # return retcode
         
-        # get scriptPath and scriptName
+        # format paths
+        if scriptPath!=None:
+            scriptPath='%s/'%scriptPath if scriptPath[-1]!='/' else scriptPath # add / if forgot to add /
+            scriptPath=scriptPath[1:] if scriptPath[0]=='/' else scriptPath # remove / if first char is /        
+            fullPath = scriptPath+scriptName
+        else:
+            fullPath=scriptName
+            
+        LogPath='%s/'%LogPath if LogPath[-1]!='/' else LogPath # add / if forgot to add /
+        LogPath=LogPath[1:] if LogPath[0]=='/' else LogPath # remove / if first char is /        
+                     
+            
         # check if  python file exist or not
-        if not self.shell_cmd("find %s 2> /dev/null |grep %s " %(pyPath,pyPath)):
-            self.Print("Error at func RunSMIScript, no such file: %s"%pyPath, "f")
+        if not self.shell_cmd("find %s 2> /dev/null |grep %s " %(fullPath,fullPath)):
+            self.Print("Error at func RunSMIScript, no such file: %s"%fullPath, "f")
             return -1
-        scriptPath=pyPath[0:pyPath.find("/")]
-        scriptName=pyPath[pyPath.find("/")+1:]      
-        # remove log files          
-        logFolder=scriptPath +"/Log/"
-        self.RmFolder(logFolder)
-        logPathWithUniversalCharacter=logFolder+"*.logcolor"
-        
+          
+        # set log files path
+        DevAndArgs= DevAndArgs + " --logpath %s"%LogPath
+        # set log summary path           
+        logPathWithUniversalCharacter=LogPath+"summary_color_*.log"
+                
+        # if scriptPath, add cd to the directory
+        CMD ="cd %s;"%scriptPath if scriptPath!=None else ""
+        CMD = CMD + "python %s %s "%(fullPath, DevAndArgs)
+
         # start thread
-        p = subprocess.Popen("cd %s; python %s %s "%(scriptPath, scriptName, DevAndArgs), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)           
+        p = subprocess.Popen(CMD, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)           
         cnt=0 
         # get log if any subcase finish, and print it to console while thread is ongoing
         while True:

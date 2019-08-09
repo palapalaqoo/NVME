@@ -50,7 +50,7 @@ class NVME(object, NVMECom):
             # created in subcase
             self.isSubCaseOBJ=True
             mArgv = argv # ['/dev/nvme0n1'], only 1 args
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -314,7 +314,7 @@ class NVME(object, NVMECom):
                         Code = 1               
                     # other execption
                     except Exception, error:
-                        self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%self.LogNameCmd, "f" )
+                        self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%self.LogName_CmdDetail, "f" )
                         self.Print( "Exception message as below", "f" )
                         self.Print ("")
                         self.Print( "=====================================", "f" )
@@ -370,7 +370,7 @@ class NVME(object, NVMECom):
         self.PrintColorBriefReport()
         
         # copy log to ./Case_Summary.log
-        copyfile(self.LogName, "Case_Summary.log")
+        copyfile(self.LogName_Summary, "Case_Summary.log")
 
     def GetrtCodeFrom_SubCase_rtCode(self):
         rt=0
