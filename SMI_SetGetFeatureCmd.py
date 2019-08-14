@@ -304,8 +304,16 @@ class SMI_SetGetFeatureCMD(NVME):
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
+        # initial new parser if need, -t -d -s -p was used, dont use it again
+        self.AddParserArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff", argType=int)        
+        
         # initial parent class
         super(SMI_SetGetFeatureCMD, self).__init__(argv)
+        
+        # get new parser if need, where args order is the same with initial order
+        self.DisablePwr = self.GetDynamicArgs(0)
+        self.DisablePwr = True if self.DisablePwr==1 else False
+            
 
         self.Print ("Nvme reset controller")
         self.nvme_reset()    
@@ -421,19 +429,22 @@ class SMI_SetGetFeatureCMD(NVME):
                     else:
                         self.Print("Fail", "f")
                         self.ret_code=1 
-                        
-                    self.Print ("-- Do power off and power on ")
-                    self.por_reset()
-                    sleep(0.5)
-                    # Send get feature command    
-                    GetValue = self.GetFeature(fid, sel=2)                
-                    self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
-                    self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
-                    if GetValue == value:
-                        self.Print("PASS", "p")  
+                    
+                    if self.DisablePwr:  
+                        self.Print ("-- User disable power off and power on test")
                     else:
-                        self.Print("Fail", "f")
-                        self.ret_code=1                         
+                        self.Print ("-- Do power off and power on ")
+                        self.por_reset()
+                        sleep(0.5)
+                        # Send get feature command    
+                        GetValue = self.GetFeature(fid, sel=2)                
+                        self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
+                        self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
+                        if GetValue == value:
+                            self.Print("PASS", "p")  
+                        else:
+                            self.Print("Fail", "f")
+                            self.ret_code=1                         
                                                                             
                     self.Print (""                          )
                                 

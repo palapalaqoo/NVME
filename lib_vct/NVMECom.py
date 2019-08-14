@@ -44,7 +44,7 @@ class NVMECom():
     LogName_SummaryColor="log"
     LogName_CmdDetail="log"
     LogName_ConsoleOut="log"
-    
+    ScriptParserArgs=[]  
     def SubItemNum(self):
         self.SubItemNumValue+=1
         return self.SubItemNumValue
@@ -124,7 +124,8 @@ class NVMECom():
         self.InitLogFile() if not son.isSubCaseOBJ else None
         self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
-        self.timer=timer_()        
+        self.timer=timer_()
+              
         
 
     @property
@@ -421,18 +422,31 @@ class NVMECom():
         # writ to Log file    
         self.WriteLogFile(  mStr, mfile=mfile )
         
-            
+    def AddParserArgs(self, optionName, optionNameFull, helpMsg, argType):
+        # after set AddParserArgs, using GetDynamicArgs to get arg if element exist, else return None
+        # ex.  self.AddParserArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff", argType=int) 
+        #        self.DisablePwr = self.GetDynamicArgs(0)
+        self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType])
+        
     def ParserArgv(self, argv, SubCaseList=""):
         # argv[1]: device path, ex, '/dev/nvme0n1'
         # argv[2]: subcases, ex, '1,4,5,7'
         # argv[3]: script test mode on, ex, '-t'
+        # common arg define
         parser = ArgumentParser(description=SubCaseList, formatter_class=RawTextHelpFormatter)
         parser.add_argument("dev", help="device, e.g. /dev/nvme0n1", type=str)
         parser.add_argument("subcases", help="sub cases that will be tested, e.g. '1 2 3'", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
-        parser.add_argument("-p", "--logpath", help="log path that store logs", type=str, nargs='?')
+        parser.add_argument("-p", "--p", help="log path that store logs", type=str, nargs='?')
+        # script arg define new args if overwrite in script
+        for mArg in self.ScriptParserArgs:
+            optionName=mArg[0]
+            optionNameFull=mArg[1]
+            helpMsg=mArg[2]
+            argType=mArg[3]
+            parser.add_argument("-%s"%optionName, "--%s"%optionNameFull, help=helpMsg, type=argType, nargs='?')
         
 
         args = parser.parse_args(args=argv)
@@ -450,7 +464,17 @@ class NVMECom():
             
         mLogPath=None if args.logpath==None else args.logpath
         
-        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath
+        # parse script args, and return by order
+        mScriptParserArgs=[]
+        for mArg in self.ScriptParserArgs:
+            optionName=mArg[0]
+            optionNameFull=mArg[1]
+            helpMsg=mArg[2]
+            argType=mArg[3]            
+            value=None if args.__dict__[optionNameFull]==None else args.__dict__[optionNameFull]
+            mScriptParserArgs.append(value)
+        
+        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format
@@ -645,8 +669,9 @@ class NVMECom():
         # scriptName:             ex. 'SMI_Read.py'
         # DevAndArgs:    ex. '/dev/nvme0n1' for all subcase or '/dev/nvme0n1 1,3,4' for subcase1,3,4
         # LogPath:            log path that store logs
-        # return retcode
+        # return retcode and fail case number[]
         
+        FailCaseNum = []
         # format paths
         if scriptPath!=None:
             scriptPath='%s/'%scriptPath if scriptPath[-1]!='/' else scriptPath # add / if forgot to add /
@@ -665,7 +690,7 @@ class NVMECom():
             return -1
           
         # set log files path
-        DevAndArgs= DevAndArgs + " --logpath %s"%LogPath
+        DevAndArgs= DevAndArgs + " --p %s"%LogPath
         # set log summary path           
         logPathWithUniversalCharacter=LogPath+"summary_color_*.log"
                 
@@ -687,14 +712,46 @@ class NVMECom():
                     if count>cnt:
                         for ptr in range(cnt, count):
                             linecache.clearcache()
-                            line = linecache.getline(logPath, ptr+1)                    
+                            line = linecache.getline(logPath, ptr+1)
+                            # if fail, find case number
+                            if re.search("CASE (\d+).*: Fail", line):                    
+                                FailCase = re.search("CASE (\d+)", line).group(1)
+                                FailCaseNum.append(FailCase)                                                 
                             sys.stdout.write(line)
                         cnt = count          
             if p.poll() is not None:
                 break
             sleep(0.5)
         retcode = p.returncode
-        return retcode        
+        return retcode, FailCaseNum
+
+    def PrintSMIScriptConsoleOutput(self, LogPath="Log/SubLog/", SubCase=1 ):
+        # after call RunSMIScript, can call PrintSMIScriptConsoleOutput for specific testcase console output
+        # where LogPath = LogPath for PrintSMIScriptConsoleOutput and RunSMIScript
+        
+        # format paths            
+        LogPath='%s/'%LogPath if LogPath[-1]!='/' else LogPath # add / if forgot to add /
+        LogPath=LogPath[1:] if LogPath[0]=='/' else LogPath # remove / if first char is /        
+                               
+        # set log console path           
+        logPathConsole=LogPath+"console_out_*.log"
+                
+        # if scriptPath, add cd to the directory
+        logPath=self.shell_cmd("find %s 2> /dev/null |grep %s " %(logPathConsole,logPathConsole))
+        # find  'Case: 1| ..................... to the end'
+        mStr = "^.*(Case: %s\|.*$)"%SubCase
+        if not logPath:
+            self.Print("Can't file log file: %s"%logPath)
+        else:
+            f = open(logPath)
+            while True:                
+                line =f.readline()
+                if not line:
+                    break
+                else:
+                    if re.search(mStr, line):                    
+                        caseOut = re.search(mStr, line).group(1) 
+                        self.Print(caseOut)
 
     def isMainThreadAlive(self):        
         for i in threading.enumerate():

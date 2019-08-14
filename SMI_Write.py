@@ -52,8 +52,8 @@ class SMI_Write(NVME):
     
     def testDW10_DW11(self, SLBA, msg0, msg1 , ExpectCommandSuccess):  
         self.Print ("")
-        print msg0
-        print msg1   
+        self.Print (msg0)
+        self.Print (msg1)
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
         mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(self.dev, cdw10, cdw11))
@@ -81,8 +81,8 @@ class SMI_Write(NVME):
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      
         self.Print ("")
-        print msg0
-        print msg1   
+        self.Print (msg0)
+        self.Print (msg1)   
         cdw12=NLB
         mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, 0, 0, cdw12))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
@@ -181,17 +181,33 @@ class SMI_Write(NVME):
     SubCase3TimeOut = 60
     SubCase3Desc = "Test Command Dword 12 for LR, FUA, PRINFO"       
     def SubCase3(self):
-        self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if write command success(expected result: command success) ")
         ret_code=0
-        for i in range(0x40):  
         
-            bit26to31=i
-            PRINFO=bit26to31 & 0xF
-            FUA=(bit26to31 & 0x10) >> 4
-            LR=(bit26to31 & 0x20) >> 5
-            NLB=0    
-            ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1
+        DPC = self.IdNs.DPC.int
+        DataProtectionsupported= True if (DPC>0) else False
+        self.Print ("End-to-end Data Protection Capabilities (DPC): 0x%X"%DPC)
+        self.Print ("End-to-end Data Protection supported") if DataProtectionsupported else self.Print ("End-to-end Data Protection not supported")         
+        
+        if (DataProtectionsupported):
+            self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if write command success(expected result: command success) ")            
+            for i in range(0x40):  
             
+                bit26to31=i
+                PRINFO=bit26to31 & 0xF
+                FUA=(bit26to31 & 0x10) >> 4
+                LR=(bit26to31 & 0x20) >> 5
+                NLB=0    
+                ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1
+        else:
+            self.Print ("set  cdw[31:30] from 0x0 to 0x3 and check if write command success(expected result: command success) ")
+            for i in range(0x4):          
+                bit26to31=i
+                PRINFO=0
+                FUA=(bit26to31 & 0x1)
+                LR=(bit26to31 & 0x2) >> 1
+                NLB=0    
+                ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1     
+                            
         if ret_code==0:
             self.Print("PASS", "p") 
         else:

@@ -179,25 +179,12 @@ class SMI_SRIOV(NVME):
                 if value!=0: 
                     # wait for os to create drive        
                     sleep(2)
-                    # linux nvme list after enable VF, and get created drive name
-                    self.VFon_NvmeList=self.GetCurrentNvmeList()
-                    # get self.VFDevices list
-                    self.VFDevices=[]
-                    for i in range(len(self.VFon_NvmeList)):
-                        find=False
-                        
-                        for j in range(len(self.VFoff_NvmeList)):
-                            if self.VFoff_NvmeList[j]==self.VFon_NvmeList[i]:
-                                find=True
-                                break;
-                        if not find:
-                            self.VFDevices.append(self.VFon_NvmeList[i]) 
-                    # end of get self.VFDevices list          
-
+                    # get VF list
+                    self.VFDevices = self.GetVFListCreatedByPF()
                     # save to AllDevices
                     self.AllDevices = [self.dev] + self.VFDevices
                     self.Print("Check if linux os create %s NVMe device under folder /dev/"%value)
-                    self.Print("Created drive:")
+                    self.Print("Created VF drive:")
                     for Dev in self.VFDevices:
                         self.Print("        %s"%Dev)
                     if value==len(self.VFDevices):
@@ -924,8 +911,9 @@ class SMI_SRIOV(NVME):
         return VM_xml_list    
     
     def CreateVM(self, VMname):
-        TempFullPath=os.path.dirname(sys.argv[0]) + "/SRIOV_Resources/Template.qcow2"
-        VMfullPath=os.path.dirname(sys.argv[0]) + "/SRIOV_Resources/%s.qcow2"%VMname
+        mDIR = os.path.dirname(os.path.realpath(__file__))
+        TempFullPath=mDIR + "/SRIOV_Resources/Template.qcow2"        
+        VMfullPath=mDIR + "/SRIOV_Resources/%s.qcow2"%VMname
 
         if not self.isfileExist(TempFullPath):
             self.Print("Template file not found: %s, quit"%TempFullPath)
@@ -972,8 +960,10 @@ class SMI_SRIOV(NVME):
     def VM_shell_cmd(self, IP, CMD):
         s = paramiko.SSHClient()
         s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        sleep(0.5)
         s.connect(hostname=IP, port=22, username="root", password="Smi888")
         stdin, stdout, stderr = s.exec_command(CMD)
+
         return stdout.read()
     
     def GetPortBusSlotFunc(self, SubDUT):
@@ -1140,10 +1130,58 @@ class SMI_SRIOV(NVME):
             --offset=0 --filename=%s --name=mdata --do_verify=0  \
             --output-format=terse,normal --runtime=5"%(device)        
         
-    def __init__(self, argv):
+    def DO_Script_Test(self, testScriptName, option=""):
+        # ex. testScriptName = 'SMI_SmartHealthLog.py'
+        for device in self.AllDevices:            
+            self.Print("") 
+            self.Print("python %s %s"%(testScriptName, device) )
+            self.Print("")
+            # ex. Log/sublog/devnvme0n1/SMI_SmartHealthLog/
+            logPath="Log/sublog/%s/%s"%(device.replace("/",""), testScriptName.replace(".py",""))
+            # run script
+            rtCode, FailCaseNum = self.RunSMIScript(scriptName= testScriptName, DevAndArgs= "%s %s"%(device, option), LogPath = logPath)
+            sleep(0.5)
+            if rtCode!=0:
+                self.Print("")
+                self.Print("Fail, detail consol output log at: %s"%logPath , "f") 
+                self.Print("Below is the fail cases that console output from %s"%testScriptName)
+                self.Print("")
+                self.Print("-------------------------------------------------------------------------", "f")    
+                for caseNum in FailCaseNum:
+                    self.PrintSMIScriptConsoleOutput(LogPath = logPath, SubCase=caseNum)    
+                self.Print("-------------------------------------------------------------------------", "f")       
+                self.Print("")
+                return False
+        return True      
+        
+    def GetVFListCreatedByPF(self):
+    # e.x. mList=[/dev/nvme1n1 , /dev/nvme2n1 ]
+        mList=[]
+        PF_PciePort=self.pcie_port
+        # get device bus and device number, remove function number
+        PF_BusDeviceNum = PF_PciePort[:-2]
+        # get nvme list adll devices
+        NvmeList=self.GetCurrentNvmeList()
+        for device in NvmeList:
+            Port = self.GetPciePort(device)
+            BusDeviceNum = Port[:-2]
+            # if not PF device and (bus and device num) is the same, than it is VF from PF
+            if PF_PciePort!=Port and PF_BusDeviceNum==BusDeviceNum:
+                mList.append(device)
+        return mList
+    
+    def __init__(self, argv): 
+        # initial new parser if need, -t -d -s -p was used, dont use it again
+        self.AddParserArgs(optionName="n", optionNameFull="numofvf", helpMsg="number of VF that will be enable and test", argType=int) 
+                
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
         
+        # get new parser if need, where args order is the same with initial order
+        # config_numvfs = int or None
+        self.config_numvfs = self.GetDynamicArgs(0)       
+        
+        ''' using -n to set number of VF that will be enable and test instead of using config file
         # config file parameters
         self.config_numvfs=None
         #parse file
@@ -1152,7 +1190,7 @@ class SMI_SRIOV(NVME):
             self.Print("done")        
         else:
             self.Print("file not found")  
-        
+        '''
         # change timeout
         if self.mTestTime!=None:
             SMI_SRIOV.SubCase1TimeOut = 200+self.mTestTime
@@ -1275,15 +1313,40 @@ class SMI_SRIOV(NVME):
         else:
             self.Print("Linux's sysfs support SRIOV: No", "w")    
         
-        # reset VF   
-        '''
+        self.Print("")
         nmuvfs = self.GetCurrentNumOfVF()
-        self.Print("Current Num Of VF: %s"%nmuvfs, "p")
-        if nmuvfs!="0":
-            self.Print("Set all VF offline")
-            if not self.SetCurrentNumOfVF(0):
-                self.Print("Fail, quit all", "f"); return False  
-        '''
+        self.Print("Current Num Of VF: %s"%nmuvfs, "p")   
+        
+        
+        # if test mode, no need to reset VF     
+        if not self.mTestModeOn:
+            # reset VF 
+            if nmuvfs!="0":
+                self.Print("")
+                self.Print("Set all VF offline")
+                if not self.SetCurrentNumOfVF(0):
+                    self.Print("Fail, quit all", "f"); return False  
+        
+        # if VF=0, enable all            
+        nmuvfs = self.GetCurrentNumOfVF()        
+        if nmuvfs=="0":
+            # enable all VF        
+            self.Print("") 
+            self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+            if not self.SetCurrentNumOfVF(self.TotalVFs):
+                self.Print("Create VF Fail, quit all", "f"); return 1  
+        else:         
+        # else get AllDevices list
+            # get VF list
+            self.VFDevices = self.GetVFListCreatedByPF()
+            # save to AllDevices
+            self.AllDevices = [self.dev] + self.VFDevices
+            self.Print("")
+            self.Print("Created VF drive:")
+            for Dev in self.VFDevices:
+                self.Print("        %s"%Dev)                        
+                                     
+ 
         # backup os nvme list            
         self.VFoff_NvmeList=self.GetCurrentNvmeList()
                 
@@ -1292,17 +1355,12 @@ class SMI_SRIOV(NVME):
         return True            
     
     # <define sub item scripts>
-    SubCase1TimeOut = 600
+    SubCase1TimeOut = 1800
     SubCase1Desc = "Test if the operation of PF and VFs influences itself only"   
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0       
-                              
-        self.Print("") 
-        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
-        if not self.SetCurrentNumOfVF(self.TotalVFs):
-            self.Print("Create VF Fail, quit all", "f"); return 1               
-                
+                                                       
        
         # test all test item in all VF and can't interfere with each other
         #specificVF = self.AllDevices[1]
@@ -1312,32 +1370,20 @@ class SMI_SRIOV(NVME):
         self.Print(" Test if the operation of PF and VFs influences its controller only, timeout : %s sceond"%self.mTestTime)
         if not self.MultiThreadTest(timeout): return 1 
         
-        '''
-        self.Print("") 
-        self.Print("Set all VF offline")
-        if not self.SetCurrentNumOfVF(0):
-            self.Print("Fail, quit all", "f"); return 1
-        '''
         self.Print("Done!")
         
         return ret_code
 
-
-    SubCase2TimeOut = 600
+    
+    SubCase2TimeOut = 1800
     SubCase2Desc = "Test power cycle"   
     SubCase2KeyWord = ""
     def SubCase2(self):
         ret_code=0       
-                                    
-        
-        #self.AllDevices = [self.dev] + ["/dev/nvme1n1"] + ["/dev/nvme2n1"]+["/dev/nvme3n1"] + ["/dev/nvme4n1"]
-                             
-        self.Print("") 
-        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
-        if not self.SetCurrentNumOfVF(self.TotalVFs):
-            self.Print("Create VF Fail, quit all", "f"); return 1               
-               
-       
+        if self.mTestModeOn:
+            self.Print("skip sub case")
+            return 0
+
         # test all test item in all VF and can't interfere with each other
         #specificVF = self.AllDevices[1]
         #self.Print("Test when having testing in all VF, the testings can't interfere with each other")
@@ -1385,26 +1431,21 @@ class SMI_SRIOV(NVME):
         
         return ret_code
 
-    SubCase3TimeOut = 600
+    SubCase3TimeOut = 1800
     SubCase3Desc = "Test SR-IOV in virtual machines"   
     SubCase3KeyWord = ""
     def SubCase3(self):
         # note: using TotalVFs to decide the number of VM
         ret_code=0   
         
-        
-        '''
-        self.Print("") 
-        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
-        if not self.SetCurrentNumOfVF(self.TotalVFs):
-            self.Print("Create VF Fail, quit all", "f"); return 1         
-        '''
-        # snchan
-        self.VFDevices=["/dev/nvme1n1"]+["/dev/nvme2n1"]+["/dev/nvme3n1"]+["/dev/nvme4n1"]
+        if self.mTestModeOn:
+            self.Print("skip sub case")
+            return 0        
 
         
         self.Print("Check if kernel boot parameter intel_iommu=on at boot option(/etc/default/grub)")      
-        if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
+        #if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
+        if self.shell_cmd("find /sys | grep dmar 2>&1 >/dev/null; echo $?") =="0":
             self.Print("Pass!", "p")
         else:
             self.Print("intel_iommu=off, quit", "p")
@@ -1424,7 +1465,7 @@ class SMI_SRIOV(NVME):
             info = self.VMinfoClass()
             info.vmName="VM%s"%i
             self.VMinfo.append(info)
-        ''' snchan
+
         self.Print("")        
         self.Print("Create virtual machines VM0 to VM%s"%(self.TotalVFs-1))        
         for info in self.VMinfo:
@@ -1433,7 +1474,7 @@ class SMI_SRIOV(NVME):
                 self.Print("Fail to create %s"%name)
                 return 1
         self.Print("Done")
-        '''
+
         self.Print("")
         timeout=60
         self.Print("Get IP address of all VMs for ssh connection, timeout %s s"%timeout)
@@ -1502,21 +1543,12 @@ class SMI_SRIOV(NVME):
         self.Print("")
         self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously ")
         mThreads = [] 
-        '''
+
         for info in self.VMinfo:            
             t = threading.Thread(target = self.DoVM_FIOtest, args=(info,))
             t.start() 
             mThreads.append(t) 
-        '''           
-        t = threading.Thread(target = self.DoVM_FIOtest, args=(self.VMinfo[0],))
-        t.start() 
-        mThreads.append(t)         
-        t = threading.Thread(target = self.DoVM_FIOtest, args=(self.VMinfo[1],))
-        t.start() 
-        mThreads.append(t)           
-        t = threading.Thread(target = self.DoVM_FIOtest, args=(self.VMinfo[2],))
-        t.start() 
-        mThreads.append(t)           
+   
         # check if all process finished 
         while True:
             allfinished=1
@@ -1556,22 +1588,13 @@ class SMI_SRIOV(NVME):
         return ret_code
         
         
-
-    SubCase4TimeOut = 600
+    SubCase4TimeOut = 1800
     SubCase4Desc = "Test NVMe device speed"   
     SubCase4KeyWord = ""
     def SubCase4(self):
         # note: using TotalVFs to decide the number of VM
         ret_code=0   
         
-        self.AllDevices = [self.dev] + ["/dev/nvme1n1"] + ["/dev/nvme2n1"]+["/dev/nvme3n1"] + ["/dev/nvme4n1"]
-        '''                
-        self.Print("") 
-        self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
-        if not self.SetCurrentNumOfVF(self.TotalVFs):
-            self.Print("Create VF Fail, quit all", "f"); return 1                  
-        '''
-        sleep(1)
         
         self.Print("Devices do FIO test  ")        
         self.Print("")
@@ -1602,8 +1625,69 @@ class SMI_SRIOV(NVME):
         self.Print("") 
         return ret_code
                 
+                
+    SubCase5TimeOut = 1800
+    SubCase5Desc = "Test SMI_SmartHealthLog.py for all VF/PF"   
+    SubCase5KeyWord = ""
+    def SubCase5(self):             
+        ret_code=0   
+        
+
+        self.Print("test SMART / Health Information")
+        testScriptName= "SMI_SmartHealthLog.py"
+        #testScriptName= "mtest.py"
+        ret_code = 0 if self.DO_Script_Test(testScriptName) else 1
+                      
+        return ret_code
+    
+    SubCase6TimeOut = 1800
+    SubCase6Desc = "Test SMI_SetGetFeatureCmd.py for all VF/PF"   
+    SubCase6KeyWord = ""
+    def SubCase6(self):             
+        ret_code=0          
+        self.Print("test SMI_SetGetFeatureCmd")
+        #testScriptName= "SMI_SmartHealthLog.py"
+        testScriptName= "SMI_SetGetFeatureCmd.py"
+        #  with option disable pwr,  '--disablepwr=1'
+        ret_code = 0 if self.DO_Script_Test(testScriptName, "--disablepwr=1") else 1
+                      
+        return ret_code    
+    
+    
+    SubCase7TimeOut = 1800
+    SubCase7Desc = "Test SMI_Read.py for all VF/PF"   
+    SubCase7KeyWord = ""
+    def SubCase7(self):             
+        ret_code=0   
+        self.Print("test SMI_Read")
+        testScriptName= "SMI_Read.py"
+        ret_code = 0 if self.DO_Script_Test(testScriptName) else 1                      
+        return ret_code
+
+    SubCase8TimeOut = 1800
+    SubCase8Desc = "Test SMI_Write.py for all VF/PF"   
+    SubCase8KeyWord = ""
+    def SubCase8(self):             
+        ret_code=0   
+        self.Print("test SMI_Write")
+        testScriptName= "SMI_Write.py"
+        ret_code = 0 if self.DO_Script_Test(testScriptName) else 1                      
+        return ret_code    
+    
+    SubCase9TimeOut = 1800
+    SubCase9Desc = "Test SMI_DSM.py for all VF/PF"   
+    SubCase9KeyWord = ""
+    def SubCase9(self):             
+        ret_code=0   
+        self.Print("test SMI_DSM")
+        testScriptName= "SMI_DSM.py"
+        ret_code = 0 if self.DO_Script_Test(testScriptName) else 1                      
+        return ret_code    
+        
+    
+    
     '''
-    SubCase2TimeOut = 600
+    SubCase2TimeOut = 1800
     SubCase2Desc = "Enable all VF with all Flexible Resources"   
     SubCase2KeyWord = ""
     def SubCase2(self):
@@ -1743,6 +1827,14 @@ class SMI_SRIOV(NVME):
 
     # define PostTest  
     def PostTest(self): 
+        # if not test mode, reset VF to 0
+        if not self.mTestModeOn:        
+            self.Print("") 
+            self.Print("Set all VF offline")
+            if not self.SetCurrentNumOfVF(0):
+                self.Print("Fail, quit all", "f"); return 1
+                
+        
         return True 
 
 

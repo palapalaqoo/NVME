@@ -21,6 +21,7 @@ from lib_vct.NVMECom import deadline
 import re
 import time
 from shutil import copyfile
+from __builtin__ import None
 
 
 def foo1():
@@ -50,7 +51,7 @@ class NVME(object, NVMECom):
             # created in subcase
             self.isSubCaseOBJ=True
             mArgv = argv # ['/dev/nvme0n1'], only 1 args
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -160,7 +161,7 @@ class NVME(object, NVMECom):
         self.GetLog = GetLog.GetLog_(self)
         self.Flow=Flow.Flow_(self)
         
-        self.pcie_port = self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(self.dev_port))         
+        self.pcie_port = self.GetPciePort(self.dev_port)         
         self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port))
         
         # get valume of ssd
@@ -188,6 +189,17 @@ class NVME(object, NVMECom):
         
         # save parameters for reset controller to the beginning state
         self.initial_FLBAS=self.IdNs.FLBAS.int
+        
+    def GetDynamicArgs(self, select):
+    # after set AddParserArgs, using GetDynamicArgs to get arg if element exist, else return None
+        value = None
+        if select<len(self.DynamicArgs):
+            value = self.DynamicArgs[0]
+        return value       
+        
+    def GetPciePort(self, dev):
+    # e.x. return 0000:01:00.0
+        return self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(dev))
 
     def GetMRBA(self):
         # Memory Register Base Address
@@ -810,9 +822,8 @@ class NVME(object, NVMECom):
         self.status="normal"
         return 0 
         '''
+        
         self.status="reset"  
-        self.write_pcie(self.PXCAP, 0x9, self.IFLRV)
-        sleep(1)
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(self.pcie_port), 1) 
         self.status="normal"
         if self.dev_alive:            

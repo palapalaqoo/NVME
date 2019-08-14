@@ -234,10 +234,11 @@ class SMI_PCIPowerStatus(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0
-        
-        
-        self.ResetNS()
-        
+        self.link_reset()
+
+        #self.RunSMIScript(scriptName="mtest1.py", DevAndArgs= "/dev/nvme0n1", LogPath= "Log/mlogPath/aa123/bb45")
+        self.Print("hello here")
+        self.Print("hello here again", "f")
         #self.FunctionLevel_reset()
         
         

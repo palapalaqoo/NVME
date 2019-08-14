@@ -160,19 +160,32 @@ class SMI_Compare(NVME):
     
     SubCase2TimeOut = 60
     SubCase2Desc = "Test Command Dword 12 for LR, FUA, PRINFO"
-    def SubCase2(self):
-          
+    def SubCase2(self):          
         ret_code=0
-        self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if compare command success(expected result: command success) ")
         
-        for i in range(0x40):  
+        DPC = self.IdNs.DPC.int
+        DataProtectionsupported= True if (DPC>0) else False
+        self.Print ("End-to-end Data Protection Capabilities (DPC): 0x%X"%DPC)
+        self.Print ("End-to-end Data Protection supported") if DataProtectionsupported else self.Print ("End-to-end Data Protection not supported")         
         
-            bit26to31=i
-            PRINFO=bit26to31 & 0xF
-            FUA=(bit26to31 & 0x10) >> 4
-            LR=(bit26to31 & 0x20) >> 5
-            NLB=0    
-            ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1
+        if (DataProtectionsupported):
+            self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if compare command success(expected result: command success) ")            
+            for i in range(0x40):              
+                bit26to31=i
+                PRINFO=bit26to31 & 0xF
+                FUA=(bit26to31 & 0x10) >> 4
+                LR=(bit26to31 & 0x20) >> 5
+                NLB=0    
+                ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1
+        else:
+            self.Print ("set  cdw[31:30] from 0x0 to 0x3 and check if compare command success(expected result: command success) ")
+            for i in range(0x4):          
+                bit26to31=i
+                PRINFO=0
+                FUA=(bit26to31 & 0x1)
+                LR=(bit26to31 & 0x2) >> 1
+                NLB=0    
+                ret_code=ret_code if self.testDW12(LR, FUA, PRINFO, NLB, True) else 1     
             
         if ret_code==0:
             self.Print("PASS", "p") 
