@@ -41,7 +41,7 @@ except ImportError:
         print "Install success!"
     except ImportError:
         print "Install fail!" 
-        return 1
+        sys.exit(1)
     
 #------------------------------------------------------------------------------------------------------------------------------------------
 BootType=""
@@ -55,8 +55,9 @@ else:
 
 print ""
 print "Check if intel_iommu=on"      
-if shell_cmd("dmesg | grep 'IOMMU enabled' 2>&1 >/dev/null; echo $?") =="0":
-    print "Pass!"
+#if shell_cmd("dmesg | grep 'IOMMU enabled' 2>&1 >/dev/null; echo $?") =="0":
+if shell_cmd("find /sys | grep dmar 2>&1 >/dev/null; echo $?") =="0":
+    print "intel_iommu = on, pass!"
 else:
     print "intel_iommu=off"    
     print ""
