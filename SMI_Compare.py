@@ -20,12 +20,13 @@ import re
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import deadline
+from __builtin__ import True
 
 class SMI_Compare(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Compare.py"
     Author = "Sam Chan"
-    Version = "20190125"
+    Version = "20190819"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -57,6 +58,7 @@ class SMI_Compare(NVME):
             return True         
         else:
             self.Print("Fail", "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False   
         
     def testDW12(self, LR, FUA, PRINFO, NLB, ExpectCommandSuccess):      
@@ -70,6 +72,7 @@ class SMI_Compare(NVME):
         else:
             self.Print("Fail", "f")
             self.Print("LR=%s, FUA=%s, PRINFO=%s, NLB=%s"%(LR, FUA, PRINFO, NLB), "f")
+            self.Print("Command return status: %s"%mStr, "f")
             DW12Fail=1
             return False       
     
@@ -77,14 +80,16 @@ class SMI_Compare(NVME):
         self.Print ("")
         self.Print( msg0 )
         self.Print( msg1  ) 
-        cdw12=NLB
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, 0, 0, cdw12))
+        cdw12=NLB        
+        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
+                            %(NLB+1, self.dev, 512*(NLB+1), 0, 0, cdw12))
         retCommandSueess=self.CMDisSuccess(mStr)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
             return True         
         else:
             self.Print("Fail", "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False 
         
     def testDW13(self, DSM, ExpectCommandSuccess):      
@@ -94,6 +99,7 @@ class SMI_Compare(NVME):
             return True         
         else:
             self.Print("Fail when DSM=%s"%DSM, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             DW13Fail=1
             return False       
     
@@ -104,6 +110,7 @@ class SMI_Compare(NVME):
             return True         
         else:
             self.Print("Fail when EILBRT=%s"%EILBRT, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             DW14Fail=1
             return False    
         
@@ -115,6 +122,7 @@ class SMI_Compare(NVME):
             return True         
         else:
             self.Print("Fail when cdw15=%s"%CDW15, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             DW15Fail=1
             return False                
     
@@ -126,9 +134,20 @@ class SMI_Compare(NVME):
         # add all sub items to test script list
         #self.AddScript(self.Script0)
         #self.AddScript(self.Script1)
+    
+    
+    
+    # override
+    def PreTest(self):
+        self.Print ("Check if the controller supports the Compare command or not in identify - ONCS")   
+        self.CMDSupported=self.IdCtrl.ONCS.bit(0)    
+        self.CMDSupported=True if self.CMDSupported=="1" else False
+        self.Print ("Compare command supported") if self.CMDSupported else self.Print ("Compare command not supported")
         
+        return True if self.CMDSupported else False
+    
     # <sub item scripts>
-    SubCase1TimeOut = 3
+    SubCase1TimeOut = 60
     SubCase1Desc = "Test Command Dword 10 and Command Dword 11 for Starting LBA (SLBA)"        
     def SubCase1(self):
         ret_code=0

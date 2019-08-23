@@ -24,7 +24,7 @@ class SMI_DSM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190816"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -72,6 +72,28 @@ class SMI_DSM(NVME):
         else:
             return False
         
+    def DoContextAttrText(self, CAS_H, TakeProgress=False):
+    # CAS_H CAS high byte, 4 bit
+        for cnt in range(0x1FFF+1):
+            #parser cnt into Context Attributes
+            AL_AF =           cnt&0b0000000111111
+            WP_SW_SR =(cnt&0b0000111000000) >> 6
+            CAS_L =             (cnt&0b1111000000000) >> 9
+            CA=(CAS_H<<28) + (CAS_L<<24) + (WP_SW_SR<<8) + (AL_AF)                        
+            mStr = self.shell_cmd("nvme dsm %s -s 0 -b 1 -r -a %s"%(self.device, CA))
+            # set progress
+            if TakeProgress:
+                self.procProgress=cnt
+            # if this proc fail
+            if not re.search("success", mStr):
+                self.Print ("")
+                self.Print("Fail at Context Attributes = %s"%hex(CA), "f")
+                self.procStatus=False
+                break
+            # if other proc fail
+            if not self.procStatus:
+                break
+                  
         # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
@@ -82,6 +104,9 @@ class SMI_DSM(NVME):
         self.DLFEAT_bit2to0=self.DLFEAT & 0b00000111
         self.DSMSupported=self.IdCtrl.ONCS.bit(2)
         self.NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
+        # context attr test
+        self.procStatus=True
+        self.procProgress=0
 
         # </Parameter>
         
@@ -138,7 +163,7 @@ class SMI_DSM(NVME):
             self.Print ("The values read from a deallocated logical block that DLFEAT reported is : ")
             if self.DLFEAT_bit2to0==0:
                 self.Print ("    Not reported")
-                ExpectValue="0x0 or 0xFF"
+                ExpectValue="0x0 or 0xFF or last data(0x5A)"
             elif self.DLFEAT_bit2to0==1:
                 self.Print ("    All bytes set to 00h")
                 ExpectValue="0x0"
@@ -147,7 +172,7 @@ class SMI_DSM(NVME):
                 ExpectValue="0xFF"
             else:
                 self.Print ("    Reserved")
-                ExpectValue="0x0 or 0xFF"
+                ExpectValue="0x0 or 0xFF or last data(0x5A)"
                 
             self.Print ("Start to write 1G data from block 0 with pattern is 0x5A")
             self.fio_write(0, "1G", 0x5A, 1)
@@ -155,8 +180,8 @@ class SMI_DSM(NVME):
             self.shell_cmd("nvme dsm %s -s 0 -b 2097152 -d"%self.device)
             self.Print ("Check the value from the first 1G data with read command, expected value: %s"%ExpectValue)
             if self.DLFEAT_bit2to0==0:
-                #  ExpectValue="0x0 or 0xFF"
-                if self.Block1GIsEqual(0x0) or self.Block1GIsEqual(0xFF):
+                #  ExpectValue="0x0 or 0xFF or last data"
+                if self.Block1GIsEqual(0x0) or self.Block1GIsEqual(0xFF) or self.Block1GIsEqual(0x5A):
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")
@@ -178,8 +203,8 @@ class SMI_DSM(NVME):
                     self.Print("Fail", "f")    
                     ret_code=1
             else:
-                #ExpectValue="0x0 or 0xFF"
-                if self.Block1GIsEqual(0x0) or self.Block1GIsEqual(0xFF):
+                #ExpectValue="0x0 or 0xFF or last data"
+                if self.Block1GIsEqual(0x0) or self.Block1GIsEqual(0xFF) or self.Block1GIsEqual(0x5A):
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")   
@@ -434,8 +459,46 @@ class SMI_DSM(NVME):
             self.Print ("")
             self.Print ("Context Attributes total bits=17, Command Access Size: 8, WP: 1, SW: 1, SR: 1, AL: 2, AF: 4")
             self.Print ("Send command with Context Attributes from 0 to 0x1FFFF(17 bits) ")
-            sub_ret=0
-            
+            self.procStatus=True
+            self.procProgress=0
+            mThreads = [] 
+            # create 16 thread to do task and the CAS high byte = thread number
+            for CAS in range(0xF+1):
+                # set last thread(CAS = 0xF) to update progress bar            
+                if CAS!=0xF:
+                    t = threading.Thread(target = self.DoContextAttrText, args=(CAS,False,))
+                else:
+                    t = threading.Thread(target = self.DoContextAttrText, args=(CAS,True,))
+                t.start() 
+                mThreads.append(t) 
+
+            # check if all process finished 
+            while True:
+                allfinished=1
+                for process in mThreads:
+                    if process.is_alive():
+                        allfinished=0
+                        break        
+                    
+                # if all process finished then, quit while loop, else  send reset command
+                if allfinished==1:        
+                    break
+                else:               
+                    sleep(1)
+                    # print progress whick max is 17 - 4 = 13 bits
+                    self.PrintProgressBar(self.procProgress, 0x1FFF, prefix = 'Progress:', length = 50)
+                    
+            if self.procStatus:
+                # print progress with 100 % finish
+                self.PrintProgressBar(100, 100, prefix = 'Progress:', length = 50)
+                self.Print("Pass","p")
+            else:
+                self.Print("Fail","f")
+                ret_code=1
+                                               
+            return ret_code
+        
+            '''
             CA=0
             
                 
@@ -460,13 +523,14 @@ class SMI_DSM(NVME):
                     break
                 cnt=cnt+1
             
-            
             if sub_ret==0:
                 # print progress with 100 % finish
                 self.PrintProgressBar(100, 100, prefix = 'Progress:', length = 50)
                 self.Print("Pass","p")
-            
             return ret_code
+            '''
+            
+            
         else:
             self.Print("not supported", "w")
             return 255   

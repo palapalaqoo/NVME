@@ -24,7 +24,7 @@ class SMI_Read(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Read.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190819"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -65,6 +65,7 @@ class SMI_Read(NVME):
             return True         
         else:
             self.Print("Fail at MetadataLen= %s"%MetadataLen, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False       
     
     
@@ -81,6 +82,7 @@ class SMI_Read(NVME):
             return True         
         else:
             self.Print("Fail", "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False   
         
     def testDW12(self, LR, FUA, PRINFO, NLB, ExpectCommandSuccess):      
@@ -94,6 +96,7 @@ class SMI_Read(NVME):
         else:
             self.Print("Fail", "f")
             self.Print("LR=%s, FUA=%s, PRINFO=%s, NLB=%s"%(LR, FUA, PRINFO, NLB), "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False       
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      
@@ -101,13 +104,15 @@ class SMI_Read(NVME):
         self.Print( msg0 )
         self.Print( msg1 )   
     
-        mStr=self.shell_cmd("nvme read %s -s 0 -z 512 -c %s 2>&1"%(self.dev, NLB))
+        mStr=self.shell_cmd("nvme read %s -s 0 -z %s -c %s 2>&1"%(self.dev, 512*(NLB+1), NLB))    
+        
         retCommandSueess=bool(re.search("read: Success", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
             return True         
         else:
             self.Print("Fail", "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False 
         
     def testDW13(self, DSM, ExpectCommandSuccess):      
@@ -117,6 +122,7 @@ class SMI_Read(NVME):
             return True         
         else:
             self.Print("Fail when DSM=%s"%DSM, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False       
     
     def testDW14(self, EILBRT, ExpectCommandSuccess):      
@@ -126,6 +132,7 @@ class SMI_Read(NVME):
             return True         
         else:
             self.Print("Fail when EILBRT=%s"%EILBRT, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False    
         
     def testDW15(self, ELBATM,ELBAT, ExpectCommandSuccess):      
@@ -136,6 +143,7 @@ class SMI_Read(NVME):
             return True         
         else:
             self.Print("Fail when cdw15=%s"%CDW15, "f")
+            self.Print("Command return status: %s"%mStr, "f")
             return False              
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

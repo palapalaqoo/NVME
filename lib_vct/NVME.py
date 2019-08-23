@@ -21,7 +21,7 @@ from lib_vct.NVMECom import deadline
 import re
 import time
 from shutil import copyfile
-from __builtin__ import None
+
 
 
 def foo1():
@@ -188,14 +188,7 @@ class NVME(object, NVMECom):
         self.MemoryRegisterBaseAddress=self.GetMRBA()        
         
         # save parameters for reset controller to the beginning state
-        self.initial_FLBAS=self.IdNs.FLBAS.int
-        
-    def GetDynamicArgs(self, select):
-    # after set AddParserArgs, using GetDynamicArgs to get arg if element exist, else return None
-        value = None
-        if select<len(self.DynamicArgs):
-            value = self.DynamicArgs[0]
-        return value       
+        self.initial_FLBAS=self.IdNs.FLBAS.int     
         
     def GetPciePort(self, dev):
     # e.x. return 0000:01:00.0

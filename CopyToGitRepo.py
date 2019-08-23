@@ -10,7 +10,7 @@ from shutil import copyfile
 
 # copyType = 0, copy
 # copyType = 1, simulate
-copyType=1
+copyType=0
 
 copyFileName=[]
 #copyFileName.append("lib_vct/NVME.py")
@@ -18,7 +18,7 @@ copyFileName=[]
 #copyFileName.append("SMI_Format.py")
 #copyFileName.append("SMI_SetGetFeatureCmd.py")
 #copyFileName.append("SMI_FeatureHCTM.py")
-
+'''
 copyFileName.append("lib_vct/NVME.py")
 copyFileName.append("lib_vct/NVMECom.py")
 copyFileName.append("lib_vct/IdCtrl.py")
@@ -35,7 +35,7 @@ copyFileName.append("lib_vct/GetLog/DeviceSelfTest.py")
 copyFileName.append("lib_vct/GetLog/GetLog.py")
 copyFileName.append("lib_vct/GetLog/SanitizeStatus.py")
 copyFileName.append("lib_vct/GetLog/SMART.py")
-
+'''
 
 
 
@@ -96,8 +96,8 @@ def mCopy(name):
     srcDir="/root/sam/eclipse/NVME/"
 
     #dstPath="/root/sam/share/Git/Linux/Linux_regress/Script/" 
-    dstPath="/root/sam/git/linux/regress/Script/" 
-    #dstPath="/root/sam/buf/"
+    #dstPath="/root/sam/git/linux/regress/Script/" 
+    dstPath="/root/sam/buf/"
        
     # copy lib_vct
     dstDir=dstPath+name+"/"
@@ -112,7 +112,7 @@ def mCopy(name):
         copyDiffFile(srcDir+fileName, dstDir+fileName)    
     
 
-
+'''
 Name="SMI_DSM"
 mCopy(Name)
 Name="SMI_FeatureHCTM"
@@ -133,9 +133,10 @@ mCopy(Name)
 
 Name="SMI_Identify"
 mCopy(Name)
-
+'''
 Name="SMI_Read"
 mCopy(Name)
+'''
 Name="SMI_Sanitize"
 mCopy(Name)
 Name="SMI_SetGetFeatureCmd"
@@ -155,7 +156,7 @@ Name="SMI_PCIPowerStatus"
 mCopy(Name)
 Name="SMI_MetadataTest"
 mCopy(Name)
-
+'''
 print "copy counter : %s"%copyCnt
 print "Done"
 

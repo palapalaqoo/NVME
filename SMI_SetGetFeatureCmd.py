@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20190808"
+    Version = "20190822"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -259,12 +259,12 @@ class SMI_SetGetFeatureCMD(NVME):
         if fid==3:
             # Number of LBA Ranges is zero based, 0 means there is 1 LBA Range
             DS=self.CreateLBARangeDataStructure(value+1)
-            self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)
+            return self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)
         elif fid==0xC:
             DS='\\x0\\x0\\x0\\x0\\x0\\x0\\x0\\x0'
-            self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)            
+            return self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)            
         else:
-            self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid)
+            return self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid)
     
     def GetFeature(self, fid, sel=0, nsid=1):
         # if Interrupt Vector Configuration, read with cdw11=1
@@ -295,9 +295,11 @@ class SMI_SetGetFeatureCMD(NVME):
     
         
         self.Print ("Send get feature command, returned feature value: %s "%hex(CurrentValue))
-        self.Print ("Check get feature value, expected value: %s , %s "%( hex(OriginValue) if ExpectMatch else hex(CurrentValue), "changed" if ExpectMatch else "not changed" ))
+        self.Print ("Check get feature value, expected value: %s (%s) "%( hex(OriginValue) if ExpectMatch else hex(CurrentValue), "changed" if ExpectMatch else "not changed" ))
         if CurrentValue == OriginValue and ExpectMatch == True:
             self.Print("PASS", "p")  
+        elif CurrentValue != OriginValue and ExpectMatch == False:
+            self.Print("PASS", "p") 
         else:
             self.Print("Fail", "f")
             self.ret_code=1              
@@ -305,7 +307,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p was used, dont use it again
-        self.AddParserArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff", argType=int)        
+        self.SetDynamicArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff, ex. '-x 1'", argType=int)        
         
         # initial parent class
         super(SMI_SetGetFeatureCMD, self).__init__(argv)
@@ -554,6 +556,9 @@ class SMI_SetGetFeatureCMD(NVME):
                 if saveable:
                     value = SavedValuebk
                     self.Print ("restore to previous 'saved value': %s"%hex(value))
+                    if int(value)==0:
+                        value = DefaultValue
+                        self.Print ("becouse previous 'saved value' =0, set 'saved value' to default value: %s"%hex(value))                        
                     # Send set feature command    
                     self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)  
                 self.Print ("End of restore values") 

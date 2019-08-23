@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20190822"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -74,7 +74,17 @@ class SMI_SmartHealthLog(NVME):
         # initial parent class
         super(SMI_SmartHealthLog, self).__init__(argv)
         
-        
+        self.Print ("Check if the controller supports the Compare command or not in identify - ONCS")   
+        self.CompareSupported=self.IdCtrl.ONCS.bit(0)    
+        self.CompareSupported=True if self.CompareSupported=="1" else False
+        self.Print ("Compare command supported", "p") if self.CompareSupported else self.Print ("Compare command not supported", "f")
+                
+        self.Print ("")
+        self.Print ("Check if the controller supports the Write Uncorrectable command or not in identify - ONCS")   
+        self.WriteUncSupported=self.IdCtrl.ONCS.bit(0)    
+        self.WriteUncSupported=True if self.WriteUncSupported=="1" else False
+        self.Print ("Write Uncorrectable command supported", "p") if self.WriteUncSupported else self.Print ("Write Uncorrectable command not supported", "f")        
+        self.Print ("")
     # <sub item scripts>
     SubCase1TimeOut = 60
     SubCase1Desc = "Test critical warnings"        
@@ -193,25 +203,29 @@ class SMI_SmartHealthLog(NVME):
     def SubCase3(self): 
         ret_code=0        
         
-        data_units_read0=self.GetLog.SMART.DataUnitsRead
-        self.Print("Issue get log command, data_units_read: %s"%data_units_read0)
-                
-        self.Print("Issue compare command for 1000*512*1000 bytes")
-        CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 256000 -c 499 2>&1 > /dev/null"%self.dev
-        for i in range(2000):            
-            self.shell_cmd(CMD)
-
-
-        data_units_read1=self.GetLog.SMART.DataUnitsRead
-        self.Print("Issue get log command, data_units_read: %s"%data_units_read1)
-                
-        self.Print("Check if data_units_read has been changed(+1000)")
-        
-        if data_units_read1==(data_units_read0+1000):
-            self.Print("Pass", "p")
+        if not self.CompareSupported:
+            self.Print("Compare command not support, skip","w")
+            ret_code=255
         else:
-            self.Print("Fail", "f")    
-            ret_code=1
+            data_units_read0=self.GetLog.SMART.DataUnitsRead
+            self.Print("Issue get log command, data_units_read: %s"%data_units_read0)
+                    
+            self.Print("Issue compare command for 1000*512*1000 bytes")
+            CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 256000 -c 499 2>&1 > /dev/null"%self.dev
+            for i in range(2000):            
+                self.shell_cmd(CMD)
+    
+    
+            data_units_read1=self.GetLog.SMART.DataUnitsRead
+            self.Print("Issue get log command, data_units_read: %s"%data_units_read1)
+                    
+            self.Print("Check if data_units_read has been changed(+1000)")
+            
+            if data_units_read1==(data_units_read0+1000):
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                ret_code=1
             
         return ret_code
 
@@ -297,25 +311,26 @@ class SMI_SmartHealthLog(NVME):
         else:
             self.Print("Fail", "f")    
             ret_code=1
-            
-        self.Print("----------------------------------------")
-        host_read_commands0=self.GetLog.SMART.HostReadCommands
-        self.Print("Issue get log command, host_read_commands: %s"%host_read_commands0)
-                
-        self.Print("Issue compare command ")
-        CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 256000 -c 499 2>&1 > /dev/null"%self.dev      
-        self.shell_cmd(CMD)
-            
-        host_read_commands1=self.GetLog.SMART.HostReadCommands
-        self.Print("Issue get log command, host_read_commands: %s"%host_read_commands1)
-                
-        self.Print("Check if host_read_commands has been changed, expect +1")
         
-        if host_read_commands1==host_read_commands0+1:
-            self.Print("Pass", "p")
-        else:
-            self.Print("Fail", "f")    
-            ret_code=1
+        if self.CompareSupported:
+            self.Print("----------------------------------------")
+            host_read_commands0=self.GetLog.SMART.HostReadCommands
+            self.Print("Issue get log command, host_read_commands: %s"%host_read_commands0)
+                    
+            self.Print("Issue compare command ")
+            CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 256000 -c 499 2>&1 > /dev/null"%self.dev      
+            self.shell_cmd(CMD)
+                
+            host_read_commands1=self.GetLog.SMART.HostReadCommands
+            self.Print("Issue get log command, host_read_commands: %s"%host_read_commands1)
+                    
+            self.Print("Check if host_read_commands has been changed, expect +1")
+            
+            if host_read_commands1==host_read_commands0+1:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                ret_code=1
 
         self.Print("----------------------------------------")
         host_write_commands0=self.GetLog.SMART.HostWriteCommands
@@ -367,38 +382,43 @@ class SMI_SmartHealthLog(NVME):
     SubCase8Desc = "Test media error and error log"
     def SubCase8(self): 
         ret_code=0
-        media_error0=self.GetLog.SMART.MediaandDataIntegrityErrors
-        num_err_log_entries0= self.GetLog.SMART.NumberofErrorInformationLogEntries
         
-        self.Print("")
-        self.Print("Get 'Media and Data Integrity Errors': %s"%media_error0)
-        self.Print("Get 'Number of Error Information Log Entries': %s"%num_err_log_entries0)
-        
-        self.Print("Create error log by issue Write Uncorrectable and read it")
-        self.trigger_error_event()
-        self.Print("Finish")   
-        
-        self.Print("")     
-        media_error1=self.GetLog.SMART.MediaandDataIntegrityErrors
-        num_err_log_entries1= self.GetLog.SMART.NumberofErrorInformationLogEntries
-        self.Print("Get 'Media and Data Integrity Errors': %s"%media_error1)
-        self.Print("Get 'Number of Error Information Log Entries': %s"%num_err_log_entries1)
-                
-        self.Print("")   
-        self.Print("Check if 'Media and Data Integrity Errors' changed or not, expect: changed(+1)")
-        if media_error1==(media_error0+1):
-            self.Print("Pass", "p")
-        else:
-            self.Print("Fail", "f")    
-            ret_code=1                  
-
-        self.Print("")   
-        self.Print("Check if 'Number of Error Information Log Entries' changed or not, expect: changed(+1)")
-        if num_err_log_entries1==(num_err_log_entries0+1):
-            self.Print("Pass", "p")
-        else:
-            self.Print("Fail", "f")    
-            ret_code=1          
+        if not self.WriteUncSupported:
+            self.Print("Compare command not support, skip","w")
+            ret_code=255
+        else:            
+            media_error0=self.GetLog.SMART.MediaandDataIntegrityErrors
+            num_err_log_entries0= self.GetLog.SMART.NumberofErrorInformationLogEntries
+            
+            self.Print("")
+            self.Print("Get 'Media and Data Integrity Errors': %s"%media_error0)
+            self.Print("Get 'Number of Error Information Log Entries': %s"%num_err_log_entries0)
+            
+            self.Print("Create error log by issue Write Uncorrectable and read it")
+            self.trigger_error_event()
+            self.Print("Finish")   
+            
+            self.Print("")     
+            media_error1=self.GetLog.SMART.MediaandDataIntegrityErrors
+            num_err_log_entries1= self.GetLog.SMART.NumberofErrorInformationLogEntries
+            self.Print("Get 'Media and Data Integrity Errors': %s"%media_error1)
+            self.Print("Get 'Number of Error Information Log Entries': %s"%num_err_log_entries1)
+                    
+            self.Print("")   
+            self.Print("Check if 'Media and Data Integrity Errors' changed or not, expect: changed(+1)")
+            if media_error1==(media_error0+1):
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                ret_code=1                  
+    
+            self.Print("")   
+            self.Print("Check if 'Number of Error Information Log Entries' changed or not, expect: changed(+1)")
+            if num_err_log_entries1==(num_err_log_entries0+1):
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                ret_code=1          
         
         
 

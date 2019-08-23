@@ -15,6 +15,7 @@ import subprocess
 import threading
 import linecache
 
+
 class TimedOutExc(Exception):
     pass
 
@@ -52,7 +53,10 @@ class NVMECom():
 
             
     def InitLogFile(self):
-        # self.LogPath default ='Log\'
+        # self.LogPath default ='Log/'
+        self.LogPath='%s/'%self.LogPath if self.LogPath[-1]!='/' else self.LogPath # add / if forgot to add /
+        self.LogPath=self.LogPath[1:] if self.LogPath[0]=='/' else self.LogPath # remove / if first char is /         
+        
         # remove all dir
         if os.path.exists(self.LogPath):
             shutil.rmtree(self.LogPath) 
@@ -422,11 +426,17 @@ class NVMECom():
         # writ to Log file    
         self.WriteLogFile(  mStr, mfile=mfile )
         
-    def AddParserArgs(self, optionName, optionNameFull, helpMsg, argType):
-        # after set AddParserArgs, using GetDynamicArgs to get arg if element exist, else return None
+    def SetDynamicArgs(self, optionName, optionNameFull, helpMsg, argType):
+        # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
         # ex.  self.AddParserArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff", argType=int) 
         #        self.DisablePwr = self.GetDynamicArgs(0)
         self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType])
+    def GetDynamicArgs(self, select):
+    # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
+        value = None
+        if select<len(self.DynamicArgs):
+            value = self.DynamicArgs[0]
+        return value      
         
     def ParserArgv(self, argv, SubCaseList=""):
         # argv[1]: device path, ex, '/dev/nvme0n1'
@@ -462,7 +472,7 @@ class NVMECom():
             
         mTestTime=None if args.s==None else args.s
             
-        mLogPath=None if args.logpath==None else args.logpath
+        mLogPath=None if args.p==None else args.p
         
         # parse script args, and return by order
         mScriptParserArgs=[]
@@ -690,7 +700,7 @@ class NVMECom():
             return -1
           
         # set log files path
-        DevAndArgs= DevAndArgs + " --p %s"%LogPath
+        DevAndArgs= DevAndArgs + " --p=%s"%LogPath
         # set log summary path           
         logPathWithUniversalCharacter=LogPath+"summary_color_*.log"
                 
@@ -758,6 +768,150 @@ class NVMECom():
             if i.name == "MainThread":
                 return True
         return False            
+            
+    def RunFIOcmdWithConsoleOut(self, command):
+        maxSize = 100
+        timeList = [0]*maxSize 
+        bwList = [0]*maxSize         
+        
+        #   using pyplot
+        import matplotlib.pyplot as plt
+        plt.ion()
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.autoscale(enable=True, axis="both", tight=None)
+        ax.plot(timeList, bwList, 'b-')
+        # init canvas, must do 3 time up   
+ 
+        for i in range(4):
+            fig.canvas.draw()        
+        
+        Tcnt=0
+        # issue command and parser console out
+        for line in self.RunFIOgetRealTimeConsoleOut(command):
+            self.Print( line)
+            # ex, Jobs: 1 (f=1): [W(1)][60.0%][r=0KiB/s,w=48.8MiB/s][r=0,w=99.9k IOPS][eta 00m:02s]
+            mStr = "^Jobs: .*w=([0-9.]*)([A-Z])iB/s"
+            find=bool(re.search(mStr, line))
+            if find:
+                value = float(re.search(mStr, line).group(1))
+                unit =  re.search(mStr, line).group(2)
+                if unit=="K":    #KiB/s
+                    value=int(value/1024)
+                if unit=="M":    #MiB/s
+                    value=int(value)                 
+                if unit=="G":    #GiB/s
+                    value=int(value*1024)
+                self.Print( "%s"%value)            
+            
+                # pyplot
+                time = Tcnt
+                Tcnt = Tcnt+1
+                bw = value
+                # if > max size, remove old one 
+                if len(timeList) >100:
+                    del timeList[0]
+                    del bwList[0]
+                timeList.append(time)
+                bwList.append(bw)
+                # update
+                ax.plot(timeList, bwList, 'b-')
+                fig.canvas.draw() 
+                fig.canvas.draw()      
+                # end of update            
+            
+            
+            
+    def RunFIOgetRealTimeConsoleOut(self, command):
+        #---------------------------------------------------------------------------------------
+        # usage: issue FIO command and get console output one by on
+        # EX.
+        #    CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=512 --rw=write --numjobs=1 --size=100M --offset=0 --filename=/dev/nvme0n1 --name=mdata"
+        #    for path in self.RunFIOgetRealTimeConsoleOut(CMD):
+        #        self.Print( path)
+        #---------------------------------------------------------------------------------------
+        # must set --eta=always
+        commandWith_etaIsalways = command + " --eta=always"
+        process = subprocess.Popen(commandWith_etaIsalways, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
+        while True:
+            line = process.stdout.readline().rstrip()
+            if not line:
+                break
+            yield line
+            
+    def DrawFIO(self, FilePath):               
+        maxSize = 10
+        timeList = [0]*maxSize 
+        bwList = [0]*maxSize         
+        
+        #   using pyplot
+        import matplotlib.pyplot as plt
+        plt.ion()
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.autoscale(enable=True, axis="both", tight=None)
+        ax.plot(timeList, bwList, 'b-')
+        # init canvas, must do 3 time up   
+ 
+        for i in range(4):
+            fig.canvas.draw()
+
+        lineNo = 0 
+        noNewLineCnt=0
+        while True:
+            sleep(1)
+            
+            # read file
+            LineList = self.ReadFileFromLineToEnd(FilePath, lineNo)
+            if len(LineList)==0:
+                noNewLineCnt=noNewLineCnt+1
+                # if more then 3 times no new line, then break
+                if noNewLineCnt>=10:
+                    break
+            else:
+                # reset noNewLineCnt
+                noNewLineCnt=0
+                
+                # parse new lines
+                for line in LineList:
+                    lineNo = lineNo+1
+                    find=bool(re.search("(\d*), (\d*)", line))
+                    if not find:
+                        self.Print("file format error, expect 'date, bw'", "f")
+                    else:
+                        time = int(re.search("(\d*), (\d*)", line).group(1))
+                        bw = int(re.search("(\d*), (\d*)", line).group(2))
+                        # if > max size, remove old one 
+                        if len(timeList) >100:
+                            del timeList[0]
+                            del bwList[0]
+                        timeList.append(time)
+                        bwList.append(bw)
+                        # update
+                        ax.plot(timeList, bwList, 'b-')
+                        fig.canvas.draw() 
+                        fig.canvas.draw()      
+                        # end of update
+                        
+                    
+
+
+            
+            
+            
+    def ReadFileFromLineToEnd(self, FilePath, startLine):
+    # read file from line number=startLine to the end of file
+        cnt=startLine 
+        rTList=[]
+        if self.isfileExist(FilePath):            
+            count = len(open(FilePath).readlines(  ))
+            if count>cnt:
+                for ptr in range(cnt, count):
+                    linecache.clearcache()
+                    line = linecache.getline(FilePath, ptr+1)
+                    rTList.append(line)
+                cnt = count       
+        return rTList       
             
 #== end NVMECom =================================================
 

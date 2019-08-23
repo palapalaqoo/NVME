@@ -7,11 +7,22 @@ import re
 from time import sleep
 import time
 import threading
-tkinter = None
 import os
 import xml.etree.ElementTree as ET
-import paramiko
 import json
+tkinter = None
+
+tkinterInstalled=True
+paramikoInstalled=True
+try:
+    import Tkinter
+except Exception:
+    tkinterInstalled=False
+try:
+    import paramiko
+except Exception:
+    paramikoInstalled=False
+
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
@@ -164,7 +175,7 @@ class SMI_SRIOV(NVME):
     def GetCurrentNumOfVF(self):
         path="/sys/class/block/%s/device/device/sriov_numvfs"%self.dev[5:]
         if self.isfileExist(path):
-            return self.shell_cmd("cat %s"%path)
+            return int(self.shell_cmd("cat %s"%path))
         else:
             return None
 
@@ -1137,7 +1148,7 @@ class SMI_SRIOV(NVME):
             self.Print("python %s %s"%(testScriptName, device) )
             self.Print("")
             # ex. Log/sublog/devnvme0n1/SMI_SmartHealthLog/
-            logPath="Log/sublog/%s/%s"%(device.replace("/",""), testScriptName.replace(".py",""))
+            logPath=self.LogPath + "sublog/%s/%s"%(device.replace("/",""), testScriptName.replace(".py",""))
             # run script
             rtCode, FailCaseNum = self.RunSMIScript(scriptName= testScriptName, DevAndArgs= "%s %s"%(device, option), LogPath = logPath)
             sleep(0.5)
@@ -1172,7 +1183,7 @@ class SMI_SRIOV(NVME):
     
     def __init__(self, argv): 
         # initial new parser if need, -t -d -s -p was used, dont use it again
-        self.AddParserArgs(optionName="n", optionNameFull="numofvf", helpMsg="number of VF that will be enable and test", argType=int) 
+        self.SetDynamicArgs(optionName="n", optionNameFull="numofvf", helpMsg="number of VF that will be enable and test", argType=int) 
                 
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
@@ -1190,13 +1201,18 @@ class SMI_SRIOV(NVME):
             self.Print("done")        
         else:
             self.Print("file not found")  
-        '''
+        '''     
+        
         # change timeout
         if self.mTestTime!=None:
             SMI_SRIOV.SubCase1TimeOut = 200+self.mTestTime
         
         # UI define
-        self.UsingGUI=self.CheckTkinter()
+        if not self.mTestModeOn:
+            self.UsingGUI=self.CheckTkinter()
+        else:
+            self.UsingGUI=False
+        
         #self.UsingGUI=False
         self.CurrItems=[]   # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
         self.AvaItems=[]    # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
@@ -1259,6 +1275,11 @@ class SMI_SRIOV(NVME):
         
     # define pretest  
     def PreTest(self): 
+        if self.mTestModeOn:
+            self.Print("Test mode on")   
+        self.Print("Package Tkinter installed") if tkinterInstalled else self.Print("Package Tkinter not installed","f") 
+        self.Print("Package paramiko installed") if tkinterInstalled else self.Print("Package paramiko not installed","f")
+        self.Print("")         
                
         self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
         self.Print("TotalVFs: %s"%self.TotalVFs)
@@ -1318,23 +1339,24 @@ class SMI_SRIOV(NVME):
         self.Print("Current Num Of VF: %s"%nmuvfs, "p")   
         
         
-        # if test mode, no need to reset VF     
-        if not self.mTestModeOn:
+        # if (not test mode), or (is test mode and current nmuvfs!=self.TotalVFs), do Set all VF offline
+        if not self.mTestModeOn or nmuvfs!=self.TotalVFs:
             # reset VF 
-            if nmuvfs!="0":
+            if nmuvfs!=0:
                 self.Print("")
                 self.Print("Set all VF offline")
                 if not self.SetCurrentNumOfVF(0):
                     self.Print("Fail, quit all", "f"); return False  
+            
         
         # if VF=0, enable all            
         nmuvfs = self.GetCurrentNumOfVF()        
-        if nmuvfs=="0":
+        if nmuvfs==0:
             # enable all VF        
             self.Print("") 
             self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
             if not self.SetCurrentNumOfVF(self.TotalVFs):
-                self.Print("Create VF Fail, quit all", "f"); return 1  
+                self.Print("Create VF Fail, quit all", "f"); return False  
         else:         
         # else get AllDevices list
             # get VF list
@@ -1437,11 +1459,11 @@ class SMI_SRIOV(NVME):
     def SubCase3(self):
         # note: using TotalVFs to decide the number of VM
         ret_code=0   
-        
+        '''
         if self.mTestModeOn:
             self.Print("skip sub case")
             return 0        
-
+        '''
         
         self.Print("Check if kernel boot parameter intel_iommu=on at boot option(/etc/default/grub)")      
         #if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
