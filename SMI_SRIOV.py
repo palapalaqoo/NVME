@@ -840,19 +840,22 @@ class SMI_SRIOV(NVME):
     def GetVMList(self):
     # return [id, name, state]
         rtList=[]
-        mStr=self.shell_cmd("virsh list --all| sed 1,2d")   # remove first line for re.search            
-        OneVM = re.findall("\S+\s+\w+\s+\w+", mStr)
+        mStr=self.shell_cmd("virsh list --all| sed 1,2d")   # remove first line for re.search   
+        # ' -     VM0                            shut off'         
+        comp = "\S+\s+VM\d+\s+.+"
+        OneVM = re.findall(comp, mStr)
         if OneVM!=None:
+            comp = "(\S)+\s+(VM\d)+\s+(.+)"
             for mVM in OneVM:
                 # id may equal '-', means not active
-                Id =re.search("(\S+)\s+(\w+)\s+(\w+)", mVM).group(1)
+                Id =re.search(comp, mVM).group(1)
                 if Id=="-":
                     Id=0
                 else:
                     Id =int(Id)
                     
-                Name =re.search("(\S+)\s+(\w+)\s+(\w+)", mVM).group(2)
-                State =re.search("(\S+)\s+(\w+)\s+(\w+)", mVM).group(3)
+                Name =re.search(comp, mVM).group(2)
+                State =re.search(comp, mVM).group(3)
                 rtList.append([Id, Name, State])
             return rtList
         else:
@@ -1617,6 +1620,25 @@ class SMI_SRIOV(NVME):
         # note: using TotalVFs to decide the number of VM
         ret_code=0   
         
+        # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
+        VF0 = self.AllDevices[1]
+        SubDUT = NVME([VF0])         
+        NUSE=SubDUT.IdNs.NUSE.int
+        
+        self.Print("NUSE: 0x%X"%NUSE)   
+        
+        mPattern = randint(1, 0xFF)
+        CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 \
+         --offset=0 --filename=%s --name=mtest --do_verify=0 --verify=pattern \
+        --verify_pattern=%s"%(VF0, mPattern) 
+                
+        self.Print("Do FIO for %s, command as folowing"%(VF0))      
+        self.Print(CMD)
+        self.RunFIOcmdWithConsoleOutAndPyplot(CMD)
+        
+        sleep(5)
+        
+        '''
         
         self.Print("Devices do FIO test  ")        
         self.Print("")
@@ -1633,15 +1655,8 @@ class SMI_SRIOV(NVME):
             self.Print("")
         
         
-        
+       ''' 
          
-         
-        ''' 
-        self.Print("") 
-        self.Print("Set all VF offline")
-        if not self.SetCurrentNumOfVF(0):
-            self.Print("Fail, quit all", "f"); return 1
-        '''
         self.Print("Done!")         
          
         self.Print("") 
