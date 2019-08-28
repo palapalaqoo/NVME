@@ -22,7 +22,35 @@ def isCMDExist(self, cmd):
     else:
         return False  
 
-
+#------------------------------------------------------------------------------------------------------------------------------------------
+package = "virsh"
+print "check if QEMU/KVM was installed"%package
+if not isCMDExist(package):
+    print "Not install , Try to install package"   
+    shell_cmd("sudo yum install -y qemu-kvm qemu-img virt-manager libvirt libvirt-python libvirt-client virt-install virt-viewer")
+    sleep(0.5)
+    if isCMDExist(package):
+        print "Install success!"
+    else:
+        print "Install fail!" 
+        sys.exit(1)
+print "Installed!"
+#------------------------------------------------------------------------------------------------------------------------------------------
+package = "matplotlib"
+print "check if module %s was installed"%package
+try:
+    __import__(package)
+except ImportError:
+    print "Not install , Try to install package"   
+    shell_cmd("sudo yum install -y python2-matplotlib")
+    sleep(0.5)
+    try:
+        __import__(package)
+        print "Install success!"
+    except ImportError:
+        print "Install fail!" 
+        sys.exit(1)
+print "Installed!"        
 #------------------------------------------------------------------------------------------------------------------------------------------
 package = "paramiko"
 print "check if module %s was installed"%package
@@ -42,7 +70,7 @@ except ImportError:
     except ImportError:
         print "Install fail!" 
         sys.exit(1)
-    
+print "Installed!"    
 #------------------------------------------------------------------------------------------------------------------------------------------
 BootType=""
 print "Check system booted as EFI/UEFI or BIOS"

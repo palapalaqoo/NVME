@@ -11,6 +11,8 @@ tkinter = None
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
+from lib_vct.NVMECom import FIOcmdWithPyPlot_
+
 import struct
 
 
@@ -227,7 +229,8 @@ class SMI_PCIPowerStatus(NVME):
         self.root.mainloop()
         return True
                             
-
+    
+        
     # <define sub item scripts>
     SubCase1TimeOut = 2000
     SubCase1Desc = "test 1"   
@@ -240,13 +243,25 @@ class SMI_PCIPowerStatus(NVME):
         
         self.rmFile("./bwOut_bw.log")
         
-        CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=512 --rw=write --numjobs=1 \
-        --size=1G --offset=0 --filename=/dev/nvme0n1 --name=mdata --do_verify=0 --verify=pattern \
-        --verify_pattern=0x17 --runtime=20 --write_bw_log=bwOut --log_avg_msec=1000 --per_job_logs=0"
+        CMD1 = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 --size=10G \
+         --offset=0 --filename=/dev/nvme0n1 --name=mdata --do_verify=0 --verify=pattern \
+        --verify_pattern=0x17 "
         
-        self.RunFIOcmdWithConsoleOut(CMD)
+        CMD2 = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 --size=14G \
+         --offset=0 --filename=/dev/nvme0n1 --name=mdata --do_verify=0 --verify=pattern \
+        --verify_pattern=0x17 " #--runtime=20"     
+        
+        CMD=[CMD1,CMD2]   
+        
+        FIOcmdWithPyPlot = FIOcmdWithPyPlot_(self)
+        
+        FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=5)
+        
+        #self.RunFIOcmdWithConsoleOutAndPyplot(CMD)
         
         '''
+
+        
         t = threading.Thread(target = self.RunFIOcmdWithConsoleOut, args=(CMD,))
         t.start()                 
 
@@ -256,6 +271,7 @@ class SMI_PCIPowerStatus(NVME):
         '''
 
         self.Print("hello test1")
+        sleep(5)
         
         
         
