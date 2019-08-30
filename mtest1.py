@@ -11,7 +11,7 @@ tkinter = None
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
-from lib_vct.NVMECom import FIOcmdWithPyPlot_
+#from lib_vct.NVMECom import FIOcmdWithPyPlot_
 
 import struct
 
@@ -243,19 +243,18 @@ class SMI_PCIPowerStatus(NVME):
         
         self.rmFile("./bwOut_bw.log")
         
-        CMD1 = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 --size=10G \
-         --offset=0 --filename=/dev/nvme0n1 --name=mdata --do_verify=0 --verify=pattern \
-        --verify_pattern=0x17 "
+        CMD1 = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1          --offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x9E81C1000        --verify_pattern=4 --filename=/dev/nvme0n1"
         
-        CMD2 = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 --size=14G \
-         --offset=0 --filename=/dev/nvme0n1 --name=mdata --do_verify=0 --verify=pattern \
+        CMD2 = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 --size=3G \
+         --offset=0 --filename=/dev/nvme1n1 --name=mdata --do_verify=0 --verify=pattern \
         --verify_pattern=0x17 " #--runtime=20"     
         
-        CMD=[CMD1,CMD2]   
+        CMD=[CMD1]   
         
-        FIOcmdWithPyPlot = FIOcmdWithPyPlot_(self)
+        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)
         
-        FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=5)
+        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=20, printInfo=True)
+        self.Print("%s"%averageBwList)
         
         #self.RunFIOcmdWithConsoleOutAndPyplot(CMD)
         

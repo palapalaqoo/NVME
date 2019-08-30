@@ -1621,22 +1621,78 @@ class SMI_SRIOV(NVME):
         ret_code=0   
         
         # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
-        VF0 = self.AllDevices[1]
-        SubDUT = NVME([VF0])         
+        PF = self.AllDevices[0]
+        SubDUT = NVME([PF])         
         NUSE=SubDUT.IdNs.NUSE.int
         
-        self.Print("NUSE: 0x%X"%NUSE)   
+        self.Print("NUSE: 0x%X"%NUSE) 
+        totalByte = NUSE*512  
         
         mPattern = randint(1, 0xFF)
-        CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 \
-         --offset=0 --filename=%s --name=mtest --do_verify=0 --verify=pattern \
-        --verify_pattern=%s"%(VF0, mPattern) 
-                
-        self.Print("Do FIO for %s, command as folowing"%(VF0))      
-        self.Print(CMD)
-        self.RunFIOcmdWithConsoleOutAndPyplot(CMD)
+        CMDtemp = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 \
+         --offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x%X\
+        --verify_pattern=%s"%(totalByte, mPattern)
         
+        # start to test PF
+        CMD1 = CMDtemp + " --filename=%s"%(PF)
+        self.Print("")        
+        self.Print("Do FIO write for %s, command as folowing"%(PF))      
+        self.Print(CMD1)
+        
+        CMD=[CMD1]
+        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)        
+        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=100, printInfo=False)
+        self.Print("Finished")
+        Did=0
+        self.Print("%s: FIO bw= %sMiB/s"%(PF, averageBwList[Did]))
+        pfBW=averageBwList[Did]
+        self.Print("PF bw= %sMiB/s"%(pfBW))
+        sleep(5)      
+        
+        # start to test all VF at the same time
+        self.Print("")
+        self.Print("Do FIO write for all VFs at the same time(Simultaneously), command as folowing")
+        CMD=[]
+        for dev in self.VFDevices:      
+            CMD1 = CMDtemp + " --filename=%s"%(dev)  
+            self.Print(CMD1) 
+            CMD.append(CMD1)
+            
+        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)        
+        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=100, printInfo=False)
+        self.Print("Finished")
         sleep(5)
+        Did=0
+        for dev in self.VFDevices: 
+            self.Print("%s: FIO bw= %sMiB/s"%(dev, averageBwList[Did]))
+            Did=Did+1
+            
+        self.Print("")        
+        totalBW=sum(averageBwList)
+        self.Print("Total bw for all FIO VF testing(VF0 + VF1 + VF2 ..): %s"%totalBW)
+        self.Print("PF bw= %sMiB/s"%(pfBW))
+        self.Print("Check if (total bw of VF) >= (0.8*PF bw)")
+        if((pfBW*0.8)> totalBW):
+            self.Print("Fail","f")
+            ret_code=1
+        else:
+            self.Print("Pass","p")
+                      
+        self.Print("")        
+        maxBW=max(averageBwList) 
+        minBW=min(averageBwList) 
+        self.Print("Min bw of VF=%s, Max bw of VF=%s"%(minBW, maxBW))
+        self.Print("Check QOS(Quality of Service) for VFs")
+        self.Print("Check if the VF is shared the throughput equally") 
+        self.Print("e.g. (Min bw of VF)/(Max bw of VF) >=0.7) ")
+        if(float(minBW/maxBW)<0.7 ):
+            self.Print("Fail","f")
+            ret_code=1
+        else:
+            self.Print("Pass","p")        
+        
+        
+        
         
         '''
         

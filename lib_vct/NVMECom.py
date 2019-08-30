@@ -771,21 +771,209 @@ class NVMECom():
             
           
 
-         
-                    
-                    
-                    
+    class FIOcmdWithPyPlot_():
+        lock=threading.Lock() 
+        Msg=[]
+        def __init__(self,obj):
+            self.OBJ=obj
+            self.Msg = []     
+
+        def RunFIOcmdWithConsoleOutAndPyplot(self, CMDlist, maxPlot = 100, printInfo=False):
+        # maxPlot: number of plots that will be drawn
+        # printInfo: print fio console output
+        # return average bw list in Mib/s for every command
+            #init averageBwList
+            averageBwList= [0]*len(CMDlist) 
+            doLastParseMsg=False             
+            #   using pyplot            
+            plt.ion()
+            fig = plt.figure()                
+            # thread id start form 0
+            idThread=0  
+            devName=[]
+            timeList = []
+            bwList = []
+            mThreads = []
+            axList=[]
+            # init thread to issue cmd and pull msg out
+            for CMD in CMDlist:           
+                # set device name
+                if re.search("dev\/(\w*)", CMD):
+                    mStr=re.search("dev\/(\w*)", CMD).group(1)
+                    devName.append(mStr)                
+                     
+                # add fio options for fio test
+                command = CMD + " --write_bw_log=bwOut%s --log_avg_msec=1000 --per_job_logs=0"%idThread                
+                # set timeList and bwList
+                timeList.append([0]*maxPlot )
+                bwList.append( [0]*maxPlot )
+                
+                # add subplot
+                ax = fig.add_subplot(len(CMDlist), 1, idThread+1)   # subplot start from1, ex. 4 cmds, add_subplot(4, 1, 1) add_subplot(4, 1, 2) .., to add_subplot(4, 1, 4)
+                ax.autoscale(enable=True, axis="both", tight=None)   
+                axList.append(ax)     
+    
+                # issue command and parser console out
+                t = threading.Thread(target = self.RunOneFIOcmdWithConsoleOutThread, args=(idThread, command, printInfo,))
+                t.start()                 
+                mThreads.append(t)
+                idThread = idThread +1  
+                              
+            # check if all process finished 
+            while True:
+                allfinished=1
+                for process in mThreads:
+                    if process.is_alive():
+                        allfinished=0
+                        break      
+                # if all process finished and last parsing msg is done then quit while loop
+                if allfinished==1 and doLastParseMsg==True:        
+                    break
+                else:
+                    # if is doing last parsing msg 
+                    if allfinished==1:
+                        doLastParseMsg=True
+                    # parse Msg------------------------------------------------
+                    # copy Msg from thread output(self.Msg) and clear
+                    self.lock.acquire()
+                    MsgCopy = self.Msg
+                    self.Msg=[]
+                    self.lock.release()                          
+                    # if new msg
+                    if len(MsgCopy)!=0:
+                        for mStr in MsgCopy:
+                            # parse msg
+                            # MutexThreadOut [type, idThread, time, bw, eta], type0 = RunTimeBW, 1=FinalAverageBW
+                            mtype = mStr[0]
+                            idThread = mStr[1]
+                            time = mStr[2]
+                            bw = mStr[3]
+                            eta = mStr[4]       
+                                                     
+                            if mtype==0: # if get RunTimeBW
+                                # if > max size, remove old one 
+                                if len(timeList[idThread]) >maxPlot:
+                                    del timeList[idThread][0]
+                                    del bwList[idThread][0]
+                                timeList[idThread].append(time)
+                                bwList[idThread].append(bw)
+                                # update -----------
+                                # clear
+                                #plt.cla()        
+                                # target ax
+                                targetAx = axList[idThread]
+                                targetAx.clear()
+                                # set lables                        
+                                targetAx.title.set_text("%s, estimated time: %s"%(devName[idThread], eta))  # nvme0n1, estimated time: 1m:10s
+                                #targetAx.set_xlabel("Time(s)")
+                                targetAx.set_ylabel("MiB/s")     
+                                # set plot                       
+                                targetAx.plot(timeList[idThread], bwList[idThread], 'b-')
+                                # set y min=0
+                                targetAx.set_ylim(bottom=0)               
+                                # draw
+                                fig.canvas.draw() 
+                                fig.canvas.flush_events() 
+                                # end of update    
+                                 
+                            if mtype==1: # if get FinalAverageBW 
+                                averageBwList[idThread]=bw 
+                    sleep(0.5) 
+                    # end of parse Msg------------------------------------------------   
+            return averageBwList           
             
+        def RunOneFIOcmdWithConsoleOutThread(self, idThread, command, printInfo=False):
+            # timer
+            Tcnt=0
+            # issue command and parser console out
+            for line in self.RunFIOgetRealTimeConsoleOut(command):
+                if printInfo:
+                    self.OBJ.Print( line)    #print console out for testing only
+                
+                # report for runtime bw
+                # ex, Jobs: 1 (f=1): [W(1)][60.0%][r=0KiB/s,w=48.8MiB/s][r=0,w=99.9k IOPS][eta 00m:02s]
+                mStr = "^Jobs: .*w=([0-9.]*)([A-Z])iB/s.*\[eta (.*)\]"
+                findRunTimeBW=bool(re.search(mStr, line))
+                if findRunTimeBW:
+                    value = float(re.search(mStr, line).group(1))
+                    unit =  re.search(mStr, line).group(2)
+                    eta =  re.search(mStr, line).group(3)
+                    if unit=="K":    #KiB/s
+                        value=int(value/1024)
+                    if unit=="M":    #MiB/s
+                        value=int(value)                 
+                    if unit=="G":    #GiB/s
+                        value=int(value*1024)        
+                
+                    # pyplot
+                    time = Tcnt
+                    Tcnt = Tcnt+1
+                    bw = value                    
+                    # write info to mutex variable
+                    self.lock.acquire()
+                    # MutexThreadOut [type, idThread, time, bw, eta], type0 = RunTimeBW, 1=FinalAverageBW
+                    self.Msg.append([0, idThread, time, bw, eta])                
+                    self.lock.release()
+                    
+                # final report for average bw 
+                #Run status group 0 (all jobs):
+                #WRITE: bw=51.1MiB/s (53.6MB/s), 51.1MiB/s-51.1MiB/s (53.6MB/s-53.6MB/s), io=255MiB (268MB), run=5001-5001msec                
+                mStr = "WRITE: bw=([0-9.]*)([A-Z])iB/s"
+                if re.search("WRITE: bw", line):
+                    pass
+                findFinalAverageBW=bool(re.search(mStr, line))
+                if findFinalAverageBW:
+                    value = float(re.search(mStr, line).group(1))
+                    unit =  re.search(mStr, line).group(2)                    
+                    if unit=="K":    #KiB/s
+                        value=int(value/1024)
+                    if unit=="M":    #MiB/s
+                        value=int(value)                 
+                    if unit=="G":    #GiB/s
+                        value=int(value*1024)
+                         
+                    eta =  0        
+                    time = 0
+                    bw = value 
+                    # write info to mutex variable
+                    self.lock.acquire()
+                    # MutexThreadOut [type, idThread, time, bw, eta], type0 = RunTimeBW, 1=FinalAverageBW
+                    self.Msg.append([1, idThread, time, bw, eta])                
+                    self.lock.release()
+    
+        def RunFIOgetRealTimeConsoleOut(self, command):
+            #---------------------------------------------------------------------------------------
+            # usage: issue FIO command and get console output one by on
+            # EX.
+            #    CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=512 --rw=write --numjobs=1 --size=100M --offset=0 --filename=/dev/nvme0n1 --name=mdata"
+            #    for path in self.RunFIOgetRealTimeConsoleOut(CMD):
+            #        self.Print( path)
+            #---------------------------------------------------------------------------------------
+            # must set --eta=always
+            commandWith_etaIsalways = command + " --eta=always"
+            process = subprocess.Popen(commandWith_etaIsalways, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
+            while True:
+                line = process.stdout.readline().rstrip()
+                if not line:
+                    break
+                yield line
+            # get return status    
+            out, err = process.communicate()
+            yield out                
+                         
+  
             
 
             
-    def DrawFIO(self, FilePath):               
+    def DrawFIO(self, FilePath):          
+    #draw fio using fio log file whick log file format is 'time (msec), value, data direction, block size (bytes), offset (bytes)'
+    # e.g. fio cmd with --write_bw_log=bwOut
         maxSize = 10
         timeList = [0]*maxSize 
         bwList = [0]*maxSize         
         
         #   using pyplot
-        import matplotlib.pyplot as plt
+        #import matplotlib.pyplot as plt
         plt.ion()
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -926,151 +1114,4 @@ class LBARangeDataStructure_():
         self.Pattern=Pat
         
         
-
-class FIOcmdWithPyPlot_():
-    lock=threading.Lock() 
-    Msg=[]
-    def __init__(self, obj):
-        self=obj
-        self.Msg = []     
-        # Mutex for multi thread
-        
-
-    def RunFIOcmdWithConsoleOutAndPyplot(self, CMDlist, maxPlot = 100):
-        #   using pyplot
-        
-        plt.ion()
-        fig = plt.figure()                
-        # thread id start form 0
-        idThread=0  
-        timeList = []
-        bwList = []
-        mThreads = []
-        axList=[]
-        
-        # init thread to issue cmd and pull msg out
-        for CMD in CMDlist:                
-            # add fio options for fio test
-            command = CMD + " --write_bw_log=bwOut%s --log_avg_msec=1000 --per_job_logs=0"%idThread                
-            # set timeList and bwList
-            timeList.append([0]*maxPlot )
-            bwList.append( [0]*maxPlot )
-            
-            # add subplot
-            ax = fig.add_subplot(len(CMDlist), 1, idThread+1)   # subplot start from1, ex. 4 cmds, add_subplot(4, 1, 1) add_subplot(4, 1, 2) .., to add_subplot(4, 1, 4)
-            ax.autoscale(enable=True, axis="both", tight=None)   
-            axList.append(ax)     
-
-            # issue command and parser console out
-            t = threading.Thread(target = self.RunOneFIOcmdWithConsoleOutThread, args=(idThread, command,))
-            t.start()                 
-            mThreads.append(t)
-            idThread = idThread +1  
-                          
-        # check if all process finished 
-        while True:
-            allfinished=1
-            for process in mThreads:
-                if process.is_alive():
-                    allfinished=0
-                    break      
-            # if all process finished then, quit while loop
-            if allfinished==1:        
-                break
-            else:
-                # copy Msg from thread output(self.Msg) and clear
-                self.lock.acquire()
-                MsgCopy = self.Msg
-                self.Msg=[]
-                self.lock.release()                          
-                # if new msg
-                if len(MsgCopy)!=0:
-                    for mStr in MsgCopy:
-                        # parse msg
-                        # [idThread, time, bw, eta]
-                        idThread = mStr[0]
-                        time = mStr[1]
-                        bw = mStr[2]
-                        eta = mStr[3]       
-                                                 
-                        #if idThread==1:
-                        #    continue
-                        # if > max size, remove old one 
-                        if len(timeList[idThread]) >maxPlot:
-                            del timeList[idThread][0]
-                            del bwList[idThread][0]
-                        timeList[idThread].append(time)
-                        bwList[idThread].append(bw)
-                        # update -----------
-                        # clear
-                        #plt.cla()        
-                        # target ax
-                        targetAx = axList[idThread]
-                        targetAx.clear()
-                        # set lables                        
-                        targetAx.title.set_text("Test Bandwidth, estimated time: %s"%eta) 
-                        #targetAx.set_xlabel("Time(s)")
-                        targetAx.set_ylabel("MiB/s")     
-                        # set plot                       
-                        targetAx.plot(timeList[idThread], bwList[idThread], 'b-')
-                        # set y min=0
-                        targetAx.set_ylim(bottom=0)               
-                        # draw
-                        fig.canvas.draw() 
-                        fig.canvas.flush_events() 
-                        # end of update            
-                        
-                        
-                                              
-                                   
-                sleep(0.5)               
-        
-    def RunOneFIOcmdWithConsoleOutThread(self, idThread, command):
-        # timer
-        Tcnt=0
-        # issue command and parser console out
-        for line in self.RunFIOgetRealTimeConsoleOut(command):
-            #self.Print( line)
-            # ex, Jobs: 1 (f=1): [W(1)][60.0%][r=0KiB/s,w=48.8MiB/s][r=0,w=99.9k IOPS][eta 00m:02s]
-            mStr = "^Jobs: .*w=([0-9.]*)([A-Z])iB/s.*\[eta (.*)\]"
-            find=bool(re.search(mStr, line))
-            if find:
-                value = float(re.search(mStr, line).group(1))
-                unit =  re.search(mStr, line).group(2)
-                eta =  re.search(mStr, line).group(3)
-                if unit=="K":    #KiB/s
-                    value=int(value/1024)
-                if unit=="M":    #MiB/s
-                    value=int(value)                 
-                if unit=="G":    #GiB/s
-                    value=int(value*1024)         
-            
-                # pyplot
-                time = Tcnt
-                Tcnt = Tcnt+1
-                bw = value
-                
-                # put to 
-                # write info to mutex variable
-                self.lock.acquire()
-                # MutexThreadOut [idThread, time, bw, eta]
-                self.Msg.append([idThread, time, bw, eta])                
-                self.lock.release()                                    
-
-    def RunFIOgetRealTimeConsoleOut(self, command):
-        #---------------------------------------------------------------------------------------
-        # usage: issue FIO command and get console output one by on
-        # EX.
-        #    CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=512 --rw=write --numjobs=1 --size=100M --offset=0 --filename=/dev/nvme0n1 --name=mdata"
-        #    for path in self.RunFIOgetRealTimeConsoleOut(CMD):
-        #        self.Print( path)
-        #---------------------------------------------------------------------------------------
-        # must set --eta=always
-        commandWith_etaIsalways = command + " --eta=always"
-        process = subprocess.Popen(commandWith_etaIsalways, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
-        while True:
-            line = process.stdout.readline().rstrip()
-            if not line:
-                break
-            yield line
-        
+       
