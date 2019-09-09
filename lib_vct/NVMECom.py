@@ -14,7 +14,9 @@ import struct
 import subprocess
 import threading
 import linecache
-import matplotlib.pyplot as plt
+
+
+
 
 class TimedOutExc(Exception):
     pass
@@ -111,7 +113,7 @@ class NVMECom():
                 #you might want to specify some extra behavior here.
             pass 
         
-                 
+       
             
     def __init__(self, son):        
         # set NVMECom parameters from subclass
@@ -675,7 +677,7 @@ class NVMECom():
         return retcode
         
     def RunSMIScript(self, scriptPath=None, scriptName=None, DevAndArgs="/dev/nvme0n1", LogPath="Log/SubLog/" ):
-        # scriptPath:             ex. 'SMI_SubProcess/'
+        # scriptPath:             ex. 'SMI_SubProcess/' or None(current dir)
         # scriptName:             ex. 'SMI_Read.py'
         # DevAndArgs:    ex. '/dev/nvme0n1' for all subcase or '/dev/nvme0n1 1,3,4' for subcase1,3,4
         # LogPath:            log path that store logs
@@ -785,7 +787,8 @@ class NVMECom():
             #init averageBwList
             averageBwList= [0]*len(CMDlist) 
             doLastParseMsg=False             
-            #   using pyplot            
+            #   using pyplot      
+            import matplotlib.pyplot as plt      
             plt.ion()
             fig = plt.figure()                
             # thread id start form 0

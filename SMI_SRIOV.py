@@ -9,24 +9,13 @@ import time
 import threading
 import os
 import xml.etree.ElementTree as ET
-import json
-tkinter = None
-
-tkinterInstalled=True
-paramikoInstalled=True
-try:
-    import Tkinter
-except Exception:
-    tkinterInstalled=False
-try:
-    import paramiko
-except Exception:
-    paramikoInstalled=False
+import datetime
 
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
 from random import randint
+from __builtin__ import True
 
 
 
@@ -755,31 +744,9 @@ class SMI_SRIOV(NVME):
         return re.findall("/dev/nvme\d+n\d+", mStr)
         
         
-        
-    def import_with_auto_install(self):
-        package = "Tkinter"
-        try:
-            return __import__(package)
-        except ImportError:
-            self.Print("Linux has not install tkinter, Try to install tkinter (yum -y install tkinter)", "w")           
-            InstallSuccess =  True if self.shell_cmd("yum -y install tkinter 2>&1 >/dev/null ; echo $?")=="0" else False
-            
-            if InstallSuccess:
-                self.Print("Install Success!, restart script..", "p")                           
-                os.execl(sys.executable, sys.executable, * sys.argv)
-                return None
-            else:
-                self.Print("Install fail!, using console mode", "f")
-                return None
-            
-    def CheckTkinter(self):    
-        #self.shell_cmd("rpm -qa |grep python27-tkinter-2.7.13-5.el7.x86_64.rpm")
-        global  tkinter     
 
-        tkinter = self.import_with_auto_install()
-        if tkinter==None:
-            return False
-        return True
+            
+
                 
     def ThreadCreatUI(self):
         numOfDev = len(self.AllDevices)
@@ -789,11 +756,11 @@ class SMI_SRIOV(NVME):
         ListHight_ava = 10  # hight in characters for list available test item
 
         InfoHight = 20 # hight in characters        
-        self.root=tkinter.Tk()  
+        self.root=self.tkinter.Tk()  
         self.root.geometry('{}x{}'.format(1000, 800))
         import tkMessageBox
         
-        F_slotView = tkinter.Frame(self.root)
+        F_slotView = self.tkinter.Frame(self.root)
         F_slotView.pack(side="top")
         
         
@@ -801,37 +768,37 @@ class SMI_SRIOV(NVME):
             # ---- per slot            
             # (highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) for brown border color
             # create frame for put all slot elements there
-            F_slotView_oneSlot = tkinter.Frame(F_slotView, relief="flat",  highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0)
+            F_slotView_oneSlot = self.tkinter.Frame(F_slotView, relief="flat",  highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0)
             F_slotView_oneSlot.pack(side="left")
             
             # add header
             Dev = self.AllDevices[slot]
-            slotHeader = tkinter.Label( F_slotView_oneSlot, text=Dev , width= ListWidth,relief="flat", highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) # Dev="nvme0n1"
+            slotHeader = self.tkinter.Label( F_slotView_oneSlot, text=Dev , width= ListWidth,relief="flat", highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) # Dev="nvme0n1"
             slotHeader.pack(side="top")      
                   
             # add listview for current testing item
-            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight, width= ListWidth, relief="flat")
+            Lb = self.tkinter.Listbox(F_slotView_oneSlot, height = ListHight, width= ListWidth, relief="flat")
             Lb.pack(side="top")
             # save to CurrItems for further processing, ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
             self.CurrItems.append([Dev, Lb])
             
             # add header
 
-            slotHeader = tkinter.Label( F_slotView_oneSlot, text="Available test items" , width= ListWidth,relief="flat", highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) # Dev="nvme0n1"
+            slotHeader = self.tkinter.Label( F_slotView_oneSlot, text="Available test items" , width= ListWidth,relief="flat", highlightbackground="brown", highlightcolor="brown", highlightthickness=2, bd=0) # Dev="nvme0n1"
             slotHeader.pack(side="top")  
                         
             # hight in characters for list available test item  
-            Lb = tkinter.Listbox(F_slotView_oneSlot, height = ListHight_ava, width= ListWidth_ava,relief="flat")
+            Lb = self.tkinter.Listbox(F_slotView_oneSlot, height = ListHight_ava, width= ListWidth_ava,relief="flat")
             Lb.pack(side="top")
             # save to CurrItems for further processing
             self.AvaItems.append([Dev, Lb]) 
             
             # create frame space
-            F_slotView_space = tkinter.Frame(F_slotView,  width=10)
+            F_slotView_space = self.tkinter.Frame(F_slotView,  width=10)
             F_slotView_space.pack(side="left")            
             # ---- end per slot
         
-        F_Info = tkinter.Frame(self.root)
+        F_Info = self.tkinter.Frame(self.root)
         F_Info.pack(side="bottom")        
         self.root.mainloop()
         return True       
@@ -972,13 +939,16 @@ class SMI_SRIOV(NVME):
         self.shell_cmd("virsh shutdown  %s"%VMname)       
     
     def VM_shell_cmd(self, IP, CMD):
-        s = paramiko.SSHClient()
-        s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        sleep(0.5)
-        s.connect(hostname=IP, port=22, username="root", password="Smi888")
-        stdin, stdout, stderr = s.exec_command(CMD)
-
-        return stdout.read()
+        if self.paramiko==None:
+            self.Print("paramiko not installed!", "f")
+        else:
+            s = self.paramiko.SSHClient()
+            s.set_missing_host_key_policy(self.paramiko.AutoAddPolicy())
+            sleep(0.5)
+            s.connect(hostname=IP, port=22, username="root", password="Smi888")
+            stdin, stdout, stderr = s.exec_command(CMD)
+    
+            return stdout.read()
     
     def GetPortBusSlotFunc(self, SubDUT):
         mPort = SubDUT.pcie_port # 0000:01:00.0
@@ -1140,9 +1110,9 @@ class SMI_SRIOV(NVME):
         
     def FIO_CMD(self, device):
         # output format terse,normal
-        return "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=2M --rw=write --numjobs=1 \
+        return "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --numjobs=1 \
             --offset=0 --filename=%s --name=mdata --do_verify=0  \
-            --output-format=terse,normal --runtime=5"%(device)        
+            --output-format=terse,normal --runtime=10"%(device)        
         
     def DO_Script_Test(self, testScriptName, option=""):
         # ex. testScriptName = 'SMI_SmartHealthLog.py'
@@ -1194,6 +1164,17 @@ class SMI_SRIOV(NVME):
         # get new parser if need, where args order is the same with initial order
         # config_numvfs = int or None
         self.config_numvfs = self.GetDynamicArgs(0)       
+        
+        # import module if installed, else yum install module 
+        self.tkinter = self.ImportModuleWithAutoYumInstall("Tkinter", "yum -y install tkinter")
+        self.paramiko = self.ImportModuleWithAutoYumInstall("paramiko", None)        
+        self.PyVersion=2 if sys.version_info[0] < 3 else 3
+        self.matplotlib = self.ImportModuleWithAutoYumInstall("matplotlib", "sudo yum install -y python%s-matplotlib"%self.PyVersion)
+        
+        # if tkinter imported, using GUI
+        self.UsingGUI = True if self.tkinter!=None else False
+        
+        
         
         ''' using -n to set number of VF that will be enable and test instead of using config file
         # config file parameters
@@ -1280,9 +1261,10 @@ class SMI_SRIOV(NVME):
     def PreTest(self): 
         if self.mTestModeOn:
             self.Print("Test mode on")   
-        self.Print("Package Tkinter installed") if tkinterInstalled else self.Print("Package Tkinter not installed","f") 
-        self.Print("Package paramiko installed") if tkinterInstalled else self.Print("Package paramiko not installed","f")
-        self.Print("")         
+
+        self.Print("")
+        
+         
                
         self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
         self.Print("TotalVFs: %s"%self.TotalVFs)
@@ -1401,11 +1383,12 @@ class SMI_SRIOV(NVME):
 
     
     SubCase2TimeOut = 1800
-    SubCase2Desc = "Test power cycle"   
+    SubCase2Desc = "Test Data Integrity of POR and SPOR"   
     SubCase2KeyWord = ""
     def SubCase2(self):
         ret_code=0       
-        if self.mTestModeOn:
+        #if self.mTestModeOn:
+        if True:
             self.Print("skip sub case")
             return 0
 
@@ -1457,168 +1440,60 @@ class SMI_SRIOV(NVME):
         return ret_code
 
     SubCase3TimeOut = 1800
-    SubCase3Desc = "Test SR-IOV in virtual machines"   
+    SubCase3Desc = "Test S3 mode for SR-IOV device"   
     SubCase3KeyWord = ""
-    def SubCase3(self):
-        # note: using TotalVFs to decide the number of VM
+    def SubCase3(self):             
         ret_code=0   
-        '''
-        if self.mTestModeOn:
-            self.Print("skip sub case")
-            return 0        
-        '''
-        
-        self.Print("Check if kernel boot parameter intel_iommu=on at boot option(/etc/default/grub)")      
-        #if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
-        if self.shell_cmd("find /sys | grep dmar 2>&1 >/dev/null; echo $?") =="0":
-            self.Print("Pass!", "p")
-        else:
-            self.Print("intel_iommu=off, quit", "p")
-            return 255
-        
-        self.Print("")  
-        self.Print("Check if tools was installed")
-        if not self.isCMDExist("virsh"):
-            self.Print("Cant find virsh, please install libvirt before test, quit")
-            return 255
-        else:
-            self.Print("Pass!", "p")
-        
-        # start ------------------------------------------------------------------------------    
-        # init VMinfo and VMname
-        for i in range(self.TotalVFs):    
-            info = self.VMinfoClass()
-            info.vmName="VM%s"%i
-            self.VMinfo.append(info)
-
-        self.Print("")        
-        self.Print("Create virtual machines VM0 to VM%s"%(self.TotalVFs-1))        
-        for info in self.VMinfo:
-            name = info.vmName
-            if not self.CreateVM(name):
-                self.Print("Fail to create %s"%name)
-                return 1
-        self.Print("Done")
-
+        self.Print("Test S3 mode for SR-IOV device")
         self.Print("")
-        timeout=60
-        self.Print("Get IP address of all VMs for ssh connection, timeout %s s"%timeout)
-        for info in self.VMinfo:
-            name = info.vmName
-            IP = self.GetVM_IPaddr(name, timeout)
-            if IP==None:
-                self.Print("Fail to get ip address : %s"%(name))
-                return 1
-            self.Print("%s : %s"%(name, IP))
-            info.vmIpAddr=IP
-        ''' snchan  
+        
+        sleepTimer = 10
+        mTime=datetime.datetime.now()
+        self.Print("Set system enter S3 mode for % seconds, current time: %s"%(sleepTimer, mTime))
+        self.DoSystemEnterS3mode(sleepTimer)
+
+        mTime=datetime.datetime.now()
+        self.Print("system exit S3 mode, current time: %s"%mTime)
         self.Print("")
-        self.Print("Host FIO write speed test")   
-        self.Print("--------------------------------------")     
-        for device in self.VFDevices:
-            SubDUT = NVME([device])
-            FIO_CMD = self.FIO_CMD(device)   
-            mStr = SubDUT.shell_cmd(FIO_CMD)
-            speedInKbyte = self.GetFIO_Speed(mStr)
-            if speedInKbyte==None:
-                self.Print("FIO fail", "f")
-                return 1
+            
+        self.Print("Check if VFs is missing after S3 mode")
+        for Dev in self.VFDevices:
+            if self.isfileExist(Dev):
+                self.Print("        %s, exist"%Dev, "p")  
             else:
-                self.Print("FIO write %s: bw=%s MB/s"%(device, speedInKbyte/1024), "f")
-        self.Print("--------------------------------------") 
-          
-        self.Print("")     
-        self.Print("Create XML files for Attach Detach PCIE to VM")
-        # create xml file for attach/detach command
-        VM_xml_list = self.CreateXMLforAttachDetachPCIE()        
-        # check if VMname =  xml file for attach/detach command
-        if len(self.VMinfo)!=len(VM_xml_list)  :
-            self.Print("Number of VM != number of XML files", "f")
-            return 1
-        else:
-            # copy to VMinfo
-            for i in range(len(self.VMinfo)):
-                info=self.VMinfo[i];
-                info.vmHostNVMEname=VM_xml_list[i][0]
-                info.vmXmlFile=VM_xml_list[i][1]
-                info.vmPciePort=VM_xml_list[i][2]
-            self.Print("Done")
-            
-        
-        self.Print("")
-        self.Print("Attach all SR-IOV PCIE device to guest VMs")
-        for info in self.VMinfo:
-            VMname = info.vmName
-            PCIEport = info.vmPciePort
-            XMLfile = info.vmXmlFile
-            NVMEname= info.vmHostNVMEname
-            self.Print("Attach PCIe %s(%s) to %s"%(PCIEport, NVMEname, VMname))
-            self.AttachPCIEtoVM(VMname, XMLfile)
-        
-        
-        '''
-        '''
-        self.Print("")
-        self.Print("Virtual machine FIO write speed test") 
-        self.Print("--------------------------------------") 
-        for info in self.VMinfo:            
-            if not self.DoVM_FIOtest(info): return 1                
-        self.Print("--------------------------------------") 
-        '''
-        self.Print("")
-        self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously ")
-        mThreads = [] 
-
-        for info in self.VMinfo:            
-            t = threading.Thread(target = self.DoVM_FIOtest, args=(info,))
-            t.start() 
-            mThreads.append(t) 
-   
-        # check if all process finished 
-        while True:
-            allfinished=1
-            for process in mThreads:
-                if process.is_alive():
-                    allfinished=0
-                    break        
+                self.Print("        %s, missing"%Dev, "f") 
+                ret_code=1
                 
-            # if all process finished then, quit while loop, else  send reset command
-            if allfinished==1:        
-                break
-            else:               
-                sleep(1)             
-        
         self.Print("")
-        self.Print("")
-        self.Print("")
-
-        
-        
-        
-        
-        
-            
-
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        return ret_code
-        
-        
-    SubCase4TimeOut = 1800
+        if ret_code!=0:
+            self.Print("VFs is missing after S3 mode, Reset SR-IOV and check if create VFs success")
+            self.Print("Set all VF offline")
+            if not self.SetCurrentNumOfVF(0):
+                self.Print("Fail, quit all", "f"); return 1 
+            self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+            if not self.SetCurrentNumOfVF(self.TotalVFs):
+                self.Print("Create VF Fail", "f"); return 1                     
+                   
+               
+        return ret_code   
+    
+    SubCase4TimeOut = 7200
     SubCase4Desc = "Test NVMe device speed"   
     SubCase4KeyWord = ""
     def SubCase4(self):
         # note: using TotalVFs to decide the number of VM
         ret_code=0   
+        
+        if self.matplotlib==None:
+            self.Print("matplotlib not installed!, quit test!", "f")
+            return 255            
+            
+        self.Print("Format all PF/VFs") 
+        for dev in self.AllDevices:
+            dev=dev.replace("n1", "")   # remove 'n1'
+            self.Print("  nvme format %s -n 1 "%dev)
+            rtCode = self.shell_cmd("nvme format %s -n 1 2>&1 "%dev)
+            self.Print(rtCode)
         
         # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
         PF = self.AllDevices[0]
@@ -1636,7 +1511,7 @@ class SMI_SRIOV(NVME):
         # start to test PF
         CMD1 = CMDtemp + " --filename=%s"%(PF)
         self.Print("")        
-        self.Print("Do FIO write for %s, command as folowing"%(PF))      
+        self.Print("Do FIO test for writing entire disk of %s, command as folowing"%(PF))      
         self.Print(CMD1)
         
         CMD=[CMD1]
@@ -1651,7 +1526,7 @@ class SMI_SRIOV(NVME):
         
         # start to test all VF at the same time
         self.Print("")
-        self.Print("Do FIO write for all VFs at the same time(Simultaneously), command as folowing")
+        self.Print("Do FIO test for writing entire disk of all VFs at the same time(Simultaneously), FIO commands as below")
         CMD=[]
         for dev in self.VFDevices:      
             CMD1 = CMDtemp + " --filename=%s"%(dev)  
@@ -1776,146 +1651,172 @@ class SMI_SRIOV(NVME):
         testScriptName= "SMI_DSM.py"
         ret_code = 0 if self.DO_Script_Test(testScriptName) else 1                      
         return ret_code    
-        
+             
     
-    
-    '''
-    SubCase2TimeOut = 1800
-    SubCase2Desc = "Enable all VF with all Flexible Resources"   
-    SubCase2KeyWord = ""
-    def SubCase2(self):
-        ret_code=0       
+    SubCase10TimeOut = 1800
+    SubCase10Desc = "Test SR-IOV in virtual machines(KVM/QEMU)"   
+    SubCase10KeyWord = ""
+    def SubCase10(self):
+        # note: using TotalVFs to decide the number of VM
+        ret_code=0   
         
         
-        self.Print("") 
-        self.Print("Set all VF offline")
-        if not self.SetCurrentNumOfVF(0):
-            self.Print("Fail, quit all", "f"); return 1   
+        #if self.mTestModeOn: snchan
+        '''
+        if True:
+            self.Print("skip sub case")
+            return 255  
+        '''      
         
-        # backup os nvme list            
-        self.VFoff_NvmeList=self.GetCurrentNvmeList()
+        if self.paramiko==None:
+            self.Print("paramiko not installed!, quit test!", "f")
+            return 255
         
-        self.Print("Try to set Primary Controller Resources to Minimum")
-        self.Set_PF_ResourceMinimum(printInfo=True)
-        self.Print("Done")        
-   
-        
-        self.Print("")     
-        self.Print("Try to set Secondary Controller Resources to Minimum")
-        self.Set_VF_ResourceMinimum(printInfo=True)
-        self.Print("Done")  
-        
-        self.Print("") 
-        self.Print("Set all VF online")
-        if not self.SetCurrentNumOfVF(len(self.SecondaryControllerList)):
-            self.Print("Fail, quit all", "f"); return 1               
-        
-        self.Print("")     
-        NumOfNS=len(self.SecondaryControllerList)+1
-        self.Print("Try to create %s namespaces"%NumOfNS)  
-        if not self.CreateMultiNs(NumOfNS, 10000)!=   NumOfNS:
-            self.Print("Fail, quit all", "f"); return 1    
-            
-        self.Print("")             
-        self.Print("Try to attach namespaces to make each controller having a private namespace and access to a namespace shared by all controllers")  
-        self.Print("    Try to attach namespaces 1 - %s to VF 1 - %s"%(NumOfNS-1, NumOfNS-1))
-        nsid=1
-        for SCEntry in self.SecondaryControllerList:
-            SCID= SCEntry.SCID
-            if not self.AttachNs(nsid, SCID) ==0:
-                self.Print("    Fail at nsid=%s, quit all"%nsid, "f"); return 1    
-            nsid=nsid+1      
-        self.Print("Done")
-        self.Print("    Try to attach namespaces %s to all VF"%(NumOfNS)) 
-        nsid=NumOfNS
-        for SCEntry in self.SecondaryControllerList:
-            SCID= SCEntry.SCID
-            if not self.AttachNs(nsid, SCID) ==0:
-                self.Print("    Fail at SCID=%s, quit all"%SCID, "f"); return 1            
-        self.nvme_reset()                
-        self.Print("Done")
-                
-        self.Print("")     
-        self.Print("Check if the Controller List of Identify command with CNS=0x12 indicates that namespaces 1 - %s was attached to VF 1 - %s"%(NumOfNS-1, NumOfNS-1))   
-        self.Print("And namespaces %s was attached to all VF  "%(NumOfNS))
-        self.Print("------------------------------------------------------")   
-        for nsid in range(1 , NumOfNS+1):
-            isPass = True
-            # if not last one, namespaces attach to 1 SCID only
-            if nsid!=NumOfNS:
-                CL = self.GetControllerList_ThatAreAttachedToTheNamespace(nsid)
-                SCID = self.SecondaryControllerList[nsid-1].SCID
-                if CL[0]!=SCID: isPass = False
-            else:
-            # namespaces was attached to all VF 
-                CL = self.GetControllerList_ThatAreAttachedToTheNamespace(nsid)
-                CL.sort()                
-                SCID = [SCEntry.SCID for SCEntry in self.SecondaryControllerList]
-                SCID.sort()
-                if CL[0]!=SCID: isPass = False
-
-            if isPass:
-                self.Print("namespaces %s : ControllerList: %s : Pass"%(nsid, CL), "p")
-            else:
-                self.Print("namespaces %s : ControllerList: %s : Fail"%(nsid, CL), "f")
-                ret_code = 1
-            
-        self.Print("------------------------------------------------------")   
-        if ret_code!=0: return 1
-        
-
-        
-        # linux nvme list after enable VF
-        self.VFon_NvmeList=self.GetCurrentNvmeList()
-        self.VFDevices = list(set(self.VFon_NvmeList) - set(self.VFoff_NvmeList)).sort()
-        NumOfVF=len(self.SecondaryControllerList)
-        self.Print("Check if linux os create %s NVMe device under folder /dev/"%NumOfVF)
-        self.Print("")
-        for Dev in self.VFDevices:
-            self.Print(Dev)
-        if NumOfVF==len(self.VFDevices):
-            self.Print("Pass","p")
+        self.Print("Check if kernel boot parameter intel_iommu=on at boot option(/etc/default/grub)")      
+        #if self.shell_cmd("dmesg | grep IOM 2>&1 >/dev/null; echo $?") =="0":
+        if self.shell_cmd("find /sys | grep dmar 2>&1 >/dev/null; echo $?") =="0":
+            self.Print("Pass!", "p")
         else:
-            self.Print("Fail, quit all", "f"); return 1
+            self.Print("intel_iommu=off, quit", "p")
+            return 255
         
-        # check if all controller is enabled
-        self.Print("Check if all SCEntry is enabled in identify structure -> SecondaryControllerList")
-        # get identify structure
-        self.Get_SecondaryControllerList()    
-        for SCEntry in self.SecondaryControllerList:
-            SCEntryID = SCEntry[0]
-            SCE = SCEntry[1]
-            # if Secondary Controller State (SCS)=1, controller is online
-            if (SCE.SCS&0b1) ==1:    
-                self.Print("SCEntry %s is enabled"%SCEntryID,"p")
-            else:
-                self.Print("SCEntry %s is disabled, quit all"%SCEntryID,"f"); return 1
+        self.Print("")  
+        self.Print("Check if tools was installed")
+        if not self.isCMDExist("virsh"):
+            self.Print("Cant find virsh, please install libvirt before test, quit")
+            return 255
+        else:
+            self.Print("Pass!", "p")
+            
+        # snchan
+        f_CreateVM = False
+        f_GetVM_IP = True
+        f_HostFIOtest = False   #
+        f_AttachPCIE = True
+        f_VM_FIOtestStandAlone = False  #
+        f_VM_FIOtestSimultaneously = True
+        # start ------------------------------------------------------------------------------    
+        # init VMinfo and VMname
+        for i in range(self.TotalVFs):    
+            info = self.VMinfoClass()
+            info.vmName="VM%s"%i
+            self.VMinfo.append(info)        
         
-        # append all devices for testing , where AllDevices[0] is PF, others is VF     
-        PFDevices= [self.dev]
-        self.AllDevices = PFDevices + ["/dev/nvme1n1"]
-                
-        # test all test item in one VF and other VF/PF should not be modified 
-        self.TestSpecificVFandOtherVFshouldNotBeModified(self.AllDevices[1])
-        
-        #--------------------
-        self.Print("")     
-        self.Print("Try to run SMI_DSM.py for nvme1n1")   
-        self.write        
-        print "rtcode=%s"%self.RunSMIScript("SMI_SubProcess/mtest.py", "%s 1,3"%self.dev)     
-        
-        self.Print("")    
-        if self.VI_ResourceSupported:
-            VIResourcesFlexibleTotal=self.PCCStructure.VIFRT
-            # minimum number of VQ Resources that may be assigned is two 
-        # ----------------------        
-           
+        if f_CreateVM:    
+            self.Print("")        
+            self.Print("Create virtual machines VM0 to VM%s"%(self.TotalVFs-1))        
+            for info in self.VMinfo:
+                name = info.vmName
+                if not self.CreateVM(name):
+                    self.Print("Fail to create %s"%name)
+                    return 1
+            self.Print("Done")
 
-        self.AllDevices = [self.dev] + ["/dev/nvme1n1"] + ["/dev/nvme2n1"]
-        self.MultiThreadTest(10)
+        if f_GetVM_IP:
+            self.Print("")
+            timeout=60
+            self.Print("Get IP address of all VMs for ssh connection, timeout %s s"%timeout)
+            for info in self.VMinfo:
+                name = info.vmName
+                IP = self.GetVM_IPaddr(name, timeout)
+                if IP==None:
+                    self.Print("Fail to get ip address : %s"%(name))
+                    return 1
+                self.Print("%s : %s"%(name, IP))
+                info.vmIpAddr=IP
+            
+        if f_HostFIOtest:  
+            self.Print("")
+            self.Print("Host FIO write speed test")   
+            self.Print("--------------------------------------")     
+            for device in self.VFDevices:
+                SubDUT = NVME([device])
+                FIO_CMD = self.FIO_CMD(device)   
+                mStr = SubDUT.shell_cmd(FIO_CMD)
+                speedInKbyte = self.GetFIO_Speed(mStr)
+                if speedInKbyte==None:
+                    self.Print("FIO fail", "f")
+                    return 1
+                else:
+                    self.Print("FIO write %s: bw=%s MB/s"%(device, speedInKbyte/1024), "f")
+            self.Print("--------------------------------------") 
+        
+        if f_AttachPCIE:      
+            self.Print("")     
+            self.Print("Create XML files for Attach/Detach PCIE to VM")
+            # create xml file for attach/detach command
+            VM_xml_list = self.CreateXMLforAttachDetachPCIE()        
+            # check if VMname =  xml file for attach/detach command
+            if len(self.VMinfo)!=len(VM_xml_list)  :
+                self.Print("Number of VM != number of XML files", "f")
+                return 1
+            else:
+                # copy to VMinfo
+                for i in range(len(self.VMinfo)):
+                    info=self.VMinfo[i];
+                    info.vmHostNVMEname=VM_xml_list[i][0]
+                    info.vmXmlFile=VM_xml_list[i][1]
+                    info.vmPciePort=VM_xml_list[i][2]
+                self.Print("Done")
+            
+            
+            self.Print("")
+            self.Print("Attach all SR-IOV PCIE device to guest VMs")
+            for info in self.VMinfo:
+                VMname = info.vmName
+                PCIEport = info.vmPciePort
+                XMLfile = info.vmXmlFile
+                NVMEname= info.vmHostNVMEname
+                self.Print("Attach PCIe %s(%s) to %s"%(PCIEport, NVMEname, VMname))
+                self.AttachPCIEtoVM(VMname, XMLfile)
+
+        if f_VM_FIOtestStandAlone:
+            self.Print("")
+            self.Print("Virtual machine FIO write speed test") 
+            self.Print("--------------------------------------") 
+            for info in self.VMinfo:            
+                if not self.DoVM_FIOtest(info): return 1                
+            self.Print("--------------------------------------") 
+        
+        if f_VM_FIOtestSimultaneously:
+            self.Print("")
+            self.Print("Using SSH to issue nvme commands to guest VMs")
+            self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously")
+            mThreads = [] 
+            #self.DoVM_FIOtest(self.VMinfo[0])
+            
+            for info in self.VMinfo:            
+                t = threading.Thread(target = self.DoVM_FIOtest, args=(info,))
+                t.start() 
+                mThreads.append(t) 
+       
+            # check if all process finished 
+            while True:
+                allfinished=1
+                for process in mThreads:
+                    if process.is_alive():
+                        allfinished=0
+                        break        
+                    
+                # if all process finished then, quit while loop, else  send reset command
+                if allfinished==1:        
+                    break
+                else:               
+                    sleep(1)             
+            
+        self.Print("")
+        self.Print("")
+        self.Print("")
+
+
+        
+        
+        
         
         return ret_code
-    '''
+        
+        
+        
     # </define sub item scripts>
 
     # define PostTest  

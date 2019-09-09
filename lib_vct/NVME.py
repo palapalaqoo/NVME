@@ -1105,7 +1105,44 @@ class NVME(object, NVMECom):
             if not finish: return False
         return True
 
+        
+    def ImportModuleWithAutoYumInstall(self, package, yumInstallCMD):
+    # return module if module was installed, else yum install module, if fail to install then return None
+    # if yumInstallCMD=None, it will not yum install package if package not found
+    # ex, package= tkinter
+    # ex, yumInstallCMD='sudo yum install tkinter'    
+    # ex usage, self.tkinter = self.ImportModuleWithAutoYumInstall("Tkinter", "yum -y install tkinter")
+        rtPackage = None
+        try:
+            rtPackage = __import__(package)
+            self.Print("Import package success! : %s"%package)
+        except ImportError:
+            if yumInstallCMD==None:
+                self.Print("Not installed")
+            else:
+                self.Print("%s Not installed , Try to install package(%s)"%(package, yumInstallCMD), "f"   )      
+                InstallSuccess =  True if self.shell_cmd("%s -y  2>&1 >/dev/null; echo $?"%yumInstallCMD, 0.5)=="0" else False
+                
+                if InstallSuccess:
+                    self.Print("Install Success!, try to import again..", "p")                           
+                    try:
+                        rtPackage = __import__(package)
+                        self.Print("Import success!")
+                    except ImportError:
+                        self.Print("Import fail!" , "f")
+                        
+                    return False
+                else:
+                    self.Print("Install fail!", "f")
+                    return False
+        return rtPackage
 
+    def DoSystemEnterS3mode(self, wakeUpTimer=10):    
+    # wakeUpTimer in secends  
+        CMD= "sudo rtcwake -v -s %s -m mem"%wakeUpTimer
+        self.shell_cmd(CMD, 1)          
+        
+        
 # ==============================================================    
 class DevWakeUpAllTheTime():
 # make device wake up all the time

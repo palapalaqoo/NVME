@@ -18,6 +18,7 @@ class SMI_SetUp(NVME):
     def __init__(self, argv):
         # initial parent class
         super(SMI_SetUp, self).__init__(argv)
+        self.Version=2 if sys.version_info[0] < 3 else 3
 
     # define pretest  
     def PreTest(self):        
@@ -66,7 +67,7 @@ class SMI_SetUp(NVME):
             self.Print("Installed!"                )
         except ImportError:
             self.Print("Not install , Try to install package"   )
-            self.shell_cmd("sudo yum install -y python2-matplotlib")
+            self.shell_cmd("sudo yum install -y python%s-matplotlib"%self.Version)
             sleep(0.5)
             try:
                 __import__(package)
@@ -88,9 +89,14 @@ class SMI_SetUp(NVME):
             self.Print("Installed!"                )
         except ImportError:
             self.Print("Not install , Try to install package"   )
-            self.shell_cmd("tar -xzf pycrypto-2.6.tar.gz ; cd pycrypto-2.6 ; python setup.py install")
-            self.shell_cmd("tar -xzf paramiko-1.14.0.tar.gz ; cd paramiko-1.14.0 ; python setup.py install")
-            self.shell_cmd("tar -xzf ecdsa-0.11.tar.gz ; cd ecdsa-0.11 ; python setup.py install")
+            '''
+            self.shell_cmd("cd SMI_SetUpResources; tar -xzf pycrypto-2.6.tar.gz ; cd pycrypto-2.6 ; python setup.py install")
+            self.shell_cmd("cd SMI_SetUpResources; tar -xzf paramiko-1.14.0.tar.gz ; cd paramiko-1.14.0 ; python setup.py install")
+            self.shell_cmd("cd SMI_SetUpResources; tar -xzf ecdsa-0.11.tar.gz ; cd ecdsa-0.11 ; python setup.py install")
+            '''
+            self.shell_cmd("cd SMI_SetUpResources/pycrypto-2.6 ; python setup.py install")
+            self.shell_cmd("cd SMI_SetUpResources/paramiko-1.14.0 ; python setup.py install")
+            self.shell_cmd("cd SMI_SetUpResources/cd ecdsa-0.11 ; python setup.py install")            
             sleep(0.5)  
             try:
                 __import__(package)
