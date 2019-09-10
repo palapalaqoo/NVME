@@ -16,6 +16,7 @@ from lib_vct.NVME import NVME
 from lib_vct import mStruct
 from random import randint
 from __builtin__ import True
+from gtk import TRUE
 
 
 
@@ -74,9 +75,10 @@ class SMI_SRIOV(NVME):
         # VM
         vmName=None
         vmHostNVMEname=None
-        vmXmlFile=None
+        vmXmlFilePCIE=None
         vmPciePort=None   
         vmIpAddr=None
+        vmXmlFileRawDisk=None
                     
     def Get_PrimaryControllerCapabilitiesStructure(self, printInfo=False):
         # expected data length from shell command
@@ -828,11 +830,11 @@ class SMI_SRIOV(NVME):
         else:
             return None
                 
-    def AttachPCIEtoVM(self, VMname, XMLfile):
+    def AttachDeviceToVM(self, VMname, XMLfile):
         fullPath="./SRIOV_Resources/%s"%XMLfile
         self.shell_cmd("virsh attach-device %s %s"%(VMname, fullPath))
         
-    def DetachPCIEtoVM(self, VMname, XMLfile):
+    def DetachDeviceToVM(self, VMname, XMLfile):
         fullPath="./SRIOV_Resources/%s"%XMLfile
         self.shell_cmd("virsh detach-device %s %s"%(VMname, fullPath))    
     
@@ -890,6 +892,63 @@ class SMI_SRIOV(NVME):
             # save to VM_xml_list, example [ '/dev/nvme1n1' , 'AttachDetachPCIE_0000:01:00.1', '0000:01:00.1' ]
             VM_xml_list.append([ device, fileName, SubDUT.pcie_port])   
         return VM_xml_list    
+
+    def CreateRawDiskImg(self, numOfDisk, DiskSize="5G"):
+    # Format PF and create raw disk on it
+    # e.g. in SRIOV_Resources/MntPF,  create vmdisk0.img, vmdisk1.img ..., and so on.
+    # where PF = AllDevices[0]
+        # mkfs PF
+        self.shell_cmd("sudo mkfs -t ext4 %s 2>&1 >/dev/null"%self.AllDevices[0])
+        # mkdir for further mount PF
+        if not self.isfileExist("SRIOV_Resources/MntPF"):
+            self.shell_cmd("sudo mkdir SRIOV_Resources/MntPF")
+        # mount PF
+        self.shell_cmd("sudo mount %s SRIOV_Resources/MntPF 2>&1 >/dev/null"%self.AllDevices[0])
+        # create raw disk
+        for i in range(numOfDisk):
+            self.shell_cmd("cd SRIOV_Resources/MntPF; qemu-img create -f raw -o preallocation=full vmdisk%s.img %s"%(i, DiskSize))
+        # check result for create raw disk
+        return self.isNumOfRawDiskImgExist(numOfDisk)
+            
+
+
+    def isNumOfRawDiskImgExist(self, numOfDisk):
+    # check if raw disk inage is exist
+        for i in range(numOfDisk):            
+            if not self.isfileExist("SRIOV_Resources/MntPF/vmdisk%s.img"%i):
+                return False        
+        return True 
+        
+
+    def CreateXMLforAttachDetachRawDisk(self):
+        #Create XML("AttachDetachRawDisk_0.xml") file for attach/detach PF raw image drive, command as below(VF0 is the name of VM)
+        # virsh attach-device VF0 AttachDetachRawDisk_0.xml 
+        # virsh detach-device VF0 AttachDetachRawDisk_0.xml       
+        VM_xml_list=[]   
+        numOfDisk = len(self.VMinfo)
+        if not self.isNumOfRawDiskImgExist(numOfDisk):
+            self.Print("Error, number of vmdisk in 'SRIOV_Resources/MntPF' is not match number of VM, expect %s files"%numOfDisk)
+            return []
+        
+        # for numOfDisk
+        for i in range(numOfDisk):
+                              
+            # data pattern generation
+            mDIR = os.path.dirname(os.path.realpath(__file__))
+            mydata = "<disk type='block' device='disk'> \
+                            <driver name='qemu' type='raw' cache='none' io='native'/> \
+                            <source dev='%s/SRIOV_Resources/MntPF/vmdisk%s.img'/> \
+                            <target dev='vda' bus='virtio'/> \
+                            </disk>"%(mDIR, i)
+            
+            # create a new XML file with the results
+            fileName = "AttachDetachRawDisk_%s.xml"%i
+            fullPath="./SRIOV_Resources/%s"%fileName
+            myfile = open(fullPath, "w")
+            myfile.write(mydata) 
+            # save to VM_xml_list, example [ 'AttachDetachRawDisk_0' ]
+            VM_xml_list.append(fileName)   
+        return VM_xml_list                 
     
     def CreateVM(self, VMname):
         mDIR = os.path.dirname(os.path.realpath(__file__))
@@ -922,7 +981,7 @@ class SMI_SRIOV(NVME):
         self.shell_cmd("qemu-img create -f qcow2 -o backing_file=%s %s"%(TempFullPath, VMfullPath))
         
         # create VM
-        CMD="virt-install -n %s -r 1024 --os-type=linux --disk %s,device=disk,bus=ide -w  bridge=virbr0,model=virtio \
+        CMD="virt-install -n %s -r 512 --os-type=linux --disk %s,device=disk,bus=ide -w  bridge=virbr0,model=virtio \
         --vnc  --import   --os-variant rhel7 --noautoconsole"%(VMname, VMfullPath)
         self.shell_cmd(CMD)
 
@@ -976,13 +1035,18 @@ class SMI_SRIOV(NVME):
             
         return IP
     
-    def GetFIO_Speed(self, FIOresult):
+    def GetFIO_Speed(self, FIOresult, rw="w"):
         # FIOresult, where command  --output-format=terse 
+        # rw = read/write
         findall = re.findall("([^;]*);", FIOresult)
         if len(findall)>0:
             read_BW_in_KBs = findall[6]
             write_BW_in_KBs = findall[47]
-            return int(write_BW_in_KBs)
+            if rw=="w":
+                return int(write_BW_in_KBs)
+            if rw=="r":
+                return int(read_BW_in_KBs)
+            return None
         else:
             return None    
         
@@ -1003,13 +1067,19 @@ class SMI_SRIOV(NVME):
         else:       
             return True        
         
-    def DoVM_FIOtest(self, info):
-        # all nvme device in VM is /dev/nvme0n1
-        FIO_CMD = self.FIO_CMD("/dev/nvme0n1")
+    def DoVM_FIOtest(self, info, option=0, rw="w"):
+        # option =0 : all nvme device in VM is /dev/nvme0n1
+        # option =1 : all nvme device in VM is /dev/vda, raw disk
+        if option==0:
+            FIO_CMD = self.FIO_CMD("/dev/nvme0n1")
+        elif option==1:
+            FIO_CMD = self.FIO_CMD("/dev/vda")
+        else:
+            return False
         IP=info.vmIpAddr
         device= info.vmName
         mStr = self.VM_shell_cmd(IP, FIO_CMD)
-        speedInKbyte = self.GetFIO_Speed(mStr)
+        speedInKbyte = self.GetFIO_Speed(mStr, rw)
         if speedInKbyte==None:
             self.Print("FIO fail", "f")
             return False  
@@ -1110,7 +1180,7 @@ class SMI_SRIOV(NVME):
         
     def FIO_CMD(self, device):
         # output format terse,normal
-        return "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --numjobs=1 \
+        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=write --numjobs=1 \
             --offset=0 --filename=%s --name=mdata --do_verify=0  \
             --output-format=terse,normal --runtime=10"%(device)        
         
@@ -1692,9 +1762,12 @@ class SMI_SRIOV(NVME):
         f_CreateVM = False
         f_GetVM_IP = True
         f_HostFIOtest = False   #
-        f_AttachPCIE = True
+        f_AttachPCIE = False
         f_VM_FIOtestStandAlone = False  #
         f_VM_FIOtestSimultaneously = True
+        f_CreateRawDiskImg = False
+        f_AttachRawDisk = False
+        f_VM_FIOtestSimultaneouslyRawDisk = True
         # start ------------------------------------------------------------------------------    
         # init VMinfo and VMname
         for i in range(self.TotalVFs):    
@@ -1709,8 +1782,10 @@ class SMI_SRIOV(NVME):
                 name = info.vmName
                 if not self.CreateVM(name):
                     self.Print("Fail to create %s"%name)
-                    return 1
+                    return 1                
+              
             self.Print("Done")
+            
 
         if f_GetVM_IP:
             self.Print("")
@@ -1748,14 +1823,14 @@ class SMI_SRIOV(NVME):
             VM_xml_list = self.CreateXMLforAttachDetachPCIE()        
             # check if VMname =  xml file for attach/detach command
             if len(self.VMinfo)!=len(VM_xml_list)  :
-                self.Print("Number of VM != number of XML files", "f")
+                self.Print("Number of VM(%s) != number of XML files(%s)"%(len(self.VMinfo), len(VM_xml_list)), "f")
                 return 1
             else:
                 # copy to VMinfo
                 for i in range(len(self.VMinfo)):
                     info=self.VMinfo[i];
                     info.vmHostNVMEname=VM_xml_list[i][0]
-                    info.vmXmlFile=VM_xml_list[i][1]
+                    info.vmXmlFilePCIE=VM_xml_list[i][1]
                     info.vmPciePort=VM_xml_list[i][2]
                 self.Print("Done")
             
@@ -1765,10 +1840,12 @@ class SMI_SRIOV(NVME):
             for info in self.VMinfo:
                 VMname = info.vmName
                 PCIEport = info.vmPciePort
-                XMLfile = info.vmXmlFile
+                XMLfile = info.vmXmlFilePCIE
                 NVMEname= info.vmHostNVMEname
                 self.Print("Attach PCIe %s(%s) to %s"%(PCIEport, NVMEname, VMname))
-                self.AttachPCIEtoVM(VMname, XMLfile)
+                self.AttachDeviceToVM(VMname, XMLfile)
+                
+        sleep(2)
 
         if f_VM_FIOtestStandAlone:
             self.Print("")
@@ -1803,6 +1880,64 @@ class SMI_SRIOV(NVME):
                     break
                 else:               
                     sleep(1)             
+
+        if f_CreateRawDiskImg:
+            self.Print("")     
+            self.Print("Create Raw Disk Img on PF")  
+            self.CreateRawDiskImg(numOfDisk=len(self.VMinfo), DiskSize="5G")
+
+        if f_AttachRawDisk:      
+            self.Print("")     
+            self.Print("Create XML files for Attach/Detach RawDisk(located in VF) to VM")
+            # create xml file for attach/detach command
+            VM_xml_list = self.CreateXMLforAttachDetachRawDisk()        
+            # check if VMname =  xml file for attach/detach command
+            if len(self.VMinfo)!=len(VM_xml_list)  :
+                self.Print("Number of VM(%s) != number of XML files(%s)"%(len(self.VMinfo), len(VM_xml_list)), "f")
+                return 1
+            else:
+                # copy to VMinfo
+                for i in range(len(self.VMinfo)):
+                    info=self.VMinfo[i];
+                    info.vmXmlFileRawDisk=VM_xml_list[i]
+                self.Print("Done")
+            
+            
+            self.Print("")
+            self.Print("Attach all RawDisk(located in VF) to guest VMs")
+            for info in self.VMinfo:
+                VMname = info.vmName
+                XMLfile = info.vmXmlFileRawDisk
+                self.Print("Attach raw disk %s to %s"%( XMLfile, VMname))
+                self.AttachDeviceToVM(VMname, XMLfile)
+        
+        sleep(2)         
+        if f_VM_FIOtestSimultaneouslyRawDisk:
+            self.Print("")
+            self.Print("Using SSH to issue nvme commands to guest VMs(Raw Disk)")
+            self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously(Raw Disk)")
+            mThreads = [] 
+            #self.DoVM_FIOtest(self.VMinfo[0])
+            
+            for info in self.VMinfo:            
+                t = threading.Thread(target = self.DoVM_FIOtest, args=(info, 1,))
+                t.start() 
+                mThreads.append(t) 
+       
+            # check if all process finished 
+            while True:
+                allfinished=1
+                for process in mThreads:
+                    if process.is_alive():
+                        allfinished=0
+                        break        
+                    
+                # if all process finished then, quit while loop, else  send reset command
+                if allfinished==1:        
+                    break
+                else:               
+                    sleep(1)                         
+                
             
         self.Print("")
         self.Print("")

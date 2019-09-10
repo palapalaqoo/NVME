@@ -1,1 +1,8 @@
-CASE 1 : test 1 : Pass
+CASE 1 : Test critical warnings : Pass
+CASE 2 : Test data_units_read with read command : Pass
+CASE 3 : Test data_units_read with compare command : Pass
+CASE 4 : Test data_units_written with write command : Pass
+CASE 5 : Test data_units_written with Write Uncorrectable command : Pass
+CASE 6 : Test host_read_commands and host_write_commands : Pass
+CASE 7 : Test controller busy time : Fail
+CASE 8 : Test media error and error log : Fail
