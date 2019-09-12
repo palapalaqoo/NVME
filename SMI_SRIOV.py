@@ -838,6 +838,19 @@ class SMI_SRIOV(NVME):
         fullPath="./SRIOV_Resources/%s"%XMLfile
         self.shell_cmd("virsh detach-device %s %s"%(VMname, fullPath))    
     
+    def GetCurrentXMLforAttachDetachPCIE(self):
+        VM_xml_list=[]
+        mFile = self.shell_cmd("ls ./SRIOV_Resources |grep 'AttachDetachPCIE_'")
+        findall = re.findall("(AttachDetachPCIE_\w*_.*.xml)", mFile)
+        pattern = "AttachDetachPCIE_(\w*)_(.*).xml"       
+        for mStr in findall:       
+            if re.search(pattern, mStr):
+                VMname = re.search(pattern, mStr).group(1) 
+                pcie_port = re.search(pattern, mStr).group(2) 
+                fileName=mStr
+                VM_xml_list.append([ "none", fileName, pcie_port, VMname])    
+        return VM_xml_list
+    
     def CreateXMLforAttachDetachPCIE(self):
         #Create XML("AttachDetachPCIE.xml") file for attach/detach pci, command as below(VF0 is the name of VM)
         # virsh attach-device VF0 AttachDetachPCIE.xml 
@@ -846,10 +859,13 @@ class SMI_SRIOV(NVME):
         VM_xml_list=[]
         
         # for all VF devices
+        i=0
         for device in self.VFDevices:
                               
             SubDUT = NVME([device]) 
-            fileName = "AttachDetachPCIE_%s.xml"%SubDUT.pcie_port
+            VMname="VM%s"%i            
+            fileName = "AttachDetachPCIE_%s_%s.xml"%(VMname, SubDUT.pcie_port)
+            i=i+1
             # get nvme pci port                 
             sBus, sSlot, sFunc = self.GetPortBusSlotFunc(SubDUT)        
     
@@ -890,7 +906,7 @@ class SMI_SRIOV(NVME):
             myfile.write(mydata) 
             
             # save to VM_xml_list, example [ '/dev/nvme1n1' , 'AttachDetachPCIE_0000:01:00.1', '0000:01:00.1' ]
-            VM_xml_list.append([ device, fileName, SubDUT.pcie_port])   
+            VM_xml_list.append([ device, fileName, SubDUT.pcie_port, VMname])   
         return VM_xml_list    
 
     def CreateRawDiskImg(self, numOfDisk, DiskSize="5G"):
@@ -1067,24 +1083,21 @@ class SMI_SRIOV(NVME):
         else:       
             return True        
         
-    def DoVM_FIOtest(self, info, option=0, rw="w"):
-        # option =0 : all nvme device in VM is /dev/nvme0n1
-        # option =1 : all nvme device in VM is /dev/vda, raw disk
-        if option==0:
-            FIO_CMD = self.FIO_CMD("/dev/nvme0n1")
-        elif option==1:
-            FIO_CMD = self.FIO_CMD("/dev/vda")
-        else:
-            return False
+    def DoVM_FIOtest(self, info, targetDevice = "/dev/nvme0n1", rw="w"):
+        # targetDevice = "/dev/nvme0n1" for SRIOV in all VMs
+        # targetDevice = "/dev/vda" for raw disk in all VMs
+        # rw: read = "r", write = "w"
+        ReadWrite="write" if rw=="w" else "read" 
+        FIO_CMD = self.FIO_CMD(targetDevice, rw)
         IP=info.vmIpAddr
-        device= info.vmName
+        VMname= info.vmName
         mStr = self.VM_shell_cmd(IP, FIO_CMD)
         speedInKbyte = self.GetFIO_Speed(mStr, rw)
         if speedInKbyte==None:
             self.Print("FIO fail", "f")
             return False  
         else:   
-            self.Print("FIO write %s: bw=%.1f MiB/s,  bandwidth (KB/s):%s"%(device, speedInKbyte/float(1024), speedInKbyte), "f") 
+            self.Print("FIO %s %s: bw=%.1f MiB/s,  bandwidth (KB/s):%s"%(ReadWrite, VMname, speedInKbyte/float(1024), speedInKbyte), "f") 
             return True
 
     def DoHostStandaloneAllDeviceFIOtest(self):
@@ -1178,11 +1191,12 @@ class SMI_SRIOV(NVME):
             content = content_file.read()      
         return content  
         
-    def FIO_CMD(self, device):
+    def FIO_CMD(self, device, rw="w"):
         # output format terse,normal
-        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=write --numjobs=1 \
+        ReadWrite="write" if rw=="w" else "read"
+        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=%s --numjobs=1 \
             --offset=0 --filename=%s --name=mdata --do_verify=0  \
-            --output-format=terse,normal --runtime=10"%(device)        
+            --output-format=terse,normal --runtime=10"%(ReadWrite, device)        
         
     def DO_Script_Test(self, testScriptName, option=""):
         # ex. testScriptName = 'SMI_SmartHealthLog.py'
@@ -1223,6 +1237,54 @@ class SMI_SRIOV(NVME):
             if PF_PciePort!=Port and PF_BusDeviceNum==BusDeviceNum:
                 mList.append(device)
         return mList
+    
+    def DoVM_FIOtest_Simultaneously(self, targetDevice, rw, numDUT=None):
+    # targetDevice: "SRIOV" or "RawDisk"
+    # rw : r or w
+    # numDUT, ex. if there are 4 VMs and you need to test 3 VMs only, then set numDUT=3
+        if targetDevice=="SRIOV":
+            dev="/dev/nvme0n1"
+        elif targetDevice=="RawDisk":
+            dev="/dev/vda"
+        else:
+            self.Print("Fail: func DoVM_FIOtest_Simultaneously, expect  targetDevice error!(%s)"%targetDevice)
+            return False
+        
+        ReadWrite="write" if rw=="w" else "read"        
+        self.Print("")
+        self.Print("Using SSH to issue nvme commands to guest VMs")
+        self.Print("Virtual machine FIO %s test, all VMs do FIO simultaneously(%s)"%(ReadWrite, targetDevice))
+        mThreads = [] 
+        #self.DoVM_FIOtest(self.VMinfo[0])        
+            
+        # set nVM, ex. if there are 4 VMs and you need to test 3 VMs only, then set numDUT=3
+        nDUT=1000
+        if numDUT!=None:
+            if numDUT<=len(self.VMinfo):
+                nDUT=numDUT
+            
+        for info in self.VMinfo:            
+            t = threading.Thread(target = self.DoVM_FIOtest, args=(info, dev, rw,))
+            t.start() 
+            mThreads.append(t) 
+            nDUT = nDUT -1
+            if nDUT==0:
+                break
+    
+        # check if all process finished 
+        while True:
+            allfinished=1
+            for process in mThreads:
+                if process.is_alive():
+                    allfinished=0
+                    break        
+                
+            # if all process finished then, quit while loop, else  send reset command
+            if allfinished==1:        
+                break
+            else:               
+                sleep(1)    
+    
     
     def __init__(self, argv): 
         # initial new parser if need, -t -d -s -p was used, dont use it again
@@ -1558,12 +1620,9 @@ class SMI_SRIOV(NVME):
             self.Print("matplotlib not installed!, quit test!", "f")
             return 255            
             
-        self.Print("Format all PF/VFs") 
-        for dev in self.AllDevices:
-            dev=dev.replace("n1", "")   # remove 'n1'
-            self.Print("  nvme format %s -n 1 "%dev)
-            rtCode = self.shell_cmd("nvme format %s -n 1 2>&1 "%dev)
-            self.Print(rtCode)
+        self.Print("Trim all SSD (fstrim -a -v)") 
+        rtCode = self.shell_cmd("fstrim -a -v")
+        self.Print(rtCode)
         
         # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
         PF = self.AllDevices[0]
@@ -1577,7 +1636,11 @@ class SMI_SRIOV(NVME):
         CMDtemp = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 \
          --offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x%X\
         --verify_pattern=%s"%(totalByte, mPattern)
-        
+        '''
+        CMDtemp = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=read --numjobs=1 \
+         --offset=0 --name=mtest --do_verify=0 --size=0x%X\
+        "%(totalByte)        
+        '''
         # start to test PF
         CMD1 = CMDtemp + " --filename=%s"%(PF)
         self.Print("")        
@@ -1759,15 +1822,26 @@ class SMI_SRIOV(NVME):
             self.Print("Pass!", "p")
             
         # snchan
+        f_GetVM_IP = True   # must have
+                
         f_CreateVM = False
-        f_GetVM_IP = True
         f_HostFIOtest = False   #
         f_AttachPCIE = False
-        f_VM_FIOtestStandAlone = False  #
-        f_VM_FIOtestSimultaneously = True
+
         f_CreateRawDiskImg = False
+        f_MountPF=False
         f_AttachRawDisk = False
-        f_VM_FIOtestSimultaneouslyRawDisk = True
+        
+        f_VM_FIO_WriteTestStandAlone = False  #
+        f_VM_FIO_WriteTestSimultaneously = False
+
+        f_VM_FIO_WriteTestSimultaneouslyRawDisk = False
+        f_VM_FIO_ReadTestSimultaneously = False
+        f_VM_FIO_ReadTestSimultaneouslyRawDisk = False
+        
+        f_DettachRawDisk=False
+        f_UmountPF=False
+        f_DetachPCIE =True
         # start ------------------------------------------------------------------------------    
         # init VMinfo and VMname
         for i in range(self.TotalVFs):    
@@ -1847,44 +1921,23 @@ class SMI_SRIOV(NVME):
                 
         sleep(2)
 
-        if f_VM_FIOtestStandAlone:
+        if f_VM_FIO_WriteTestStandAlone:
             self.Print("")
             self.Print("Virtual machine FIO write speed test") 
             self.Print("--------------------------------------") 
             for info in self.VMinfo:            
                 if not self.DoVM_FIOtest(info): return 1                
             self.Print("--------------------------------------") 
-        
-        if f_VM_FIOtestSimultaneously:
-            self.Print("")
-            self.Print("Using SSH to issue nvme commands to guest VMs")
-            self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously")
-            mThreads = [] 
-            #self.DoVM_FIOtest(self.VMinfo[0])
-            
-            for info in self.VMinfo:            
-                t = threading.Thread(target = self.DoVM_FIOtest, args=(info,))
-                t.start() 
-                mThreads.append(t) 
-       
-            # check if all process finished 
-            while True:
-                allfinished=1
-                for process in mThreads:
-                    if process.is_alive():
-                        allfinished=0
-                        break        
-                    
-                # if all process finished then, quit while loop, else  send reset command
-                if allfinished==1:        
-                    break
-                else:               
-                    sleep(1)             
+
 
         if f_CreateRawDiskImg:
             self.Print("")     
             self.Print("Create Raw Disk Img on PF")  
             self.CreateRawDiskImg(numOfDisk=len(self.VMinfo), DiskSize="5G")
+            
+        if f_MountPF:    
+            # umount PF
+            self.shell_cmd("sudo mount %s SRIOV_Resources/MntPF 2>&1 >/dev/null" %self.AllDevices[0])       
 
         if f_AttachRawDisk:      
             self.Print("")     
@@ -1900,9 +1953,7 @@ class SMI_SRIOV(NVME):
                 for i in range(len(self.VMinfo)):
                     info=self.VMinfo[i];
                     info.vmXmlFileRawDisk=VM_xml_list[i]
-                self.Print("Done")
-            
-            
+                self.Print("Done")            
             self.Print("")
             self.Print("Attach all RawDisk(located in VF) to guest VMs")
             for info in self.VMinfo:
@@ -1911,33 +1962,82 @@ class SMI_SRIOV(NVME):
                 self.Print("Attach raw disk %s to %s"%( XMLfile, VMname))
                 self.AttachDeviceToVM(VMname, XMLfile)
         
-        sleep(2)         
-        if f_VM_FIOtestSimultaneouslyRawDisk:
+        
+        if f_VM_FIO_WriteTestSimultaneously:
+            self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="w", numDUT=None)
+     
+        if f_VM_FIO_WriteTestSimultaneouslyRawDisk:
+            self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="w", numDUT=None)
+
+        
+        if f_VM_FIO_ReadTestSimultaneously:
+            self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="r", numDUT=1)
+   
+        if f_VM_FIO_ReadTestSimultaneouslyRawDisk:
+            sleep(10)             
+            self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="r", numDUT=1)
+
+
+
+        if f_DettachRawDisk:     
+            self.Print("")     
+            self.Print("Create XML files for Attach/Detach RawDisk(located in VF) to VM")
+            # create xml file for attach/detach command
+            VM_xml_list = self.CreateXMLforAttachDetachRawDisk()        
+            # check if VMname =  xml file for attach/detach command
+            if len(self.VMinfo)!=len(VM_xml_list)  :
+                self.Print("Number of VM(%s) != number of XML files(%s)"%(len(self.VMinfo), len(VM_xml_list)), "f")
+                return 1
+            else:
+                # copy to VMinfo
+                for i in range(len(self.VMinfo)):
+                    info=self.VMinfo[i];
+                    info.vmXmlFileRawDisk=VM_xml_list[i]
+                self.Print("Done")            
             self.Print("")
-            self.Print("Using SSH to issue nvme commands to guest VMs(Raw Disk)")
-            self.Print("Virtual machine FIO write speed test, all VMs do FIO simultaneously(Raw Disk)")
-            mThreads = [] 
-            #self.DoVM_FIOtest(self.VMinfo[0])
+            self.Print("Detach all RawDisk(located in VF) to guest VMs")
+            for info in self.VMinfo:
+                VMname = info.vmName
+                XMLfile = info.vmXmlFileRawDisk
+                self.Print("Detach raw disk %s to %s"%( XMLfile, VMname))
+                self.DetachDeviceToVM(VMname, XMLfile)                   
             
-            for info in self.VMinfo:            
-                t = threading.Thread(target = self.DoVM_FIOtest, args=(info, 1,))
-                t.start() 
-                mThreads.append(t) 
-       
-            # check if all process finished 
-            while True:
-                allfinished=1
-                for process in mThreads:
-                    if process.is_alive():
-                        allfinished=0
-                        break        
-                    
-                # if all process finished then, quit while loop, else  send reset command
-                if allfinished==1:        
-                    break
-                else:               
-                    sleep(1)                         
-                
+            
+        if f_UmountPF:    
+            # umount PF
+            self.shell_cmd("sudo umount SRIOV_Resources/MntPF 2>&1 >/dev/null")            
+
+        if f_DetachPCIE:      
+            self.Print("")     
+            self.Print("Get XML files for Attach/Detach PCIE to VM")
+            # create xml file for attach/detach command
+            VM_xml_list = self.GetCurrentXMLforAttachDetachPCIE()        
+            # check if VMname =  xml file for attach/detach command
+            if len(self.VMinfo)!=len(VM_xml_list)  :
+                self.Print("Number of VM(%s) != number of XML files(%s)"%(len(self.VMinfo), len(VM_xml_list)), "f")
+                return 1
+            else:
+                # copy to VMinfo
+                for i in range(len(self.VMinfo)):
+                    info=self.VMinfo[i];
+                    for j in range(len(VM_xml_list)):
+                        if info.vmName == VM_xml_list[j][3]:
+                            info.vmHostNVMEname=VM_xml_list[i][0]
+                            info.vmXmlFilePCIE=VM_xml_list[i][1]
+                            info.vmPciePort=VM_xml_list[i][2]
+                self.Print("Done")
+            
+            
+            self.Print("")
+            self.Print("Detach all SR-IOV PCIE device to guest VMs")
+            for info in self.VMinfo:
+                VMname = info.vmName
+                PCIEport = info.vmPciePort
+                XMLfile = info.vmXmlFilePCIE
+                NVMEname= info.vmHostNVMEname
+                self.Print("Detach PCIe %s(%s) to %s"%(PCIEport, NVMEname, VMname))
+                self.DetachDeviceToVM(VMname, XMLfile)
+
             
         self.Print("")
         self.Print("")

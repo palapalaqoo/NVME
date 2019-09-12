@@ -17,7 +17,6 @@ import linecache
 
 
 
-
 class TimedOutExc(Exception):
     pass
 
@@ -459,8 +458,11 @@ class NVMECom():
             helpMsg=mArg[2]
             argType=mArg[3]
             parser.add_argument("-%s"%optionName, "--%s"%optionNameFull, help=helpMsg, type=argType, nargs='?')
-        
-
+        # Display help message with python argparse when script is called without any arguments
+        if len(argv)==0:
+            parser.print_help(sys.stderr)
+            sys.exit(1)
+        # parser here
         args = parser.parse_args(args=argv)
         
         mDev=args.dev
@@ -794,17 +796,26 @@ class NVMECom():
             # thread id start form 0
             idThread=0  
             devName=[]
+            fioRW=[]
             timeList = []
             bwList = []
             mThreads = []
             axList=[]
             # init thread to issue cmd and pull msg out
             for CMD in CMDlist:           
-                # set device name
+                # parse CMD to get device name
                 if re.search("dev\/(\w*)", CMD):
                     mStr=re.search("dev\/(\w*)", CMD).group(1)
-                    devName.append(mStr)                
-                     
+                    devName.append(mStr)  
+                    
+                # parse CMD to check if is read or write        
+                if re.search("--rw=(\w*)", CMD):
+                    mStr=re.search("--rw=(\w*)", CMD).group(1)
+                    fioRW.append(mStr)
+                else:
+                    self.Print("Error!, func RunFIOcmdWithConsoleOutAndPyplot, FIO command can't find --rw=(\w*)","f")
+                    return False
+                
                 # add fio options for fio test
                 command = CMD + " --write_bw_log=bwOut%s --log_avg_msec=1000 --per_job_logs=0"%idThread                
                 # set timeList and bwList
@@ -846,13 +857,19 @@ class NVMECom():
                     if len(MsgCopy)!=0:
                         for mStr in MsgCopy:
                             # parse msg
-                            # MutexThreadOut [type, idThread, time, bw, eta], type0 = RunTimeBW, 1=FinalAverageBW
+                            # MutexThreadOut [type, idThread, time, readBW, writeBW, eta], type0 = RunTimeBW, 1=FinalAverageBW
                             mtype = mStr[0]
                             idThread = mStr[1]
                             time = mStr[2]
-                            bw = mStr[3]
-                            eta = mStr[4]       
-                                                     
+                            readBW = mStr[3]
+                            writeBW = mStr[4]  
+                            eta = mStr[5]     
+                            
+                            # check is read / write fio test
+                            if fioRW[idThread]=="read":
+                                bw=readBW
+                            else:
+                                bw=writeBW                                
                             if mtype==0: # if get RunTimeBW
                                 # if > max size, remove old one 
                                 if len(timeList[idThread]) >maxPlot:
@@ -867,7 +884,7 @@ class NVMECom():
                                 targetAx = axList[idThread]
                                 targetAx.clear()
                                 # set lables                        
-                                targetAx.title.set_text("%s, estimated time: %s"%(devName[idThread], eta))  # nvme0n1, estimated time: 1m:10s
+                                targetAx.title.set_text("%s(%s), estimated time: %s"%(devName[idThread], fioRW[idThread], eta))  # nvme0n1(read), estimated time: 1m:10s
                                 #targetAx.set_xlabel("Time(s)")
                                 targetAx.set_ylabel("MiB/s")     
                                 # set plot                       
@@ -884,6 +901,17 @@ class NVMECom():
                     sleep(0.5) 
                     # end of parse Msg------------------------------------------------   
             return averageBwList           
+        
+        def BW_KMGtoM(self, value, unit):
+        # format KMG to M, e.g. format giga to maga
+            if unit=="K":    #KiB/s
+                value=float(value/1024)
+            if unit=="M":    #MiB/s
+                value=float(value)                 
+            if unit=="G":    #GiB/s
+                value=float(value*1024)  
+            return value
+            
             
         def RunOneFIOcmdWithConsoleOutThread(self, idThread, command, printInfo=False):
             # timer
@@ -895,53 +923,58 @@ class NVMECom():
                 
                 # report for runtime bw
                 # ex, Jobs: 1 (f=1): [W(1)][60.0%][r=0KiB/s,w=48.8MiB/s][r=0,w=99.9k IOPS][eta 00m:02s]
-                mStr = "^Jobs: .*w=([0-9.]*)([A-Z])iB/s.*\[eta (.*)\]"
+                mStr = "^Jobs: .*r=([0-9.]*)([A-Z])iB/s.*w=([0-9.]*)([A-Z])iB/s.*\[eta (.*)\]"
                 findRunTimeBW=bool(re.search(mStr, line))
                 if findRunTimeBW:
-                    value = float(re.search(mStr, line).group(1))
-                    unit =  re.search(mStr, line).group(2)
-                    eta =  re.search(mStr, line).group(3)
-                    if unit=="K":    #KiB/s
-                        value=int(value/1024)
-                    if unit=="M":    #MiB/s
-                        value=int(value)                 
-                    if unit=="G":    #GiB/s
-                        value=int(value*1024)        
+                    Rvalue = float(re.search(mStr, line).group(1))
+                    Runit =  re.search(mStr, line).group(2)
+                    Wvalue = float(re.search(mStr, line).group(3))
+                    Wunit =  re.search(mStr, line).group(4)                    
+                    # read bw format to Mega
+                    readBW = self.BW_KMGtoM(Rvalue, Runit)
+                    # write bw format to Mega
+                    writeBW = self.BW_KMGtoM(Wvalue, Wunit)
+                    # ETA
+                    eta =  re.search(mStr, line).group(5)    
                 
                     # pyplot
                     time = Tcnt
-                    Tcnt = Tcnt+1
-                    bw = value                    
+                    Tcnt = Tcnt+1                  
                     # write info to mutex variable
                     self.lock.acquire()
-                    # MutexThreadOut [type, idThread, time, bw, eta], type0 = RunTimeBW, 1=FinalAverageBW
-                    self.Msg.append([0, idThread, time, bw, eta])                
+                    # MutexThreadOut [type, idThread, time, readBW, writeBW, eta], type0 = RunTimeBW, 1=FinalAverageBW
+                    self.Msg.append([0, idThread, time, readBW, writeBW, eta])                
                     self.lock.release()
                     
                 # final report for average bw 
                 #Run status group 0 (all jobs):
-                #WRITE: bw=51.1MiB/s (53.6MB/s), 51.1MiB/s-51.1MiB/s (53.6MB/s-53.6MB/s), io=255MiB (268MB), run=5001-5001msec                
+                #WRITE: bw=51.1MiB/s (53.6MB/s), 51.1MiB/s-51.1MiB/s (53.6MB/s-53.6MB/s), io=255MiB (268MB), run=5001-5001msec  
+                #READ: bw=879MiB/s (922MB/s), 879MiB/s-879MiB/s (922MB/s-922MB/s), io=8791MiB (9218MB), run=10001-10001msec  
+                readBW=0
+                writeBW=0            
+                # find write Average BW?
                 mStr = "WRITE: bw=([0-9.]*)([A-Z])iB/s"
-                if re.search("WRITE: bw", line):
-                    pass
-                findFinalAverageBW=bool(re.search(mStr, line))
-                if findFinalAverageBW:
+                findFinalAverageBWwrite=bool(re.search(mStr, line))
+                if findFinalAverageBWwrite:                  
                     value = float(re.search(mStr, line).group(1))
-                    unit =  re.search(mStr, line).group(2)                    
-                    if unit=="K":    #KiB/s
-                        value=int(value/1024)
-                    if unit=="M":    #MiB/s
-                        value=int(value)                 
-                    if unit=="G":    #GiB/s
-                        value=int(value*1024)
-                         
+                    unit =  re.search(mStr, line).group(2)   
+                    writeBW = self.BW_KMGtoM(value, unit) 
+                # find read Average BW?
+                mStr = "READ: bw=([0-9.]*)([A-Z])iB/s"
+                findFinalAverageBWread=bool(re.search(mStr, line))                     
+                if findFinalAverageBWread:                  
+                    value = float(re.search(mStr, line).group(1))
+                    unit =  re.search(mStr, line).group(2)                
+                    readBW = self.BW_KMGtoM(value, unit) 
+                    
+                # if find read or write, then save to Msg       
+                if findFinalAverageBWread or findFinalAverageBWwrite:
                     eta =  0        
                     time = 0
-                    bw = value 
                     # write info to mutex variable
                     self.lock.acquire()
-                    # MutexThreadOut [type, idThread, time, bw, eta], type0 = RunTimeBW, 1=FinalAverageBW
-                    self.Msg.append([1, idThread, time, bw, eta])                
+                    # MutexThreadOut [type, idThread, time, readBW, writeBW, eta], type0 = RunTimeBW, 1=FinalAverageBW
+                    self.Msg.append([1, idThread, time, readBW, writeBW, eta])                                      
                     self.lock.release()
     
         def RunFIOgetRealTimeConsoleOut(self, command):
@@ -976,7 +1009,7 @@ class NVMECom():
         bwList = [0]*maxSize         
         
         #   using pyplot
-        #import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt
         plt.ion()
         fig = plt.figure()
         ax = fig.add_subplot(111)

@@ -1,8 +1,10 @@
-CASE 1 : Test critical warnings : Pass
-CASE 2 : Test data_units_read with read command : Pass
-CASE 3 : Test data_units_read with compare command : Pass
-CASE 4 : Test data_units_written with write command : Pass
-CASE 5 : Test data_units_written with Write Uncorrectable command : Pass
-CASE 6 : Test host_read_commands and host_write_commands : Pass
-CASE 7 : Test controller busy time : Fail
-CASE 8 : Test media error and error log : Fail
+CASE 1 : Test if the operation of PF and VFs influences itself only : Skip
+CASE 2 : Test Data Integrity of POR and SPOR : Skip
+CASE 3 : Test S3 mode for SR-IOV device : Skip
+CASE 4 : Test NVMe device speed : Skip
+CASE 5 : Test SMI_SmartHealthLog.py for all VF/PF : Skip
+CASE 6 : Test SMI_SetGetFeatureCmd.py for all VF/PF : Skip
+CASE 7 : Test SMI_Read.py for all VF/PF : Skip
+CASE 8 : Test SMI_Write.py for all VF/PF : Skip
+CASE 9 : Test SMI_DSM.py for all VF/PF : Skip
+CASE 10 : Test SR-IOV in virtual machines(KVM/QEMU) : Pass
