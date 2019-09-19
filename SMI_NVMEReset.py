@@ -27,7 +27,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20190819"
+    Version = "20190917"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -117,9 +117,9 @@ class SMI_NVMeReset(NVME):
         self.Flow.DST.ShowProgress=False     
         self.Flow.DST.ShowMessage=False
         # set DST command nsid
-        self.Flow.DST.SetNSID(0x1)
-        # set DST type = Short device self-test operation
-        self.Flow.DST.SetDstType(1)  
+        self.Flow.DST.SetNSID(0xFFFFFFFF)#0x1
+        # set DST type : 1= Short device self-test operation, 2= extended device self-test operation
+        self.Flow.DST.SetDstType(2)  
         # set Event
         self.Flow.DST.SetEventTrigger(triggerFunc)                   
         # set Threshold = 1 to raise event

@@ -1,10 +1,8 @@
-CASE 1 : Test if the operation of PF and VFs influences itself only : Skip
-CASE 2 : Test Data Integrity of POR and SPOR : Skip
-CASE 3 : Test S3 mode for SR-IOV device : Skip
-CASE 4 : Test NVMe device speed : Skip
-CASE 5 : Test SMI_SmartHealthLog.py for all VF/PF : Skip
-CASE 6 : Test SMI_SetGetFeatureCmd.py for all VF/PF : Skip
-CASE 7 : Test SMI_Read.py for all VF/PF : Skip
-CASE 8 : Test SMI_Write.py for all VF/PF : Skip
-CASE 9 : Test SMI_DSM.py for all VF/PF : Skip
-CASE 10 : Test SR-IOV in virtual machines(KVM/QEMU) : Pass
+CASE 1 : Test Command Dword 11 : Skip
+CASE 2 : Test Attribute - Deallocate (AD), single name spaces : Skip
+CASE 3 : Test Attribute - Deallocate (AD), multi name spaces : Skip
+CASE 4 : Test Attribute - Deallocate whole disk (AD) with a list of ranges : Skip
+CASE 5 : Test Attribute – Integral Dataset for Write (IDW) : Skip
+CASE 6 : Test Attribute – Integral Dataset for Read (IDR) : Skip
+CASE 7 : Test Context Attributes : Skip
+CASE 8 : Test Namespace Utilization (NUSE) : Skip

@@ -604,16 +604,32 @@ class NVME(object, NVMECom):
         return self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, DEV, offset, size, pattern))
     
-    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1):
+    def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1, printMsg=False):
     #-- return boolean
         devPort=self.dev_port if devPort==None else devPort
         DEV=devPort+"n%s"%nsid 
         msg =  self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\| io_u error' " %(fio_direct, fio_bs, DEV, offset, size, pattern))
+        --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\|fio: got pattern\| io_u error' " %(fio_direct, fio_bs, DEV, offset, size, pattern))
 
-        ret=False
+        
         if msg:
             ret=False
+            if printMsg:
+                # find ErrBlkOffset, ex, bad pattern block offset 65024
+                mStr = "bad pattern block offset (\d*)"
+                if re.search(mStr, msg):
+                    ErrBlkOffset = int(re.search(mStr, msg).group(1))
+                    
+                    # find ErrOffset, ex, verify failed at file /dev/nvme0n1 offset 42548793344
+                    mStr = "verify failed at file .* offset (\d*)"
+                    if re.search(mStr, msg):
+                        ErrOffset = int(re.search(mStr, msg).group(1) )  
+                        ErrAddr = ErrOffset+ErrBlkOffset
+                        # print
+                        self.Print("Data mismatch at address = 0x%X"%ErrAddr, "f")
+                        self.Print("Fail infomation as below ..")
+                        self.Print(msg, "f")
+                        
         else:
             ret=True
      
@@ -631,22 +647,22 @@ class NVME(object, NVMECom):
         self.fio_write(self.last_SB*512, size, pattern)
     
     # check  Logical Block Content Change
-    def isequal_SML_data(self,pattern, size="1M"): 
+    def isequal_SML_data(self,pattern, size="1M", printMsg=False): 
     #-- check 1G data at start, midde and last address
         ret=False        
-        if self.fio_isequal(self.start_SB*512,size, pattern):
+        if self.fio_isequal(self.start_SB*512,size, pattern, printMsg=printMsg):
             ret=True
         else:
             ret=False
             return ret 
                 
-        if self.fio_isequal(self.middle_SB*512,size, pattern):
+        if self.fio_isequal(self.middle_SB*512,size, pattern, printMsg=printMsg):
             ret=True
         else:
             ret=False
             return ret 
             
-        if self.fio_isequal(self.last_SB*512,size, pattern):
+        if self.fio_isequal(self.last_SB*512,size, pattern, printMsg=printMsg):
             ret=True
         else:
             ret=False
@@ -1142,7 +1158,10 @@ class NVME(object, NVMECom):
         CMD= "sudo rtcwake -v -s %s -m mem"%wakeUpTimer
         self.shell_cmd(CMD, 1)          
         
-        
+    def DoSystemEnterS4mode(self, wakeUpTimer=30):    
+    # wakeUpTimer in secends  
+        CMD= "sudo rtcwake -v -s %s -m disk"%wakeUpTimer
+        self.shell_cmd(CMD, 1)           
 # ==============================================================    
 class DevWakeUpAllTheTime():
 # make device wake up all the time

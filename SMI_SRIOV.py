@@ -1285,23 +1285,168 @@ class SMI_SRIOV(NVME):
             else:               
                 sleep(1)    
     
+    def DoTestSpeed(self, readWrite="write"):
+        rtCode = True
+        
+        self.Print("Trim all SSD.. ") 
+        for dev in self.AllDevices:
+            cmd = "blkdiscard %s"%dev
+            self.Print(cmd)
+            rtCode = self.shell_cmd(cmd)
+        #rtCode = self.shell_cmd("fstrim -a -v")
+        
+        #self.Print(rtCode) 
+        self.Print("Done")
+        self.Print("")       
+        
+        
+        
+        
+        
+        # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
+        PF = self.AllDevices[0]
+        SubDUT = NVME([PF])         
+        NUSE=SubDUT.IdNs.NUSE.int        
+        
+        self.Print("NUSE: 0x%X"%NUSE) 
+        totalByte = NUSE*512  
+        
+        mPattern = randint(1, 0xFF)
+        if readWrite=="write":
+            CMDtemp = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64K --rw=%s --numjobs=1 \
+         --offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x%X\
+        --verify_pattern=%s"%(readWrite, totalByte, mPattern)
+        else:
+            CMDtemp = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64K --rw=read --numjobs=1 \
+             --offset=0 --name=mtest --do_verify=0 --size=0x%X\
+            "%(totalByte)        
+        
+        # start to test PF
+        CMD1 = CMDtemp + " --filename=%s"%(PF)
+        self.Print("")        
+        self.Print("Do FIO test for %s entire disk of %s, command as folowing"%(readWrite, PF))      
+        self.Print(CMD1)
+        
+        CMD=[CMD1]
+        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)        
+        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=180, printInfo=False)
+        self.Print("Finished")
+        Did=0
+        self.Print("%s: FIO bw= %sMiB/s"%(PF, averageBwList[Did]), "p")
+        pfBW=averageBwList[Did]
+        self.Print("PF bw= %sMiB/s"%(pfBW))
+        sleep(5)      
+        
+        # start to test all VF at the same time
+        self.Print("")
+        self.Print("Trim all SSD.. ") 
+        for dev in self.AllDevices:
+            cmd = "blkdiscard %s"%dev
+            self.Print(cmd)
+            rtCode = self.shell_cmd(cmd)      
+        
+        self.Print("Do FIO test for %s entire disk of all VFs at the same time(Simultaneously), FIO commands as below"%readWrite)
+        CMD=[]
+        for dev in self.VFDevices:      
+            CMD1 = CMDtemp + " --filename=%s"%(dev)  
+            self.Print(CMD1) 
+            CMD.append(CMD1)
+            
+        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)        
+        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=180, printInfo=False)
+        self.Print("Finished")
+        sleep(5)
+        Did=0
+        for dev in self.VFDevices: 
+            self.Print("%s: FIO bw= %sMiB/s"%(dev, averageBwList[Did]), "p")
+            Did=Did+1
+            
+        self.Print("")        
+        totalBW=sum(averageBwList)
+        self.Print("Total bw for all FIO VF testing(VF0 + VF1 + VF2 ..): %s"%totalBW)
+        self.Print("PF bw= %sMiB/s"%(pfBW))
+        self.Print("Check if (total bw of VF) >= (0.8*PF bw)")
+        if((pfBW*0.8)> totalBW):
+            self.Print("Fail","f")
+            rtCode=False
+        else:
+            self.Print("Pass","p")
+                      
+        self.Print("")        
+        maxBW=max(averageBwList) 
+        minBW=min(averageBwList) 
+        self.Print("Min bw of VF=%s, Max bw of VF=%s"%(minBW, maxBW))
+        self.Print("Check QOS(Quality of Service) for VFs")
+        self.Print("Check if the VF is shared the throughput equally") 
+        self.Print("e.g. (Min bw of VF)/(Max bw of VF) >=0.7) ")
+        if(float(minBW/maxBW)<0.7 ):
+            self.Print("Fail","f")
+            rtCode=False
+        else:
+            self.Print("Pass","p")        
+        
+        return rtCode
+                
+    def TestOSsleep(self, mode, wakeuptimer):
+    # mode = S3, S4
+        # enter sleep
+        mTime=datetime.datetime.now()
+        if mode=="S3":
+            self.Print("Test S3 mode(Suspend To Ram) for SR-IOV device")
+            # if user input wakeuptimer arg
+            Timer = 10 if wakeuptimer==None else wakeuptimer
+            self.Print("Set system enter S3 mode for % seconds, current time: %s"%(Timer, mTime))
+            self.DoSystemEnterS3mode(Timer)
+        elif mode=="S4":
+            self.Print("Test S4 mode(Suspend To Disk) for SR-IOV device")
+            Timer = 40 if wakeuptimer==None else wakeuptimer
+            self.Print("Set system enter S4 mode for % seconds, current time: %s"%(Timer, mTime))
+            self.DoSystemEnterS4mode(Timer)
+        self.Print("")
+        
+        # wakeup from here
+        mTime=datetime.datetime.now()
+        self.Print("system exit sleep, current time: %s"%mTime)
+        
+        self.Print("Check if VFs is missing after wakeup")
+        for Dev in self.VFDevices:
+            if self.isfileExist(Dev):
+                self.Print("        Pass: %s, exist"%Dev, "p")  
+            else:
+                self.Print("        Fail: %s, missing"%Dev, "f")                 
+                self.Print("")
+                self.Print("VFs is missing after wakeup, Reset SR-IOV and check if create VFs success")
+                self.Print("Set all VF offline")
+                if not self.SetCurrentNumOfVF(0):
+                    self.Print("Fail, quit all", "f"); return False
+                self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
+                if not self.SetCurrentNumOfVF(self.TotalVFs):
+                    self.Print("Create VF Fail", "f"); return False                     
+        return True             
     
     def __init__(self, argv): 
         # initial new parser if need, -t -d -s -p was used, dont use it again
         self.SetDynamicArgs(optionName="n", optionNameFull="numofvf", helpMsg="number of VF that will be enable and test", argType=int) 
+        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops for case11, case12", argType=int)
+        self.SetDynamicArgs(optionName="w", optionNameFull="wakeuptimer", helpMsg="wakeup timer in seconds for case11, case12", argType=int)
                 
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
         
         # get new parser if need, where args order is the same with initial order
         # config_numvfs = int or None
-        self.config_numvfs = self.GetDynamicArgs(0)       
+        self.config_numvfs = self.GetDynamicArgs(0)  
+        self.loops = self.GetDynamicArgs(1)  
+        self.wakeuptimer = self.GetDynamicArgs(2)  # if no wakeuptimer arg in, wakeuptimer = None
+        
+        # set defalut loop =1   
+        self.loops=1 if self.loops==None else self.loops
         
         # import module if installed, else yum install module 
-        self.tkinter = self.ImportModuleWithAutoYumInstall("Tkinter", "yum -y install tkinter")
+        self.tkinter = self.ImportModuleWithAutoYumInstall("Tkinter", "sudo yum -y install tkinter python-tools")
         self.paramiko = self.ImportModuleWithAutoYumInstall("paramiko", None)        
         self.PyVersion=2 if sys.version_info[0] < 3 else 3
-        self.matplotlib = self.ImportModuleWithAutoYumInstall("matplotlib", "sudo yum install -y python%s-matplotlib"%self.PyVersion)
+        self.matplotlib = self.ImportModuleWithAutoYumInstall("matplotlib", "sudo yum install -y python%s-matplotlib python-matplotlib"%self.PyVersion)
         
         # if tkinter imported, using GUI
         self.UsingGUI = True if self.tkinter!=None else False
@@ -1522,7 +1667,7 @@ class SMI_SRIOV(NVME):
         #if self.mTestModeOn:
         if True:
             self.Print("skip sub case")
-            return 0
+            return 255
 
         # test all test item in all VF and can't interfere with each other
         #specificVF = self.AllDevices[1]
@@ -1571,46 +1716,29 @@ class SMI_SRIOV(NVME):
         
         return ret_code
 
-    SubCase3TimeOut = 1800
-    SubCase3Desc = "Test S3 mode for SR-IOV device"   
-    SubCase3KeyWord = ""
-    def SubCase3(self):             
-        ret_code=0   
-        self.Print("Test S3 mode for SR-IOV device")
-        self.Print("")
-        
-        sleepTimer = 10
-        mTime=datetime.datetime.now()
-        self.Print("Set system enter S3 mode for % seconds, current time: %s"%(sleepTimer, mTime))
-        self.DoSystemEnterS3mode(sleepTimer)
 
-        mTime=datetime.datetime.now()
-        self.Print("system exit S3 mode, current time: %s"%mTime)
+    SubCase3TimeOut = 7200
+    SubCase3Desc = "Test NVMe read speed"   
+    SubCase3KeyWord = ""
+    def SubCase3(self):
+        # note: using TotalVFs to decide the number of VM
+        ret_code=0   
+        
+        if self.matplotlib==None:
+            self.Print("matplotlib not installed!, quit test!", "f")
+            return 255            
+        
         self.Print("")
-            
-        self.Print("Check if VFs is missing after S3 mode")
-        for Dev in self.VFDevices:
-            if self.isfileExist(Dev):
-                self.Print("        %s, exist"%Dev, "p")  
-            else:
-                self.Print("        %s, missing"%Dev, "f") 
-                ret_code=1
-                
-        self.Print("")
-        if ret_code!=0:
-            self.Print("VFs is missing after S3 mode, Reset SR-IOV and check if create VFs success")
-            self.Print("Set all VF offline")
-            if not self.SetCurrentNumOfVF(0):
-                self.Print("Fail, quit all", "f"); return 1 
-            self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
-            if not self.SetCurrentNumOfVF(self.TotalVFs):
-                self.Print("Create VF Fail", "f"); return 1                     
-                   
-               
-        return ret_code   
+        self.Print("-- Start to test read speed ----------------------------")
+        if not self.DoTestSpeed("read"): return 1
+
+        self.Print("Done!")         
+        self.Print("") 
+        return ret_code
+
     
     SubCase4TimeOut = 7200
-    SubCase4Desc = "Test NVMe device speed"   
+    SubCase4Desc = "Test NVMe write speed"   
     SubCase4KeyWord = ""
     def SubCase4(self):
         # note: using TotalVFs to decide the number of VM
@@ -1619,89 +1747,15 @@ class SMI_SRIOV(NVME):
         if self.matplotlib==None:
             self.Print("matplotlib not installed!, quit test!", "f")
             return 255            
-            
-        self.Print("Trim all SSD (fstrim -a -v)") 
-        rtCode = self.shell_cmd("fstrim -a -v")
-        self.Print(rtCode)
         
-        # create SubDUT to use NVME object for specific device, e.x. /dev/nvme0n1,  note that argv is type list
-        PF = self.AllDevices[0]
-        SubDUT = NVME([PF])         
-        NUSE=SubDUT.IdNs.NUSE.int
-        
-        self.Print("NUSE: 0x%X"%NUSE) 
-        totalByte = NUSE*512  
-        
-        mPattern = randint(1, 0xFF)
-        CMDtemp = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=write --numjobs=1 \
-         --offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x%X\
-        --verify_pattern=%s"%(totalByte, mPattern)
-        '''
-        CMDtemp = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64K --rw=read --numjobs=1 \
-         --offset=0 --name=mtest --do_verify=0 --size=0x%X\
-        "%(totalByte)        
-        '''
-        # start to test PF
-        CMD1 = CMDtemp + " --filename=%s"%(PF)
-        self.Print("")        
-        self.Print("Do FIO test for writing entire disk of %s, command as folowing"%(PF))      
-        self.Print(CMD1)
-        
-        CMD=[CMD1]
-        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)        
-        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=100, printInfo=False)
-        self.Print("Finished")
-        Did=0
-        self.Print("%s: FIO bw= %sMiB/s"%(PF, averageBwList[Did]))
-        pfBW=averageBwList[Did]
-        self.Print("PF bw= %sMiB/s"%(pfBW))
-        sleep(5)      
-        
-        # start to test all VF at the same time
         self.Print("")
-        self.Print("Do FIO test for writing entire disk of all VFs at the same time(Simultaneously), FIO commands as below")
-        CMD=[]
-        for dev in self.VFDevices:      
-            CMD1 = CMDtemp + " --filename=%s"%(dev)  
-            self.Print(CMD1) 
-            CMD.append(CMD1)
-            
-        FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)        
-        averageBwList = FIOcmdWithPyPlot.RunFIOcmdWithConsoleOutAndPyplot(CMDlist = CMD, maxPlot=100, printInfo=False)
-        self.Print("Finished")
-        sleep(5)
-        Did=0
-        for dev in self.VFDevices: 
-            self.Print("%s: FIO bw= %sMiB/s"%(dev, averageBwList[Did]))
-            Did=Did+1
-            
-        self.Print("")        
-        totalBW=sum(averageBwList)
-        self.Print("Total bw for all FIO VF testing(VF0 + VF1 + VF2 ..): %s"%totalBW)
-        self.Print("PF bw= %sMiB/s"%(pfBW))
-        self.Print("Check if (total bw of VF) >= (0.8*PF bw)")
-        if((pfBW*0.8)> totalBW):
-            self.Print("Fail","f")
-            ret_code=1
-        else:
-            self.Print("Pass","p")
-                      
-        self.Print("")        
-        maxBW=max(averageBwList) 
-        minBW=min(averageBwList) 
-        self.Print("Min bw of VF=%s, Max bw of VF=%s"%(minBW, maxBW))
-        self.Print("Check QOS(Quality of Service) for VFs")
-        self.Print("Check if the VF is shared the throughput equally") 
-        self.Print("e.g. (Min bw of VF)/(Max bw of VF) >=0.7) ")
-        if(float(minBW/maxBW)<0.7 ):
-            self.Print("Fail","f")
-            ret_code=1
-        else:
-            self.Print("Pass","p")        
-        
-        
-        
-        
+        self.Print("-- Start to test write speed ----------------------------")
+        if not  self.DoTestSpeed("write"): return 1
+
+        self.Print("Done!")         
+        self.Print("") 
+        return ret_code
+
         '''
         
         self.Print("Devices do FIO test  ")        
@@ -1721,10 +1775,7 @@ class SMI_SRIOV(NVME):
         
        ''' 
          
-        self.Print("Done!")         
-         
-        self.Print("") 
-        return ret_code
+
                 
                 
     SubCase5TimeOut = 1800
@@ -1795,11 +1846,11 @@ class SMI_SRIOV(NVME):
         
         
         #if self.mTestModeOn: snchan
-        '''
+        
         if True:
             self.Print("skip sub case")
             return 255  
-        '''      
+            
         
         if self.paramiko==None:
             self.Print("paramiko not installed!, quit test!", "f")
@@ -2050,19 +2101,48 @@ class SMI_SRIOV(NVME):
         
         return ret_code
         
-        
+
+    SubCase11TimeOut = 1800
+    SubCase11Desc = "Test S3 mode(Suspend To Ram) for SR-IOV device"   
+    SubCase11KeyWord = ""
+    def SubCase11(self):             
+        ret_code=0
+        for i in range(self.loops):
+            self.Print("")
+            self.Print("Loop: %s"%i)            
+            if not self.TestOSsleep("S3", self.wakeuptimer):
+                ret_code=1
+                break
+            sleep(20)
+            
+        return ret_code           
+    
+    
+    SubCase12TimeOut = 1800
+    SubCase12Desc = "Test S4 mode(Suspend To Disk) for SR-IOV device"   
+    SubCase12KeyWord = ""
+    def SubCase12(self):             
+        ret_code=0
+        for i in range(self.loops):
+            self.Print("")
+            self.Print("Loop: %s"%i)
+            if not self.TestOSsleep("S4", self.wakeuptimer):
+                ret_code=1
+                break
+            sleep(20)
+        return ret_code   
         
     # </define sub item scripts>
 
-    # define PostTest  
+
+    # define PostTest 
     def PostTest(self): 
         # if not test mode, reset VF to 0
         if not self.mTestModeOn:        
             self.Print("") 
             self.Print("Set all VF offline")
             if not self.SetCurrentNumOfVF(0):
-                self.Print("Fail, quit all", "f"); return 1
-                
+                self.Print("Fail, quit all", "f"); return 1                
         
         return True 
 

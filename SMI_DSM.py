@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+from random import randint
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -24,7 +25,7 @@ class SMI_DSM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
-    Version = "20190816"
+    Version = "20190819"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -94,6 +95,24 @@ class SMI_DSM(NVME):
             if not self.procStatus:
                 break
                   
+    def GetRangeList(self):
+    # trim whole disk
+    # first 255 range, set StartingLBA=i, LengthInLogicalBlocks=1, ContextAttributes=0
+    # last range(256), set StartingLBA=i, LengthInLogicalBlocks=NUSE - i, ContextAttributes=0
+        NUSE=self.IdNs.NUSE.int
+        rtList=[]
+        for i in range(256):
+            if i!=255:
+                StartingLBA=i
+                LengthInLogicalBlocks=1
+                ContextAttributes=0
+            else:
+                StartingLBA=i
+                LengthInLogicalBlocks=NUSE-i
+                ContextAttributes=0
+            rtList.append([StartingLBA, LengthInLogicalBlocks, ContextAttributes])
+        return rtList
+                  
         # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
@@ -110,8 +129,14 @@ class SMI_DSM(NVME):
 
         # </Parameter>
         
-
-        
+    # define pretest  
+    def PreTest(self): 
+        if not self.DSMSupported:
+            self.Print("DSM command not supported, skip all", "w")
+            return False
+        else:
+            self.Print("DSM command supported")
+            return True
         
     # <sub item scripts> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     SubCase1TimeOut = 60
@@ -155,7 +180,6 @@ class SMI_DSM(NVME):
     SubCase2TimeOut = 60
     SubCase2Desc = "Test Attribute - Deallocate (AD), single name spaces"
     def SubCase2(self):
-        "Test the values read from a deallocated is equal to DLFEAT reported value"  
         ret_code=0    
         if self.DSMSupported:
             self.Print ("Test the values read from a deallocated is euqal to DLFEAT reported value")
@@ -174,6 +198,7 @@ class SMI_DSM(NVME):
                 self.Print ("    Reserved")
                 ExpectValue="0x0 or 0xFF or last data(0x5A)"
                 
+            self.Print ("")
             self.Print ("Start to write 1G data from block 0 with pattern is 0x5A")
             self.fio_write(0, "1G", 0x5A, 1)
             self.Print ("Start to deallocate 1G data (2097152 block) from block 0")
@@ -332,47 +357,117 @@ class SMI_DSM(NVME):
             self.Print("not supported", "w")
             return 255
 
-    SubCase4TimeOut = 60
-    SubCase4Desc = "Test Namespace Utilization (NUSE)"          
-    def SubCase4(self):
-        self.Print ("Test the current number of logical blocks allocated in the namespace has changed after deallocation"         )
-        if self.DSMSupported:            
-            ret_code=0
+    SubCase4TimeOut = 600
+    SubCase4Desc = "Test Attribute - Deallocate whole disk (AD) with a list of ranges"          
+    def SubCase4(self):       
+        ret_code=0
+        if self.DSMSupported:
             
-            # write data to make sure the NUSE is large enought
-            self.Print ("Write 1M data to make the NUSE large then 0")
-            self.fio_write(0, "1M", 0x5A, 1)
             
-            self.Print ("")
-            self.Print ("Before deallocation ")
-            NUSE_B=self.IdNs.NUSE.int
-            self.Print( "NUSE: %s"%NUSE_B , "p")
+            self.Print ("Test the values read from a deallocated is euqal to DLFEAT reported value")
+            #self.Print ("DLFEAT: %s"%DLFEAT)
+            self.Print ("The values read from a deallocated logical block that DLFEAT reported is : ")
+            if self.DLFEAT_bit2to0==0:
+                self.Print ("    Not reported")
+                ExpectValue="0x0 or 0xFF or last data(0x5A)"
+            elif self.DLFEAT_bit2to0==1:
+                self.Print ("    All bytes set to 00h")
+                ExpectValue="0x0"
+            elif self.DLFEAT_bit2to0==2:
+                self.Print ("    All bytes set to FFh")
+                ExpectValue="0xFF"
+            else:
+                self.Print ("    Reserved")
+                ExpectValue="0x0 or 0xFF or last data(0x5A)"
+                
+            self.Print("")
+            self.start_SB
+            self.middle_SB
+            self.last_SB
+            self.fio_write(0, "1G", 0x5A, 1)
             
-            self.Print ("Start to deallocate the first 100 blocks")
-            self.shell_cmd("nvme dsm %s -s 0 -b 100 -d"%self.device)
+            TestPatten=randint(1, 0xFF)
+            self.Print ("Write data to the front, middle and back spaces of the LBA and verify if write success")
+            self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
+            self.write_SML_data(TestPatten, "1G")    
+            if self.isequal_SML_data(TestPatten,"1G", printMsg=True):
+                self.Print("Write success", "p")
+            else:
+                self.Print("Write fail, quit", "f")
+                return 1
             
-            self.Print ("After deallocation ")
-            NUSE_A=self.IdNs.NUSE.int
-            self.Print( "NUSE: %s"%NUSE_A , "p")
-
-            ThinProvisioningSupported =True if self.IdNs.NSFEAT.bit(0)=="1" else False
-            self.Print ("Thin Provisioning is Supported" if ThinProvisioningSupported else "Thin Provisioning is not Supported")
-                        
-            if ThinProvisioningSupported:
-                self.Print ("")
-                self.Print ("When Thin Provisioning is supported and the DSM command is supported")
-                self.Print ("then deallocating LBAs shall be reflected in the Namespace Utilization field(NUSE).")
+            self.Print ("")            
+            RangeList = self.GetRangeList()
+            self.Print ("Start to deallocate whole disk with a list of ranges as below")
+            self.Print("")
             
-                self.Print ("Check if NUSE has changed or not, expected : Changed")
-                if (NUSE_B != NUSE_A):
+            # parse RangeList and print it
+            CMD_s=""    # cmd start lba 
+            CMD_b=""    # cmd logical blocks
+            CMD_a=""    # cmd ContextAttributes
+            for i in range(256):
+                #[StartingLBA, LengthInLogicalBlocks, ContextAttributes]
+                StartingLBA=RangeList[i][0]
+                LengthInLogicalBlocks=RangeList[i][1]
+                ContextAttributes=RangeList[i][2]
+                # add to command syntax
+                CMD_s = CMD_s + "%s,"%StartingLBA
+                CMD_b = CMD_b + "%s,"%LengthInLogicalBlocks
+                CMD_a = CMD_a + "%s,"%ContextAttributes    
+                
+                # print
+                if i <=3 or i>=254:
+                    self.Print ("Range %s: Starting LBA = %s, Length in logical blocks = %s, Context Attributes = %s"%(i, StartingLBA, LengthInLogicalBlocks, ContextAttributes))
+                if i ==4:
+                    self.Print ("  ...")
+                    
+            self.Print("")
+            self.Print("Issue dsm(deallocate) command")
+            CMD = "nvme dsm %s -s %s -b %s -a %s -d 2>&1"%(self.device, CMD_s, CMD_b, CMD_a)
+            rtStatus = self.shell_cmd(CMD)
+            if bool(re.search("Success", rtStatus)) or bool(re.search("success", rtStatus)):
+                self.Print("Command success", "p")
+            else:
+                self.Print("Command fail, quit", "f")
+                self.Print("Command: %s"%CMD)
+                return 1
+                
+            
+            
+            self.Print ("Check the value from the front, middle and back spaces with read command, expected value: %s"%ExpectValue)
+            if self.DLFEAT_bit2to0==0:
+                #  ExpectValue="0x0 or 0xFF or last data"
+                if self.isequal_SML_data(0x0, "1G", printMsg=True) or self.isequal_SML_data(0xFF, "1G", printMsg=True)\
+                or self.isequal_SML_data(TestPatten, "1G", printMsg=True):
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")
                     ret_code=1
+                
+            elif self.DLFEAT_bit2to0==1:
+                #ExpectValue="0x0"
+                if self.isequal_SML_data(0x0, "1G", printMsg=True):
+                    self.Print("Pass", "p")
+                else:
+                    self.Print("Fail", "f")
+                    ret_code=1
+                        
+            elif self.DLFEAT_bit2to0==2:
+                #ExpectValue="0xFF"
+                if self.isequal_SML_data(0xFF, "1G", printMsg=True):
+                    self.Print("Pass", "p")
+                else:
+                    self.Print("Fail", "f")    
+                    ret_code=1
+            else:
+                #ExpectValue="0x0 or 0xFF or last data"
+                if self.isequal_SML_data(0x0, "1G", printMsg=True) or self.isequal_SML_data(0xFF, "1G", printMsg=True)\
+                or self.isequal_SML_data(TestPatten, "1G", printMsg=True):
+                    self.Print("Pass", "p")
+                else:
+                    self.Print("Fail", "f")   
+                    ret_code=1 
             return ret_code
-        else:
-            self.Print("not supported", "w")
-            return 255                
 
     SubCase5TimeOut = 60
     SubCase5Desc = "Test Attribute – Integral Dataset for Write (IDW)"            
@@ -534,6 +629,51 @@ class SMI_DSM(NVME):
         else:
             self.Print("not supported", "w")
             return 255   
+
+    SubCase8TimeOut = 60
+    SubCase8Desc = "Test Namespace Utilization (NUSE)"          
+    def SubCase8(self):
+        self.Print ("Test the current number of logical blocks allocated in the namespace has changed after deallocation"         )
+        ThinProvisioningSupported =True if self.IdNs.NSFEAT.bit(0)=="1" else False
+        self.Print ("Thin Provisioning is Supported" if ThinProvisioningSupported else "Thin Provisioning is not Supported")     
+        self.Print ("")
+        self.Print ("When Thin Provisioning is supported and the DSM command is supported")
+        self.Print ("then deallocating LBAs shall be reflected in the Namespace Utilization field(NUSE).")            
+        if not ThinProvisioningSupported:
+            self.Print ("Thin Provisioning is not Supported, skip", "w" )
+            return 255    
+            
+        if not self.DSMSupported:    
+            self.Print("DSM not supported", "w")
+            return 255         
+        else:   
+
+            # write data to make sure the NUSE is large enought
+            self.Print ("Write 1M data to make the NUSE large then 0")
+            self.fio_write(0, "1M", 0x5A, 1)            
+            self.Print ("")
+            self.Print ("Before deallocation ")
+            NUSE_B=self.IdNs.NUSE.int
+            self.Print( "NUSE: %s"%NUSE_B , "p")
+            
+            self.Print ("Start to deallocate the first 100 blocks")
+            self.shell_cmd("nvme dsm %s -s 0 -b 100 -d"%self.device)
+            
+            self.Print ("After deallocation ")
+            NUSE_A=self.IdNs.NUSE.int
+            self.Print( "NUSE: %s"%NUSE_A , "p")
+
+
+            self.Print ("")
+            self.Print ("When Thin Provisioning is supported and the DSM command is supported")
+            self.Print ("then deallocating LBAs shall be reflected in the Namespace Utilization field(NUSE).")            
+            self.Print ("Check if NUSE has changed or not, expected : Changed")
+            if (NUSE_B != NUSE_A):
+                self.Print("Pass", "p")
+                return 0
+            else:
+                self.Print("Fail", "f")
+                return 1           
 
     # </sub item scripts> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     

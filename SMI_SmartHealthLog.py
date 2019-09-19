@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
-    Version = "20190822"
+    Version = "20190918"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -62,8 +62,20 @@ class SMI_SmartHealthLog(NVME):
         CriticalWarning=self.GetLog.SMART.CriticalWarning
         return "1" if CriticalWarning&(1<<1) else "0"
 
+    def GetNSID(self):
+        # for SR-IOV nsid may not equal to Y where Y from '/dev/nvmeXnY'
+        rtStr = self.shell_cmd("nvme id-ns %s  2>&1"%self.dev)
+        mStr = "NVME Identify Namespace (\w*)"
+        if re.search(mStr, rtStr):   
+            nsid = re.search(mStr, rtStr).group(1)
+        else:
+            nsid = 0
+        return nsid
+
     def trigger_error_event(self): 
-        self.shell_cmd("  buf=$( nvme write-uncor %s -s 0 -n 1 -c 127 2>&1 >/dev/null )"%(self.dev))
+        nsid = self.GetNSID()
+        #print "%s"%nsid
+        self.shell_cmd("  buf=$( nvme write-uncor %s -s 0 -n %s -c 127 2>&1 >/dev/null )"%(self.dev, nsid))
         self.shell_cmd("  buf=$( nvme read %s -s 0 -z 512 -c 0 2>&1 >/dev/null )"%(self.dev))
 
         # clear write-uncor 
@@ -384,7 +396,7 @@ class SMI_SmartHealthLog(NVME):
         ret_code=0
         
         if not self.WriteUncSupported:
-            self.Print("Compare command not support, skip","w")
+            self.Print("Write unc command not support, skip","w")
             ret_code=255
         else:            
             media_error0=self.GetLog.SMART.MediaandDataIntegrityErrors

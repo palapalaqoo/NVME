@@ -436,7 +436,7 @@ class NVMECom():
     # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
         value = None
         if select<len(self.DynamicArgs):
-            value = self.DynamicArgs[0]
+            value = self.DynamicArgs[select]
         return value      
         
     def ParserArgv(self, argv, SubCaseList=""):
