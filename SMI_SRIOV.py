@@ -163,17 +163,12 @@ class SMI_SRIOV(NVME):
             mStr =  "0"
         return mStr    
     
-    def GetCurrentNumOfVF(self):
-        path="/sys/class/block/%s/device/device/sriov_numvfs"%self.dev[5:]
-        if self.isfileExist(path):
-            return int(self.shell_cmd("cat %s"%path))
-        else:
-            return None
 
     # set vf, if success, set AllDevices where AllDevices[0] is PF, others is VF 
     def SetCurrentNumOfVF(self, value):
         value=int(value)
-        path="/sys/class/block/%s/device/device/sriov_numvfs"%self.dev[5:]
+        #path="/sys/class/block/%s/device/device/sriov_numvfs"%self.dev[5:]
+        path="/sys/bus/pci/devices/%s/sriov_numvfs"%self.pcie_port
         if self.isfileExist(path):
             if self.shell_cmd("echo %s > %s 2>&1  ; echo $?"%(value, path))!="0" :
                 self.Print("command fail", "f"); return False
@@ -1193,10 +1188,10 @@ class SMI_SRIOV(NVME):
         
     def FIO_CMD(self, device, rw="w"):
         # output format terse,normal
-        ReadWrite="write" if rw=="w" else "read"
-        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=%s --numjobs=1 \
-            --offset=0 --filename=%s --name=mdata --do_verify=0  \
-            --output-format=terse,normal --runtime=10"%(ReadWrite, device)        
+        ReadWrite="write" if rw=="w" else "read"       
+        return "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=64k --rw=%s --numjobs=1 " \
+            "--offset=0 --filename=%s --name=mdata --do_verify=0  " \
+            "--output-format=terse,normal --runtime=10"%(ReadWrite, device)        
         
     def DO_Script_Test(self, testScriptName, option=""):
         # ex. testScriptName = 'SMI_SmartHealthLog.py'
@@ -1225,17 +1220,30 @@ class SMI_SRIOV(NVME):
     def GetVFListCreatedByPF(self):
     # e.x. mList=[/dev/nvme1n1 , /dev/nvme2n1 ]
         mList=[]
-        PF_PciePort=self.pcie_port
-        # get device bus and device number, remove function number
-        PF_BusDeviceNum = PF_PciePort[:-2]
-        # get nvme list adll devices
-        NvmeList=self.GetCurrentNvmeList()
-        for device in NvmeList:
-            Port = self.GetPciePort(device)
-            BusDeviceNum = Port[:-2]
-            # if not PF device and (bus and device num) is the same, than it is VF from PF
-            if PF_PciePort!=Port and PF_BusDeviceNum==BusDeviceNum:
-                mList.append(device)
+        
+        PFPort = self.GetPciePort(self.dev)
+        # if created VF is nvme1n1 nvme2n1 ...
+        if PFPort.find("nvme-subsys")==-1: 
+            PF_PciePort=self.pcie_port
+            # get device bus and device number, remove function number
+            PF_BusDeviceNum = PF_PciePort[:-2]
+            # get nvme list all devices
+            NvmeList=self.GetCurrentNvmeList()
+            for device in NvmeList:
+                Port = self.GetPciePort(device)                            
+                BusDeviceNum = Port[:-2]
+                # if not PF device and (bus and device num) is the same, than it is VF from PF
+                if PF_BusDeviceNum==BusDeviceNum and device!=self.dev:
+                    mList.append(device)           
+        # if created VF is nvme0n1 nvme0n2 ...
+        else:     
+            # get nvme list all devices
+            NvmeList=self.GetCurrentNvmeList()
+            for device in NvmeList:
+                Port = self.GetPciePort(device)  
+                # if Port = nvme-subsys0 and not PF
+                if Port == PFPort and device!=self.dev:
+                    mList.append(device) 
         return mList
     
     def DoVM_FIOtest_Simultaneously(self, targetDevice, rw, numDUT=None):
@@ -1288,11 +1296,18 @@ class SMI_SRIOV(NVME):
     def DoTestSpeed(self, readWrite="write"):
         rtCode = True
         
-        self.Print("Trim all SSD.. ") 
+        self.Print("Trim whole disk for all VF/PF .. ") 
         for dev in self.AllDevices:
+            SubDUT = NVME([dev]) 
+            SubDUT.TrimWholeDisk()   
+            
+            
+            
+            '''
             cmd = "blkdiscard %s"%dev
             self.Print(cmd)
             rtCode = self.shell_cmd(cmd)
+            '''
         #rtCode = self.shell_cmd("fstrim -a -v")
         
         #self.Print(rtCode) 
@@ -1313,13 +1328,13 @@ class SMI_SRIOV(NVME):
         
         mPattern = randint(1, 0xFF)
         if readWrite=="write":
-            CMDtemp = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64K --rw=%s --numjobs=1 \
-         --offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x%X\
-        --verify_pattern=%s"%(readWrite, totalByte, mPattern)
+            CMDtemp = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64K --rw=%s --numjobs=1 "\
+         "--offset=0 --name=mtest --do_verify=0 --verify=pattern --size=0x%X "\
+        "--verify_pattern=%s"%(readWrite, totalByte, mPattern)
         else:
-            CMDtemp = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64K --rw=read --numjobs=1 \
-             --offset=0 --name=mtest --do_verify=0 --size=0x%X\
-            "%(totalByte)        
+            CMDtemp = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64K --rw=read --numjobs=1 "\
+             "--offset=0 --name=mtest --do_verify=0 --size=0x%X " \
+            %(totalByte)        
         
         # start to test PF
         CMD1 = CMDtemp + " --filename=%s"%(PF)
@@ -1383,7 +1398,8 @@ class SMI_SRIOV(NVME):
             self.Print("Fail","f")
             rtCode=False
         else:
-            self.Print("Pass","p")        
+            self.Print("Pass","p")    
+            rtCode=True    
         
         return rtCode
                 
@@ -1478,11 +1494,7 @@ class SMI_SRIOV(NVME):
         self.CurrItems=[]   # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
         self.AvaItems=[]    # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
         self.root=None
-                
-        # get TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)
-        #self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
-        self.TotalVFs = self.shell_cmd("cat /sys/class/block/nvme0n1/device/device/sriov_totalvfs")
-        
+                        
         # get PrimaryControllerCapabilitiesStructure
         self.PCCStructure = self.Get_PrimaryControllerCapabilitiesStructure()
         
@@ -1541,7 +1553,14 @@ class SMI_SRIOV(NVME):
 
         self.Print("")
         
-         
+        if self.Sysfs_SRIOV_Supported:
+            self.Print("Linux's sysfs support SRIOV: Yes")
+        else:
+            self.Print("Linux's sysfs support SRIOV: No, quit all", "w"); return False
+                    
+        # get TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)
+        #self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
+        self.TotalVFs = self.shell_cmd("cat /sys/bus/pci/devices/%s/sriov_totalvfs"%self.pcie_port)
                
         self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
         self.Print("TotalVFs: %s"%self.TotalVFs)
@@ -1590,11 +1609,7 @@ class SMI_SRIOV(NVME):
             self.Print("Secondary Controller List is avaliable: Yes")
         else:
             self.Print("Secondary Controller List is avaliable: No", "w")                   
-                    
-        if self.Sysfs_SRIOV_Supported:
-            self.Print("Linux's sysfs support SRIOV: Yes")
-        else:
-            self.Print("Linux's sysfs support SRIOV: No", "w")    
+                       
         
         self.Print("")
         nmuvfs = self.GetCurrentNumOfVF()

@@ -238,7 +238,7 @@ class SMI_PCIPowerStatus(NVME):
     def SubCase1(self):
         ret_code=0
         
-        
+        print self.pcie_port
         self.Print("hello test1")
         
         self.rmFile("./bwOut_bw.log")

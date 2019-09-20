@@ -404,8 +404,8 @@ class NVME(object, NVMECom):
         success=True
         self.Print("")
         printTag=True
-        # if not only namespace 1 exist, e.g. /dev/nvmexn2 exist, then reset ns to namespace 1
-        if self.dev_exist(2):
+        # if not only namespace 1 exist, e.g. /dev/nvmexn2 exist, and not sriov device, then reset ns to namespace 1
+        if self.dev_exist(2) and self.GetCurrentNumOfVF()==None:
             if printTag:
                 self.Print("== ResetToInitStatus ===========================", "p")
                 printTag=False                
@@ -1161,7 +1161,26 @@ class NVME(object, NVMECom):
     def DoSystemEnterS4mode(self, wakeUpTimer=30):    
     # wakeUpTimer in secends  
         CMD= "sudo rtcwake -v -s %s -m disk"%wakeUpTimer
-        self.shell_cmd(CMD, 1)           
+        self.shell_cmd(CMD, 1)        
+        
+    def TrimWholeDisk(self):
+    # trim whole disk
+        NUSE=self.IdNs.NUSE.int
+        CMD = "nvme dsm %s -s 0 -b %s -d 2>&1"%(self.dev, NUSE)
+        rtStatus = self.shell_cmd(CMD)
+        if bool(re.search("Success", rtStatus)) or bool(re.search("success", rtStatus)):
+            return True
+        else:
+            return False        
+
+    def GetCurrentNumOfVF(self):
+        #path="/sys/class/block/%s/device/device/sriov_numvfs"%self.dev[5:]
+        path="/sys/bus/pci/devices/%s/sriov_numvfs"%self.pcie_port
+        if self.isfileExist(path):
+            return int(self.shell_cmd("cat %s"%path))
+        else:
+            return None
+           
 # ==============================================================    
 class DevWakeUpAllTheTime():
 # make device wake up all the time
