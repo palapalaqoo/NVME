@@ -25,7 +25,7 @@ class SMI_DSM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
-    Version = "20190819"
+    Version = "20190825"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -99,7 +99,7 @@ class SMI_DSM(NVME):
     # trim whole disk
     # first 255 range, set StartingLBA=i, LengthInLogicalBlocks=1, ContextAttributes=0
     # last range(256), set StartingLBA=i, LengthInLogicalBlocks=NUSE - i, ContextAttributes=0
-        NUSE=self.IdNs.NUSE.int
+        NCAP=self.IdNs.NCAP.int
         rtList=[]
         for i in range(256):
             if i!=255:
@@ -108,7 +108,7 @@ class SMI_DSM(NVME):
                 ContextAttributes=0
             else:
                 StartingLBA=i
-                LengthInLogicalBlocks=NUSE-i
+                LengthInLogicalBlocks=NCAP-i
                 ContextAttributes=0
             rtList.append([StartingLBA, LengthInLogicalBlocks, ContextAttributes])
         return rtList

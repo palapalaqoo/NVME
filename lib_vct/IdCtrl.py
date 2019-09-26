@@ -18,7 +18,7 @@ class IdCtrl_(object, NVMECom):
         self.IEEE=RegDescriptor("id-ctrl", "ieee", nsSpec=False, NVMEobj=obj)
         self.CMIC=RegDescriptor("id-ctrl", "cmic", nsSpec=False, NVMEobj=obj)
         self.MDTS=RegDescriptor("id-ctrl", "mdts", nsSpec=False, NVMEobj=obj)
-        self.CNTLID=RegDescriptor("id-ctrl", "cntlid", nsSpec=False, NVMEobj=obj)
+        self.CNTLID=RegDescriptor("id-ctrl", "cntlid", nsSpec=True, NVMEobj=obj)
         self.VER=RegDescriptor("id-ctrl", "ver", nsSpec=False, NVMEobj=obj)
         self.RTD3R=RegDescriptor("id-ctrl", "rtd3r", nsSpec=False, NVMEobj=obj)
         self.RTD3E=RegDescriptor("id-ctrl", "rtd3e", nsSpec=False, NVMEobj=obj)

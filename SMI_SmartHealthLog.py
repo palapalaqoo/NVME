@@ -374,7 +374,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("")
         self.Print("Get controller busy time: %s"%CBT0)
         self.Print("Issue fio read command for 70 seconds, iodepth=16, bs=64k")
-        CMD="LOG_BUF=$(fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=read --numjobs=1 --offset=0 --filename=%s --name=mdata --runtime=70)"%self.dev
+        CMD="LOG_BUF=$(fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=read --numjobs=1 --offset=0 --filename=%s --name=mdata --runtime=70 --time_based)"%self.dev
         self.shell_cmd(CMD)
         self.Print("Finish")   
         self.Print("")     

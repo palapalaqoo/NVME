@@ -1076,6 +1076,20 @@ class NVMECom():
                     rTList.append(line)
                 cnt = count       
         return rTList       
+    
+    def GetStrFromREsearchByShellCMD(self, shellCMD, searchPattern):
+    # return string
+        rtStr = self.shell_cmd(shellCMD)
+        try:
+            if re.search(searchPattern, rtStr):
+                return re.search(searchPattern, rtStr).group(1)   
+            else:
+                return None # cant find
+        except:
+            self.Print("Fail at GetStrFromREsearchByShellCMD()", "f")
+            self.Print("shellCMD: %s"%shellCMD, "f")
+            self.Print("searchPattern: %s"%searchPattern, "f")
+            return None
             
 #== end NVMECom =================================================
 

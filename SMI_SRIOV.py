@@ -1425,19 +1425,27 @@ class SMI_SRIOV(NVME):
         self.Print("system exit sleep, current time: %s"%mTime)
         
         self.Print("Check if VFs is missing after wakeup")
+        Missing = False
         for Dev in self.VFDevices:
             if self.isfileExist(Dev):
                 self.Print("        Pass: %s, exist"%Dev, "p")  
             else:
-                self.Print("        Fail: %s, missing"%Dev, "f")                 
-                self.Print("")
-                self.Print("VFs is missing after wakeup, Reset SR-IOV and check if create VFs success")
-                self.Print("Set all VF offline")
-                if not self.SetCurrentNumOfVF(0):
-                    self.Print("Fail, quit all", "f"); return False
-                self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)
-                if not self.SetCurrentNumOfVF(self.TotalVFs):
-                    self.Print("Create VF Fail", "f"); return False                     
+                self.Print("        Fail: %s, missing"%Dev, "f")    
+                Missing = True
+        
+        if Missing:                     
+            self.Print("")
+            self.Print("VFs is missing after wakeup, Reset SR-IOV and check if create VFs success")
+            self.Print("Set all VF offline")
+            if not self.SetCurrentNumOfVF(0):
+                self.Print("Fail, quit all", "f"); return False
+            self.Print("Do remove and rescan device")
+            self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.1) 
+            self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)  
+            self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)            
+            if not self.SetCurrentNumOfVF(self.TotalVFs):
+                self.Print("Create VF Fail", "f"); return False         
+                    
         return True             
     
     def __init__(self, argv): 
@@ -2124,11 +2132,13 @@ class SMI_SRIOV(NVME):
         ret_code=0
         for i in range(self.loops):
             self.Print("")
-            self.Print("Loop: %s"%i)            
+            self.Print("Loop: %s start"%i)            
             if not self.TestOSsleep("S3", self.wakeuptimer):
                 ret_code=1
                 break
-            sleep(20)
+            waitT=10
+            self.Print("Loop: %s finish, wait %s s"%(i, waitT))   
+            sleep(waitT)
             
         return ret_code           
     
@@ -2140,12 +2150,118 @@ class SMI_SRIOV(NVME):
         ret_code=0
         for i in range(self.loops):
             self.Print("")
-            self.Print("Loop: %s"%i)
+            self.Print("Loop: %s start"%i)
             if not self.TestOSsleep("S4", self.wakeuptimer):
                 ret_code=1
                 break
-            sleep(20)
+            waitT=10
+            self.Print("Loop: %s finish, wait %s s"%(i, waitT))   
+            sleep(waitT)
         return ret_code   
+
+    SubCase13TimeOut = 1800
+    SubCase13Desc = "Test namespaces attach/delete/create operation"   
+    SubCase13KeyWord = ""
+    def SubCase13(self):             
+        ret_code=0
+        TNVMCAP=self.IdCtrl.TNVMCAP.int
+        TotalBlocks=TNVMCAP/512
+        self.Print("TNVMCAP: 0x%X"%TNVMCAP) 
+        self.Print("Total Blocks: 0x%X"%TotalBlocks)
+        
+        # init subdut
+        SubDUTList=[]
+        for dev in self.AllDevices:
+            SubDUT = NVME([dev])      
+            SubDUTList.append([SubDUT, SubDUT.initial_NSID])
+        
+        # sort order by initial_NSID and get SubDUT(remove initial_NSID)
+        SubDUTList.sort(key=lambda x: x[1])
+        SubDUTList=[row[0] for row in SubDUTList]
+        
+        self.Print("") 
+        self.Print("Current namespaces info.") 
+        for DUT in SubDUTList:
+            Name = DUT.device
+            NSID = DUT.initial_NSID
+            NCAP = DUT.IdNs.NCAP.int
+            CNTLID=DUT.IdCtrl.CNTLID.int
+            self.Print("Device: %s, nsid: %s, CNTLID: %s, NCAP: %s"%(Name, NSID, CNTLID, NCAP)) 
+        
+        self.Print("") 
+        CMD = "nvme delete-ns %s -n 0xffffffff"%self.device_port
+        self.Print("Try to delete all ns(%s)"%CMD) 
+        self.shell_cmd(CMD)
+        self.Print("Check if NCAP=0 in all VF/PF")
+        for DUT in SubDUTList:
+            Name = DUT.device
+            NCAP = DUT.IdNs.NCAP.int
+            CNTLID=DUT.IdCtrl.CNTLID.int
+            if NCAP != 0:
+                self.Print("Device: %s, CNTLID: %s, NCAP: %s"%(Name, CNTLID, NCAP), "f")
+                ret_code=1
+            else:
+                self.Print("Device: %s, CNTLID: %s, NCAP: %s"%(Name, CNTLID, NCAP), "p")
+                
+        if ret_code!=0:
+            self.Print("Fail, skip", "f"); return ret_code
+        else:
+            self.Print("Pass", "p")
+        
+        self.Print("")
+        self.Print("Try to create ns and attach to controller..")
+        nsid = 1
+        for DUT in SubDUTList:
+            Name = DUT.device
+            NSID = DUT.initial_NSID
+            CNTLID=DUT.IdCtrl.CNTLID.int      
+            numOfBlock = 0x100000 * nsid  
+        
+
+            self.Print("Create nsid=%s, number of block=0x%X, and attach to CNTLID= %s(%s)"%(nsid, numOfBlock, CNTLID, Name))
+            # create ns
+            CMD = "  nvme create-ns %s -s %s -c %s " %(self.dev_port, numOfBlock, numOfBlock)
+            self.Print(CMD)
+            self.shell_cmd(CMD)            
+            # attach    
+            CMD = "  nvme attach-ns %s -n %s -c %s " %(self.dev_port,nsid, CNTLID)
+            self.Print(CMD)
+            self.shell_cmd(CMD)
+            # verify    
+            NCAP = DUT.IdNs.NCAP.int
+            self.Print("  current NCAP: 0x%X, expect value: 0x%X"%(NCAP, numOfBlock))
+            if NCAP==numOfBlock:
+                self.Print("  Pass", "p")
+            else:
+                self.Print("  Fail", "f")
+                ret_code = 1
+                return ret_code
+            nsid = nsid+1
+            self.Print("")
+            
+        self.Print("")
+        self.Print("Finish, try to reset ns ..")            
+        CMD = "nvme delete-ns %s -n 0xffffffff"%self.device_port
+        self.shell_cmd(CMD)   
+        nsid = 1     
+        for DUT in SubDUTList:
+            Name = DUT.device
+            CNTLID=DUT.IdCtrl.CNTLID.int      
+            numOfBlock = TotalBlocks/5              
+            CMD = "  nvme create-ns %s -s %s -c %s 2>&1 >/dev/null " %(self.dev_port, numOfBlock, numOfBlock)
+            self.Print(CMD)
+            self.shell_cmd(CMD)            
+            # attach    
+            CMD = "  nvme attach-ns %s -n %s -c %s 2>&1 >/dev/null " %(self.dev_port,nsid, CNTLID)
+            self.Print(CMD)
+            self.shell_cmd(CMD)   
+            nsid = nsid+1        
+        self.Print("Done")            
+        
+        
+        
+                
+        return ret_code  
         
     # </define sub item scripts>
 

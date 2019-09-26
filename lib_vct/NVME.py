@@ -188,7 +188,11 @@ class NVME(object, NVMECom):
         self.MemoryRegisterBaseAddress=self.GetMRBA()        
         
         # save parameters for reset controller to the beginning state
-        self.initial_FLBAS=self.IdNs.FLBAS.int     
+        self.initial_FLBAS=self.IdNs.FLBAS.int  
+        self.initial_NSID=self.GetNSID()
+    
+    def GetNSID(self):
+        return int(self.GetStrFromREsearchByShellCMD(shellCMD = "nvme list-ns %s"%self.device, searchPattern = ".*:(.*)") ,16 )
         
     def GetPciePort(self, dev):
     # e.x. return 0000:01:00.0
