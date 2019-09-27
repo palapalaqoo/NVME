@@ -25,7 +25,7 @@ class SMI_DSM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_DSM.py"
     Author = "Sam Chan"
-    Version = "20190825"
+    Version = "20190927"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -39,13 +39,17 @@ class SMI_DSM(NVME):
     def Block0IsEqual(self, value, nsid=1):
         # check if block 0 is equal pattern or not
         return self.fio_isequal(0, 512, value, nsid, 512)
+
+    def Block4KIsEqual(self, value, nsid=1):
+        # check if block 0-7 is equal pattern or not
+        return self.fio_isequal(0, "4K", value, nsid, 512)
     
     def Block1GIsEqual(self, value, nsid=1):
         # check if block 0 is equal pattern or not
         return self.fio_isequal(0, "1G", value, nsid, 512)
     
-    def Deallocate(self, nsid=1):
-        self.shell_cmd("nvme dsm %s -s 0 -b 1 -n %s -d"%(self.device, nsid))
+    def Deallocate(self, nsid=1, size=8):
+        self.shell_cmd("nvme dsm %s -s 0 -b %s -n %s -d"%(self.device, size, nsid))
         
     def CheckDealloResult(self, value):
         result_ret=0
@@ -96,19 +100,19 @@ class SMI_DSM(NVME):
                 break
                   
     def GetRangeList(self):
-    # trim whole disk
+    # trim whole disk(4k)
     # first 255 range, set StartingLBA=i, LengthInLogicalBlocks=1, ContextAttributes=0
     # last range(256), set StartingLBA=i, LengthInLogicalBlocks=NUSE - i, ContextAttributes=0
         NCAP=self.IdNs.NCAP.int
         rtList=[]
         for i in range(256):
             if i!=255:
-                StartingLBA=i
-                LengthInLogicalBlocks=1
+                StartingLBA=i*8
+                LengthInLogicalBlocks=8
                 ContextAttributes=0
             else:
-                StartingLBA=i
-                LengthInLogicalBlocks=NCAP-i
+                StartingLBA=i*8
+                LengthInLogicalBlocks=NCAP-i*8
                 ContextAttributes=0
             rtList.append([StartingLBA, LengthInLogicalBlocks, ContextAttributes])
         return rtList
@@ -290,14 +294,17 @@ class SMI_DSM(NVME):
                     ExpectValue="0x0 or 0xFF"
                     
                 self.Print ("")
-                self.Print ("Write data in to the first block(block 0) of SSD with pattern is 0x5A at all namespaces")
+                self.Print ("Write data in to the first 8 blocks(4k) of SSD with pattern is 0x5A at all namespaces")
                 BlockData=[]
                 # set BlockData[0]=0 for nvme0n0(not exist)
                 BlockData.append(0)
                 sub_ret=0
                 for i in range(1, mNS+1):
-                    self.nvme_write_1_block(0x5A, 0, i)
-                    if self.Block0IsEqual(0x5A, i):            
+                    # write
+                    # self.nvme_write_1_block(0x5A, 0, i)
+                    self.nvme_write_blocks(value=0x5A, sb=0, nob=8, nsid=i)
+                    # verify
+                    if self.Block4KIsEqual(0x5A, i):            
                         BlockData.append(0x5A)
                     else: 
                         self.Print("Write data fail at nsid= %s, quit the test"%i, "f")
@@ -315,19 +322,19 @@ class SMI_DSM(NVME):
                            
                     for nsid in range(1, mNS+1):      
                         
-                        self.Print ("Start to deallocate the first block at nsid= %s"%nsid)
-                        self.Deallocate(nsid)        
+                        self.Print ("Start to deallocate the first 8 blocks(4k) at nsid= %s"%nsid)
+                        self.Deallocate(nsid, 8)        
                         
                         Value=0
                         test_ret=0    
                         self.Print ("Check data")
                         for i in range(1, mNS+1):
                             # get block data from nsid=i
-                            if self.Block0IsEqual(0x0, nsid=i):
+                            if self.Block4KIsEqual(0x0, nsid=i):
                                 Value=0
-                            elif self.Block0IsEqual(0xFF, nsid=i):
+                            elif self.Block4KIsEqual(0xFF, nsid=i):
                                 Value=0xFF
-                            elif self.Block0IsEqual(0x5A, nsid=i):
+                            elif self.Block4KIsEqual(0x5A, nsid=i):
                                 Value=0x5A
                             
                             if nsid==i:
@@ -341,7 +348,7 @@ class SMI_DSM(NVME):
                             else:
                             # "Blocks in other namespaces  should not be modified"
                                 if BlockData[i]!=Value:
-                                    self.Print("Fail, block 0 at nsid= %s has been modifyed while deallocation at nsid= %s"%(i, nsid), "f")
+                                    self.Print("Fail, block 0-7 at nsid= %s has been modifyed while deallocation at nsid= %s"%(i, nsid), "f")
                                     test_ret = 1
                         # end for i
                         if test_ret==0:

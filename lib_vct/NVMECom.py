@@ -147,7 +147,26 @@ class NVMECom():
         fd.close()
         sleep(sleep_time)
         return msg 
-    
+
+    def yield_shell_cmd(self, cmd):
+        # like shell_cmd(), but it will yield new line
+        #---------------------------------------------------------------------------------------
+        # usage: issue FIO command and get console output one by on
+        # EX.
+        #    CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=512 --rw=write --numjobs=1 --size=100M --offset=0 --filename=/dev/nvme0n1 --name=mdata"
+        #    for line in self.yield_shell_cmd(CMD):
+        #        self.Print( line)
+        #---------------------------------------------------------------------------------------        
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
+        while True:
+            line = process.stdout.readline().rstrip()
+            if not line:
+                break
+            yield line
+        # get return status    
+        out, err = process.communicate()
+        yield out  
+            
     def get_reg(self, cmd, reg, gettype=0, nsSpec=True):
     #-- cmd = nvme command, show-regs, id-ctrl, id-ns
     #-- reg = register keyword in nvme command
@@ -996,8 +1015,8 @@ class NVMECom():
             # get return status    
             out, err = process.communicate()
             yield out                
-                         
-  
+    # end of class FIOcmdWithPyPlot_():
+        
             
 
             

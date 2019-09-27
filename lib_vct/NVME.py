@@ -893,14 +893,14 @@ class NVME(object, NVMECom):
             
         
         return True   
-    def nvme_write_blocks(self, value, sb, nob):
+    def nvme_write_blocks(self, value, sb, nob, nsid=1):
         # value, value to write        
         # sb, start block   
         # nob, number of block to write
         # ex, sb=0, nob=4, write 0, 1, 2, 3 blocks
         i=0
         while i<nob: 
-            if self.nvme_write_1_block(value, sb+i):
+            if self.nvme_write_1_block(value, sb+i, nsid):
                 i=i+1
         
     def nvme_write_multi_thread(self, thread, sbk, bkperthr,value):

@@ -2239,6 +2239,11 @@ class SMI_SRIOV(NVME):
             nsid = nsid+1
             self.Print("")
             
+        self.Print("")    
+        self.Print("Issue 'nvme list'")
+        for line in self.yield_shell_cmd("nvme list"):
+            self.Print(line)
+        
         self.Print("")
         self.Print("Finish, try to reset ns ..")            
         CMD = "nvme delete-ns %s -n 0xffffffff"%self.device_port
@@ -2257,7 +2262,10 @@ class SMI_SRIOV(NVME):
             self.shell_cmd(CMD)   
             nsid = nsid+1        
         self.Print("Done")            
-        
+        self.Print("")    
+        self.Print("Issue 'nvme list'")
+        for line in self.yield_shell_cmd("nvme list"):
+            self.Print(line)        
         
         
                 
