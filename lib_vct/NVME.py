@@ -806,13 +806,27 @@ class NVME(object, NVMECom):
         return 0         
     def link_reset(self):
         # Data Link Down
-        # set secondary bus reset bit from 0x10 to 0x50
-        self.status="reset"
+        # from website 
+        # set secondary bus reset bit from 0x10 to 0x50(bit 6 in BRIDGE_CONTROL(3E.b))
+        self.status="reset"        
+        regBK = int(self.shell_cmd(" setpci -s %s BRIDGE_CONTROL" %(self.bridge_port), 0.5), 16 )
+        regEnable = regBK|0b01000000
+        # string that remove 0x        
+        regBK = format(regBK, 'x')  # "10"
+        regEnable = format(regEnable, 'x')  # "50"
+        
+        # set
+        self.shell_cmd("  setpci -s %s BRIDGE_CONTROL=%s " %(self.bridge_port, regEnable), 0.5) 
+        # clear
+        self.shell_cmd("  setpci -s %s BRIDGE_CONTROL=%s " %(self.bridge_port, regBK), 0.5)
+        # disconnect the driver and connect again
+        self.hot_reset()
+        
+        '''
         self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
         self.shell_cmd("  setpci -s %s 3E.b=10 " %(self.bridge_port), 0.5) 
-        self.hot_reset()       
-        self.status="normal"  
-                
+        self.hot_reset()    
+        '''   
         '''
         self.status="reset"
         self.shell_cmd("  setpci -s %s 3E.b=50 " %(self.bridge_port), 0.5) 
@@ -823,6 +837,7 @@ class NVME(object, NVMECom):
         self.hot_reset()
         self.status="normal"        
         '''
+        self.status="normal"  
         return 0  
     def FunctionLevel_reset(self):
         '''
@@ -849,15 +864,29 @@ class NVME(object, NVMECom):
         self.status="reset"
         self.shell_cmd("/usr/local/sbin/PWOnOff %s por off 2>&1 > /dev/null" %(self.dev_port), 0.1) 
         self.shell_cmd("/usr/local/sbin/PWOnOff %s por on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        # if on fail, do more 10 time power on 
+        cnt=0
+        while not self.ctrl_alive:
+            self.shell_cmd("/usr/local/sbin/PWOnOff %s por on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+            cnt=cnt+1
+            if cnt >=10:
+                return False
         self.status="normal"
-        return 0            
+        return True            
     
     def spor_reset(self):
         self.status="reset"
         self.shell_cmd("/usr/local/sbin/PWOnOff %s spor off 2>&1 > /dev/null" %(self.dev_port), 0.1) 
         self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        # if on fail, do more 10 time power on 
+        cnt=0
+        while not self.ctrl_alive:
+            self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+            cnt=cnt+1
+            if cnt >=10:
+                return False        
         self.status="normal"
-        return 0  
+        return True  
     
     def nvme_write_1_block(self, value, block, nsid=1):
         # write 1 block data, ex, nvme_write_1_block(0x32,0)
@@ -1201,8 +1230,18 @@ class DevWakeUpAllTheTime():
     def _Read(self):
         while self._Start == 1:
             CMD="nvme read %s -s 0 -z 256000 -c 499  2>&1 >/dev/null "%self._NVME.dev         
-            self._NVME.shell_cmd(CMD)            
-                    
+            self._NVME.shell_cmd(CMD)    
+            
+            '''
+            # if not MainThreadAlive, quit
+            MainThreadAlive=False
+            for i in threading.enumerate():
+                if i.name == "MainThread":                    
+                    if i.is_alive():
+                        MainThreadAlive=True
+            if not MainThreadAlive:
+                break
+            '''        
     def Start(self):
         self._Start = 1
         self._Thread = threading.Thread(target = self._Read)  

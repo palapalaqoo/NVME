@@ -22,9 +22,9 @@ from lib_vct.NVME import NVME
 from lib_vct.NVME import DevWakeUpAllTheTime
 class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    ScriptName = "SMI_DSM.py"
+    ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20190918"
+    Version = "20191003"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -80,6 +80,42 @@ class SMI_SmartHealthLog(NVME):
 
         # clear write-uncor 
         self.shell_cmd("  buf=$(nvme write-zeroes %s -s 0 -c 127 2>&1 > /dev/null) "%(self.dev))         
+
+    def testUnsafeShutdowns(self, Mode="POR"):
+        # Mode = POR or SPOR
+        UnsafeShutdowns0=self.GetLog.SMART.UnsafeShutdowns
+        self.Print("")
+        self.Print("Get current 'Unsafe Shutdowns': %s"%UnsafeShutdowns0)
+        if Mode=="POR":
+            self.Print("Do POR")
+            if not self.por_reset():
+                self.Print("Fail to power on device!, quit", "f")
+                return False
+        else:
+            self.Print("Do SPOR")
+            if not self.spor_reset():
+                self.Print("Fail to power on device!, quit", "f")
+                return False
+                            
+        self.Print("Done")
+        sleep(2)
+        UnsafeShutdowns1=self.GetLog.SMART.UnsafeShutdowns
+        self.Print("Get current 'Unsafe Shutdowns': %s"%UnsafeShutdowns1)    
+        
+        self.Print("")   
+        if Mode=="POR":
+            ExpValue = UnsafeShutdowns0
+            self.Print("Check if 'Unsafe Shutdowns' changed or not, expect value: %s(not changed for POR))"%ExpValue)            
+        else:
+            ExpValue = UnsafeShutdowns0+1
+            self.Print("Check if 'Unsafe Shutdowns' changed or not, expect: %s(last value+1 for SPOR))"%ExpValue)
+
+        if UnsafeShutdowns1==ExpValue:
+            self.Print("Pass", "p")
+            return True
+        else:
+            self.Print("Fail", "f")    
+            return False        
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
@@ -431,10 +467,118 @@ class SMI_SmartHealthLog(NVME):
             else:
                 self.Print("Fail", "f")    
                 ret_code=1          
+        return ret_code       
+    
+    SubCase9TimeOut = 60
+    SubCase9Desc = "Test power cycle"
+    def SubCase9(self): 
+        ret_code=0
+        PowerCycles0=self.GetLog.SMART.PowerCycles
+        self.Print("")
+        self.Print("Get current 'Power Cycles': %s"%PowerCycles0)
+        self.Print("Do POR")
+        if not self.por_reset():
+            self.Print("Fail to power on device!, quit", "f")
+        self.Print("Done")
+        sleep(2)
+        PowerCycles1=self.GetLog.SMART.PowerCycles
+        self.Print("Get current 'Power Cycles': %s"%PowerCycles1)    
         
-        
+        self.Print("")   
+        self.Print("Check if 'Power Cycles' changed or not, expect: changed(+1)")
+        if PowerCycles1==(PowerCycles0+1):
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")    
+            ret_code=1  
 
-        return ret_code        
+        return ret_code         
+
+    SubCase10TimeOut = 60
+    SubCase10Desc = "Test Unsafe Shutdowns for POR"
+    def SubCase10(self): 
+        if self.testUnsafeShutdowns(Mode = "POR"):
+            return 0
+        else:
+            return 1
+
+    SubCase11TimeOut = 60
+    SubCase11Desc = "Test Unsafe Shutdowns for SPOR"
+    def SubCase11(self): 
+        if self.testUnsafeShutdowns(Mode = "SPOR"):
+            return 0
+        else:
+            return 1      
+
+    SubCase12TimeOut = 7200
+    SubCase12Desc = "Test 'Power On Hours'"
+    def SubCase12(self): 
+        ret_code=0
+        POH0=self.GetLog.SMART.PowerOnHours
+        self.Print("")
+        self.Print("Get current 'Power On Hours': %s"%POH0)
+        
+        self.Print("")
+        self.timer.start()
+        self.Print("Start to issue nvme read command to keep controller in a operational power state")        
+        DWUATT=DevWakeUpAllTheTime(self)
+        DWUATT.Start()  
+        POH=0
+        cnt=0
+        timeout = 3660
+        self.Print("Start to keep watching on  'Power On Hours', time out:%s seconds"%timeout)
+        self.PrintProgressBar(0, timeout, prefix = 'Time:', length = 100)
+        try: 
+            while True:
+                sleep(1)                  
+                POH=self.GetLog.SMART.PowerOnHours
+                #  no change
+                if POH==POH0:
+                    pass
+                else:
+                    break
+                # time out 
+                cnt = cnt +1
+                if cnt >=timeout:
+                    break
+                # progress bar
+                if cnt%30==0:
+                    self.PrintProgressBar(cnt, timeout, prefix = 'Time:', length = 100)
+                
+        except KeyboardInterrupt:
+            self.Print("")
+            self.Print("Detect ctrl+C, quit all")  
+            DWUATT.Stop()          
+            self.timer.stop()   
+            return 255   
+        
+        self.Print("")           
+        # stop timer    
+        self.timer.stop()
+        timeUsage = self.timer.time
+        # stop write
+        DWUATT.Stop()
+        
+        self.Print("")
+        self.Print("Current 'Power On Hours' : %s"%POH)
+        # time out
+        if timeUsage>=timeout:
+            self.Print("Time out, Time usage: %s second"%timeUsage, "f")            
+            self.Print("Fail!, 'Power On Hours' never changed", "f")
+            ret_code = 1
+        # pass
+        elif POH==(POH0+1):
+            self.Print("Pass!, 'Power On Hours' +1", "p")
+            self.Print("Last value: %s, expect value: %s, current value: %s"%(POH0, POH0+1, POH), "p")
+            ret_code = 0
+        # fail
+        else:
+            self.Print("Fail!, 'Power On Hours' changed incorrectly", "f")
+            self.Print("Last value: %s, expect value: %s, current value: %s"%(POH0, POH0+1, POH), "f")
+            ret_code = 1            
+            
+        return ret_code  
+     
     # </sub item scripts>
     
     

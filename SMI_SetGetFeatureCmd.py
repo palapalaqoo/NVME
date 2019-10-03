@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20190822"
+    Version = "20191003"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -357,10 +357,43 @@ class SMI_SetGetFeatureCMD(NVME):
             nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
             changeable=True if mItem[item.capabilities]&0b100 > 0 else False
             if not supported:
-                self.Print ("Not supported"      )
+                fid=mItem[item.fid]
+                self.Print ("Not supported", "w")
                 self.Print (""  )
+                self.Print ("-(1)-- Test Get Features with Select=0, Current --"    )
+                rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 0 >/dev/null 2>&1 ; echo $?"%(self.dev, fid)))
+                self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
+                self.Print ("Check if return code!=0")
+                if rtCode!=0:
+                    self.Print("PASS", "p")  
+                else:
+                    self.Print("Fail", "f")
+                    self.ret_code=1 
+                    
+                self.Print (""  )    
+                self.Print ("-(2)-- Test Get Features with Select=1, Default --"  )
+                rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 1 >/dev/null 2>&1 ; echo $?"%(self.dev, fid)))
+                self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
+                self.Print ("Check if return code!=0")
+                if rtCode!=0:
+                    self.Print("PASS", "p")  
+                else:
+                    self.Print("Fail", "f")
+                    self.ret_code=1       
+                    
+                self.Print (""  )    
+                self.Print ("-(3)--  Test Get Features with Select=2, Saved --"            )
+                rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 2 >/dev/null 2>&1  ; echo $?"%(self.dev, fid)))
+                self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
+                self.Print ("Check if return code!=0")
+                if rtCode!=0:
+                    self.Print("PASS", "p")  
+                else:
+                    self.Print("Fail", "f")
+                    self.ret_code=1                      
+                              
             else:
-                self.Print ("Supported"              )
+                self.Print ("Supported", "p")
                 self.Print ("" )
                 self.Print ("Feature saveable: %s"%("Yes" if saveable else "No"))
                 self.Print ("Feature namespace specific: %s"%("Yes" if nsSpec else "No"))

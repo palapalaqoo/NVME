@@ -237,6 +237,10 @@ class SMI_PCIPowerStatus(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0
+        self.por_reset()
+        self.por_reset()
+        self.por_reset()
+        self.por_reset()
         
         print self.pcie_port
         self.Print("hello test1")

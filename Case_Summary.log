@@ -1,8 +1,12 @@
-CASE 1 : Test Command Dword 11 : Skip
-CASE 2 : Test Attribute - Deallocate (AD), single name spaces : Skip
-CASE 3 : Test Attribute - Deallocate (AD), multi name spaces : Skip
-CASE 4 : Test Attribute - Deallocate whole disk (AD) with a list of ranges : Pass
-CASE 5 : Test Attribute – Integral Dataset for Write (IDW) : Skip
-CASE 6 : Test Attribute – Integral Dataset for Read (IDR) : Skip
-CASE 7 : Test Context Attributes : Skip
-CASE 8 : Test Namespace Utilization (NUSE) : Skip
+CASE 1 : Test critical warnings : Skip
+CASE 2 : Test data_units_read with read command : Skip
+CASE 3 : Test data_units_read with compare command : Skip
+CASE 4 : Test data_units_written with write command : Skip
+CASE 5 : Test data_units_written with Write Uncorrectable command : Skip
+CASE 6 : Test host_read_commands and host_write_commands : Skip
+CASE 7 : Test controller busy time : Skip
+CASE 8 : Test media error and error log : Skip
+CASE 9 : Test power cycle : Skip
+CASE 10 : Test Unsafe Shutdowns for POR : Skip
+CASE 11 : Test Unsafe Shutdowns for SPOR : Skip
+CASE 12 : Test 'Power On Hours' : Skip
