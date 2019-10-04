@@ -237,6 +237,7 @@ class SMI_PCIPowerStatus(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0
+        print time.strftime("%Y%m%d_%H:%M:%S", time.localtime())
         self.por_reset()
         self.por_reset()
         self.por_reset()
