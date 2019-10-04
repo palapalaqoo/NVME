@@ -470,7 +470,7 @@ class SMI_SmartHealthLog(NVME):
         return ret_code       
     
     SubCase9TimeOut = 60
-    SubCase9Desc = "Test power cycle"
+    SubCase9Desc = "Test power_cycle"
     def SubCase9(self): 
         ret_code=0
         PowerCycles0=self.GetLog.SMART.PowerCycles
@@ -495,7 +495,7 @@ class SMI_SmartHealthLog(NVME):
         return ret_code         
 
     SubCase10TimeOut = 60
-    SubCase10Desc = "Test Unsafe Shutdowns for POR"
+    SubCase10Desc = "Test Unsafe_Shutdowns for POR"
     def SubCase10(self): 
         if self.testUnsafeShutdowns(Mode = "POR"):
             return 0
@@ -503,7 +503,7 @@ class SMI_SmartHealthLog(NVME):
             return 1
 
     SubCase11TimeOut = 60
-    SubCase11Desc = "Test Unsafe Shutdowns for SPOR"
+    SubCase11Desc = "Test Unsafe_Shutdowns for SPOR"
     def SubCase11(self): 
         if self.testUnsafeShutdowns(Mode = "SPOR"):
             return 0
@@ -511,7 +511,7 @@ class SMI_SmartHealthLog(NVME):
             return 1      
 
     SubCase12TimeOut = 7200
-    SubCase12Desc = "Test 'Power On Hours'"
+    SubCase12Desc = "Test Power_On_Hours"
     def SubCase12(self): 
         ret_code=0
         POH0=self.GetLog.SMART.PowerOnHours
@@ -520,14 +520,15 @@ class SMI_SmartHealthLog(NVME):
         
         self.Print("")
         self.timer.start()
-        self.Print("Start to issue nvme read command to keep controller in a operational power state")        
+        self.Print("Start to issue nvme read command to keep controller in the operational power state")        
         DWUATT=DevWakeUpAllTheTime(self)
         DWUATT.Start()  
         POH=0
         cnt=0
         timeout = 3660
+        timeoutOcc=False
         self.Print("Start to keep watching on  'Power On Hours', time out:%s seconds"%timeout)
-        self.PrintProgressBar(0, timeout, prefix = 'Time:', length = 100)
+        self.PrintProgressBar(cnt, timeout, prefix = 'Time:', length = 100)
         try: 
             while True:
                 sleep(1)                  
@@ -540,6 +541,7 @@ class SMI_SmartHealthLog(NVME):
                 # time out 
                 cnt = cnt +1
                 if cnt >=timeout:
+                    timeoutOcc=True
                     break
                 # progress bar
                 if cnt%30==0:
@@ -561,17 +563,18 @@ class SMI_SmartHealthLog(NVME):
         
         self.Print("")
         self.Print("Current 'Power On Hours' : %s"%POH)
+        self.Print("Time usage: %s second"%timeUsage)  
         # time out
-        if timeUsage>=timeout:
-            self.Print("Time out, Time usage: %s second"%timeUsage, "f")            
+        if timeoutOcc:
+            self.Print("Time out!", "f")            
             self.Print("Fail!, 'Power On Hours' never changed", "f")
             ret_code = 1
-        # pass
+        # pass, value==value+1
         elif POH==(POH0+1):
             self.Print("Pass!, 'Power On Hours' +1", "p")
             self.Print("Last value: %s, expect value: %s, current value: %s"%(POH0, POH0+1, POH), "p")
             ret_code = 0
-        # fail
+        # fail, value!=value+1
         else:
             self.Print("Fail!, 'Power On Hours' changed incorrectly", "f")
             self.Print("Last value: %s, expect value: %s, current value: %s"%(POH0, POH0+1, POH), "f")
