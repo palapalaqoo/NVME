@@ -15,8 +15,8 @@ import datetime
 from lib_vct.NVME import NVME
 from lib_vct import mStruct
 from random import randint
-from __builtin__ import True
-from gtk import TRUE
+
+
 
 
 
@@ -1447,12 +1447,161 @@ class SMI_SRIOV(NVME):
                 self.Print("Create VF Fail", "f"); return False         
                     
         return True             
+
+    def ClearRebootTest(self, printInfo = False):
+        fPath ="/etc/rc.d/rc.local"   
+        
+        # parse argv, script name is enought
+        scriptName=sys.argv[0]
+        
+        # load file
+        with open(fPath, 'r') as mfile:
+            # read a list of lines into data
+            data = mfile.read()
+        if data==None:
+            self.Print( "Can't find file: %s"%fPath, "f")
+            sys.exit(1)                
+        # find the line with 'sudo python  scriptName'  to the end, and replace to ""
+        mStr="(\nsudo python %s .*\n)"%scriptName    
+        if re.search(mStr, data):
+            parameters = re.search(mStr, data).group(1)    
+            data = data.replace(parameters, "")     
+            # and write everything back
+            with open(fPath, 'w') as mfile:
+                mfile.writelines( data )
+
+    def CreateCronShellScript(self, filePath, CMD):
+        # create AutoRunAfterReboot.sh(filePath)
+        # content
+        data = "#!/bin/sh" + "\n"
+        '''
+        # wait reboot finish by checking gnome-terminal and nvme-cli
+        data = data + "# wait reboot finish by checking gnome-terminal and nvme-cli" + "\n"
+        data = data + "terminalReady=$(command -v gnome-terminal 2>&1 >/dev/null ; echo $?)" + "\n"
+        data = data + "nvmecliReady=$(command -v nvme 2>&1 >/dev/null ; echo $?)" + "\n"
+        data = data + "while   [ $((terminalReady)) != 0 ] || [ $((nvmecliReady)) != 0 ] " + "\n"
+        data = data + "do" + "\n"
+        data = data + "	sleep 1" + "\n"
+        data = data + "	terminalReady=$(command -v gnome-terminal 2>&1 >/dev/null ; echo $?)" + "\n"
+        data = data + "	nvmecliReady=$(command -v nvme 2>&1 >/dev/null ; echo $?)" + "\n"
+        data = data + "done" + "\n"
+        '''
+        # set display valuable
+        data = data + "# set display valuable" + "\n"
+        DISPLAY = self.shell_cmd("echo $DISPLAY")
+        data = data + "export DISPLAY=%s"%DISPLAY + "\n"
+        data = data + "# run command" + "\n"
+        data = data + "/bin/gnome-terminal -- bash -c '%s; exec bash'\n"%CMD + "\n"
+        data = data + "exit 0" + "\n"
+        # write
+        with open(filePath, 'w') as mfile:
+            mfile.writelines( data ) 
+        # change mod for excutable    
+        self.shell_cmd("chmod +x %s"%filePath)    
+               
+    def SetRebootTest(self, currentLoop, resumeFromCaseNo, printInfo = False):
+        # currentLoop: pass loop number for next reboot
+        # resumeFromCaseNo: pass Case number for next reboot, after reboot , from case1 to resumeFromCaseNo-1 will not excute
+        # remove
+        mDir = os.path.dirname(os.path.realpath(__file__))
+        fPath = mDir
+        fPath = fPath + "/AutoRunAfterReboot.sh" # content  
+        self.rmFile(fPath)      
+        # create
+        # parse argv
+        itemAll=""
+        for item in sys.argv:
+            itemAll = "%s %s"%(itemAll, item)
+        itemAll = itemAll.lstrip()
+
+        # remove '-c \d' for current loop
+        if re.search("(-c \d+)", itemAll):
+            parameters = re.search("(-c \d+)", itemAll).group(1)      
+            itemAll = itemAll.replace(parameters, "")
+            
+        # add '-c \d' for current loop    
+        itemAll = "%s -c %s"%(itemAll, currentLoop)
+
+        # add '-r \d' for resumeFromCaseNo if not find
+        if not re.search("(-r \d+)", itemAll):  
+            itemAll = "%s -r %s"%(itemAll, resumeFromCaseNo)
+        
+        CMD="cd %s; python %s"%(mDir, itemAll)
+        self.Print(CMD) if printInfo else None
+                        
+        self.CreateCronShellScript(fPath, CMD)
+        
+        # setting crontab, copy current environment to /etc/crontab as below content
+        '''
+        SHELL=/usr/bin/bash
+        PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+        @reboot root sleep 20 && /home/root/sam/eclipse/NVME/AutoRunAfterReboot.sh
+        '''
+        mStr = self.shell_cmd("which bash")        
+        data = "SHELL=%s"%mStr + "\n"   
+        mStr = self.shell_cmd("echo $PATH")        
+        data = data + "PATH=%s"%mStr + "\n"   
+        data = data + "@reboot root sleep 20 && %s"%fPath + "\n" 
+        
+        # and write everything back
+        with open("/etc/crontab", 'w') as mfile:
+            mfile.writelines( data )        
+        
+        
+        
+        '''
+        fPath ="/etc/rc.d/rc.local"            
+        self.Print("Setting %s for reboot test"%fPath)   
+                 
+        # clear old
+        self.ClearRebootTest()
+        
+        # parse argv
+        itemAll=""
+        for item in sys.argv:
+            itemAll = "%s %s"%(itemAll, item)
+        itemAll = itemAll.lstrip()
+        
+        # remove '-c \d' for current loop
+        if re.search("-c \d+", itemAll):
+            parameters = re.search("-c \d+", itemAll).group(1)      
+            itemAll = itemAll.replace(parameters, "")
+            
+        # add '-c \d' for current loop    
+        itemAll = "%s -c %s"%(itemAll, currentLoop)
+        
+        mStr="sudo python %s"%itemAll
+        self.Print("Add '%s' to %s"%(mStr, fPath)) if printInfo else None
+            
+        # load file
+        with open(fPath, 'r') as mfile:
+            # read a list of lines into data
+            data = mfile.read()
+        if data==None:
+            self.Print( "Can't find file: %s"%fPath, "f")
+            sys.exit(1)                
+        # now add the line             
+        if re.search(mStr, data):
+            pass
+        else:
+            data = data +"\n%s\n"%mStr
+        
+        # and write everything back
+        with open(fPath, 'w') as mfile:
+            mfile.writelines( data )
+        
+        # change mod for excutable    
+        self.shell_cmd("chmod +x %s"%fPath)    
+        '''
+        return True
+
     
     def __init__(self, argv): 
         # initial new parser if need, -t -d -s -p was used, dont use it again
         self.SetDynamicArgs(optionName="n", optionNameFull="numofvf", helpMsg="number of VF that will be enable and test", argType=int) 
         self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops for case11, case12", argType=int)
         self.SetDynamicArgs(optionName="w", optionNameFull="wakeuptimer", helpMsg="wakeup timer in seconds for case11, case12", argType=int)
+        self.SetDynamicArgs(optionName="c", optionNameFull="CurrentLoopForResumeFromReboot", helpMsg="curren loop for resume from reboot, please do not set it", argType=int)
                 
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
@@ -1462,9 +1611,17 @@ class SMI_SRIOV(NVME):
         self.config_numvfs = self.GetDynamicArgs(0)  
         self.loops = self.GetDynamicArgs(1)  
         self.wakeuptimer = self.GetDynamicArgs(2)  # if no wakeuptimer arg in, wakeuptimer = None
+        self.CurrentLoopForResumeFromReboot = int(self.GetDynamicArgs(3)  ) if self.GetDynamicArgs(3)!=None else None
         
         # set defalut loop =1   
         self.loops=1 if self.loops==None else self.loops
+        
+        # ResumeFromReboot, true/false
+        self.ResumeFromReboot=True  if self.ResumeSubCase!=None else False
+        # first run
+        if not self.ResumeFromReboot==None and self.loops==0:
+            self.Print("Error, loop must >=1","f")
+            return 255
         
         # import module if installed, else yum install module 
         self.tkinter = self.ImportModuleWithAutoYumInstall("Tkinter", "sudo yum -y install tkinter python-tools")
@@ -1625,7 +1782,7 @@ class SMI_SRIOV(NVME):
         
         
         # if (not test mode), or (is test mode and current nmuvfs!=self.TotalVFs), do Set all VF offline
-        if not self.mTestModeOn or nmuvfs!=self.TotalVFs:
+        if not self.mTestModeOn or nmuvfs!=int(self.TotalVFs):
             # reset VF 
             if nmuvfs!=0:
                 self.Print("")
@@ -1685,9 +1842,9 @@ class SMI_SRIOV(NVME):
     SubCase2TimeOut = 1800
     SubCase2Desc = "Test Data Integrity of POR and SPOR"   
     SubCase2KeyWord = ""
-    def SubCase2(self):
-        ret_code=0       
+    def SubCase2(self):    
         #if self.mTestModeOn:
+        
         if True:
             self.Print("skip sub case")
             return 255
@@ -1713,7 +1870,29 @@ class SMI_SRIOV(NVME):
         self.por_reset()
         sleep(1)
         self.Print("Done")   
-             
+        
+        self.Print("Check if VFs is missing after wakeup")
+        Missing = False
+        for Dev in self.VFDevices:
+            if self.isfileExist(Dev):
+                self.Print("        Pass: %s, exist"%Dev, "p")  
+            else:
+                self.Print("        Fail: %s, missing"%Dev, "f")    
+                Missing = True
+        
+        if Missing:                     
+            self.Print("")
+            self.Print("VFs is missing after wakeup, Reset SR-IOV and check if create VFs success")
+            self.Print("Set all VF offline")
+            if not self.SetCurrentNumOfVF(0):
+                self.Print("Fail, quit all", "f"); return 1
+            self.Print("Do remove and rescan device")
+            self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.1) 
+            self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)  
+            self.Print("Set all VF online (TotalVFs = %s)"%self.TotalVFs)            
+            if not self.SetCurrentNumOfVF(self.TotalVFs):
+                self.Print("Create VF Fail", "f"); return 1         
+
         self.Print("")            
         self.Print("Check data petterns in all VF and PF") 
         cnt=0
@@ -1722,22 +1901,16 @@ class SMI_SRIOV(NVME):
             if not SubDUT.fio_isequal(offset=0, size="10M", pattern=dataPattern, fio_direct=0):
                 self.Print("Fail!, data changed, expect pattern = %s"%dataPattern, "f")
                 self.Print("hexdump data blow ..", "f")
-                self.shell_cmd("hexdump %s -n 512 -C"%SubDUT.dev)
+                CMD = "hexdump %s -n 512 -C"%SubDUT.dev
+                for line in self.yield_shell_cmd(CMD):
+                    self.Print( line)                
                 self.Print("")   
                 self.Print("quit", "f") 
                 return 1  
             
-        self.Print("Pass")
-            
+        self.Print("Pass", "p")
         
-        self.Print("") 
-        self.Print("Set all VF offline")
-        if not self.SetCurrentNumOfVF(0):
-            self.Print("Fail, quit all", "f"); return 1
-        
-        self.Print("Done!")
-        
-        return ret_code
+        return 0
 
 
     SubCase3TimeOut = 7200
@@ -2159,7 +2332,7 @@ class SMI_SRIOV(NVME):
             sleep(waitT)
         return ret_code   
 
-    SubCase13TimeOut = 1800
+    SubCase1TimeOut = 1800
     SubCase13Desc = "Test namespaces attach/delete/create operation"   
     SubCase13KeyWord = ""
     def SubCase13(self):             
@@ -2275,6 +2448,48 @@ class SMI_SRIOV(NVME):
 
 
     # define PostTest 
+    
+    SubCase14TimeOut = 1800
+    SubCase14Desc = "Test system reboot for SR-IOV device"   
+    SubCase14KeyWord = ""
+    def SubCase14(self):             
+        ret_code=0
+        
+        # if first run for the scrip, loop=1
+        if not self.ResumeFromReboot:        
+            self.CurrentLoopForResumeFromReboot = 0
+        else:
+            self.CurrentLoopForResumeFromReboot=self.CurrentLoopForResumeFromReboot+1
+            
+        self.Print("Current Loop: %s, Total loop: %s"%(self.CurrentLoopForResumeFromReboot, self.loops))
+        
+        
+        # if last loop then finish
+        if self.CurrentLoopForResumeFromReboot>=self.loops:
+            self.Print("Finish")
+            self.Print("Clear crontab job and quit test case")
+            self.shell_cmd("echo "" > /etc/crontab")            
+            return 0
+        else:
+            
+            self.SetRebootTest(currentLoop = self.CurrentLoopForResumeFromReboot, resumeFromCaseNo=14, printInfo = False)   
+            try:
+                # flush all console messages, below syntax will call NVMECom.tee.flush()      
+                sys.stdout.flush()
+                sleepT=10
+                self.Print("Wait %s seconds and reboot .. , if detect 'ctrl+C' then skip it"%sleepT)
+                for i in range(sleepT):
+                    # PrintProgressBar
+                    self.PrintProgressBar(i, sleepT, prefix = 'Time:', length = 50)                    
+                    sleep(1)
+                os.system('reboot')
+            except KeyboardInterrupt:
+                self.Print("")
+                self.Print("Detect ctrl+C, clear crontab job and quit test case")
+                self.shell_cmd("echo "" > /etc/crontab")
+
+        return ret_code   
+        
     def PostTest(self): 
         # if not test mode, reset VF to 0
         if not self.mTestModeOn:        

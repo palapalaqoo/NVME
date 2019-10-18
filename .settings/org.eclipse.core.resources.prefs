@@ -20,6 +20,7 @@ encoding/SMI_SanitizeStatusLog.py=utf-8
 encoding/SMI_SetGetFeatureCmd.py=utf-8
 encoding/SMI_SetUp.py=utf-8
 encoding/SMI_SmartHealthLog.py=utf-8
+encoding/SMI_SmartHealthLog_POH.py=utf-8
 encoding/SMI_StatusCode.py=utf-8
 encoding/SMI_Telemetry.py=utf-8
 encoding/SMI_TelemetryExample.py=utf-8

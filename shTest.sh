@@ -1,4 +1,8 @@
 
 #!/bin/sh
 
-python SMI_NVMEReset.py /dev/nvme0n1 4 -t
+export DISPLAY=:12.0
+/bin/gnome-terminal -- bash -c "python /root/Desktop/sam/eclipse/NVME/SMI_SRIOV.py; exec bash"
+
+exit 0
+

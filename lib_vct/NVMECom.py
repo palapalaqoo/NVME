@@ -51,8 +51,43 @@ class NVMECom():
         self.SubItemNumValue+=1
         return self.SubItemNumValue
     
-
+    def UsingCurrentLogFile(self):
+        # try to find all logfiles in /Log/
+        # self.LogPath default ='Log/'
+        self.LogPath='%s/'%self.LogPath if self.LogPath[-1]!='/' else self.LogPath # add / if forgot to add /
+        self.LogPath=self.LogPath[1:] if self.LogPath[0]=='/' else self.LogPath # remove / if first char is /
+        
+        mStr = self.shell_cmd("ls %s|grep summary_regress_"%self.LogPath)
+        if(mStr ==""):
+            self.InitLogFile()
+            return False
+        else:
+            NVMECom.LogName_Summary =  self.LogPath + mStr
             
+        mStr = self.shell_cmd("ls %s|grep summary_color_"%self.LogPath)
+        if(mStr ==""):
+            self.InitLogFile()
+            return False
+        else:
+            NVMECom.LogName_SummaryColor =  self.LogPath + mStr
+            
+        mStr = self.shell_cmd("ls %s|grep detail_cmd_"%self.LogPath)
+        if(mStr ==""):
+            self.InitLogFile()
+            return False
+        else:
+            NVMECom.LogName_CmdDetail =  self.LogPath + mStr
+            
+        mStr = self.shell_cmd("ls %s|grep console_out_"%self.LogPath)
+        if(mStr ==""):
+            self.InitLogFile()
+            return False
+        else:
+            NVMECom.LogName_ConsoleOut =  self.LogPath + mStr                        
+        
+                
+
+                    
     def InitLogFile(self):
         # self.LogPath default ='Log/'
         self.LogPath='%s/'%self.LogPath if self.LogPath[-1]!='/' else self.LogPath # add / if forgot to add /
@@ -65,7 +100,7 @@ class NVMECom():
         if not os.path.exists(self.LogPath):
             os.makedirs(self.LogPath)
         #create log
-        NVMECom.LogName_Summary =  self.LogPath + "summary_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        NVMECom.LogName_Summary =  self.LogPath + "summary_regress_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
         f = open(NVMECom.LogName_Summary, "w")
         f.close()
         #create color log
@@ -85,7 +120,7 @@ class NVMECom():
         #create readme file
         NVMECom.LogName_Readme =  self.LogPath + "readme.txt"
         f = open(NVMECom.LogName_Readme, "w") 
-        mStr ="summary_xxx:        summary for regression tool \n" + \
+        mStr ="summary_regress_xxx:        summary for regression tool \n" + \
                     "summary_color_xxx:    color summary log \n" + \
                     "detail_cmd_xxx:        all the commands issued in this test \n" + \
                     "console_out_xxx:    color console output  \n" 
@@ -93,14 +128,13 @@ class NVMECom():
         f.write("\n")        
         f.close()        
         
-                
-        # redirect console output to file by using tee class
-        sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)
-        
     class tee(object):
+    # if need to flush all console messages to log, below syntax will call NVMECom.tee.flush()  to do it
+    # sys.stdout.flush()
         def __init__(self, logFile):
             self.terminal = sys.stdout
-            self.log = open(logFile, "a")
+            self.mLogFile=logFile
+            self.log = open(self.mLogFile, "a")
         
         def write(self, message):
             self.terminal.write(message)
@@ -110,7 +144,9 @@ class NVMECom():
                 #this flush method is needed for python 3 compatibility.
                 #this handles the flush command by doing nothing.
                 #you might want to specify some extra behavior here.
-            pass 
+            self.log.close()
+            self.log = open(self.mLogFile, "a")
+             
         
        
             
@@ -125,8 +161,12 @@ class NVMECom():
         self.LogPath='%s/'%self.LogPath if self.LogPath[-1]!='/' else self.LogPath # add / if forgot to add /
         self.LogPath=self.LogPath[1:] if self.LogPath[0]=='/' else self.LogPath # remove / if first char is /
         
-        # if object is created in subcase of main script, then do not init log files
-        self.InitLogFile() if not son.isSubCaseOBJ else None
+        # if object is created in subcase of main script, and not reboot test, then do not init log files
+        if not son.isSubCaseOBJ and son.ResumeSubCase==None:
+            self.InitLogFile()
+        else:
+            self.UsingCurrentLogFile()
+        #self.InitLogFile() if not son.isSubCaseOBJ else None
         self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
         self.timer=timer_()
@@ -467,9 +507,10 @@ class NVMECom():
         parser.add_argument("dev", help="device, e.g. /dev/nvme0n1", type=str)
         parser.add_argument("subcases", help="sub cases that will be tested, e.g. '1 2 3'", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
-        parser.add_argument("-d", "--d", help="script doc", action="store_true")
+        parser.add_argument("-d", "--d", help="script doc", action="store_true")        
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
         parser.add_argument("-p", "--p", help="log path that store logs", type=str, nargs='?')
+        parser.add_argument("-r", "--r", help="reboot parameters, please do not set it", type=int, nargs='?')
         # script arg define new args if overwrite in script
         for mArg in self.ScriptParserArgs:
             optionName=mArg[0]
@@ -493,9 +534,9 @@ class NVMECom():
             # split ',' and return int[]
             mSubItems = [int(x) for x in args.subcases.split(',')]     
             
-        mTestTime=None if args.s==None else args.s
-            
+        mTestTime=None if args.s==None else args.s            
         mLogPath=None if args.p==None else args.p
+        mRebootP=None if args.r==None else int(args.r)
         
         # parse script args, and return by order
         mScriptParserArgs=[]
@@ -507,7 +548,7 @@ class NVMECom():
             value=None if args.__dict__[optionNameFull]==None else args.__dict__[optionNameFull]
             mScriptParserArgs.append(value)
         
-        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs
+        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs, mRebootP
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format
@@ -615,6 +656,8 @@ class NVMECom():
             length      - Optional  : character length of bar (Int)
             fill        - Optional  : bar fill character (Str)
         """
+
+        
         percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
         filledLength = int(length * iteration // total)
         bar = fill * filledLength + '-' * (length - filledLength)
@@ -622,6 +665,8 @@ class NVMECom():
         #mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
         sys.stdout.write(u"\033[1000D" + self.PrefixString()+mstr)
         sys.stdout.flush()    
+        self.stdoutBk.write(u"\033[1000D" + self.PrefixString()+mstr)
+        self.stdoutBk.flush()           
         # Print New Line on Complete
         if iteration == total: 
             print ""
@@ -1113,16 +1158,20 @@ class NVMECom():
 #== end NVMECom =================================================
 
 class timer_():
-
+# use: start() and time
+# no need to stop()
     def __init__(self):
-        self.time=0
         self._StartT=0
         self._StopT=0
     def start(self):
         self._StartT=time.time()
     def stop(self):
-        self._StopT=time.time()  
-        self.time=format(self._StopT - self._StartT, '.6f')
+        self._StopT=time.time()
+    @property
+    def time(self): 
+        self._StopT=time.time()
+        return format(self._StopT - self._StartT, '.6f')
+        
 
 
 

@@ -32,12 +32,12 @@ class SMI_SmartHealthLog_POH(NVME):
             DWUATT=DevWakeUpAllTheTime(self)
             DWUATT.Start()  
         POH=0
-        cnt=0
-        timeout = 3720
+        timeout = 3720 #3720
         timeoutOcc=False
         self.Print("Start to keep watching on  'Power On Hours', time out:%s seconds"%timeout)
-        
-        self.PrintProgressBar(cnt, timeout, prefix = 'Time:', length = 100)
+        timeUsage=0
+        # PrintProgressBar
+        self.PrintProgressBar(timeUsage, timeout, prefix = 'Time:', length = 100)
         try: 
             while True:
                 sleep(1)                  
@@ -48,13 +48,13 @@ class SMI_SmartHealthLog_POH(NVME):
                 else:
                     break
                 # time out 
-                cnt = cnt +1
-                if cnt >=timeout:
+                timeUsage = int(round(float(self.timer.time)))
+                if timeUsage >=timeout:
                     timeoutOcc=True
                     break
                 # progress bar
-                if cnt%30==0:
-                    self.PrintProgressBar(cnt, timeout, prefix = 'Time:', length = 100)
+                if timeUsage%30==0:
+                    self.PrintProgressBar(timeUsage, timeout, prefix = 'Time:', length = 100)
                 
         except KeyboardInterrupt:
             self.Print("")
@@ -67,13 +67,11 @@ class SMI_SmartHealthLog_POH(NVME):
         self.Print("")           
         # stop timer    
         self.timer.stop()
-        timeUsage = self.timer.time
         # stop write
         if BusyMode:
             DWUATT.Stop()
         
         self.Print("")
-        timeUsage = int(timeUsage)
         self.Print("Current 'Power On Hours' : %s"%POH)
         self.Print("Time usage: %s second"%timeUsage)  
         self.Print("")
@@ -121,7 +119,7 @@ class SMI_SmartHealthLog_POH(NVME):
     
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p was used, dont use it again
-        self.SetDynamicArgs(optionName="r", optionNameFull="Retain_Power_On_Hours", helpMsg="set -r=1 to expect the 'Power On Hours' to be reatined(no change) in case3", argType=int)   
+        self.SetDynamicArgs(optionName="r", optionNameFull="Retain_Power_On_Hours", helpMsg="set '-r=1' to expect the 'Power On Hours' to be reatined(no change) in case3", argType=int)   
               
         # initial parent class
         super(SMI_SmartHealthLog_POH, self).__init__(argv)
@@ -151,9 +149,9 @@ class SMI_SmartHealthLog_POH(NVME):
         return ret_code      
     
     SubCase3TimeOut = 7200
-    SubCase3Desc = "Test Power_On_Hours, ExpectPlusOne: user define(default='yes'), OperationalPowerState: no, CheckTimerAccuracy: no"
+    SubCase3Desc = "Test Power_On_Hours, ExpectPlusOne: user define(default='yes'), OperationalPowerState: no, CheckTimerAccuracy: yes"
     def SubCase3(self): 
-        ret_code = self.DoTest(ExpectPlusOne = self.IncreaseExpected, OperationalPowerState = False, CheckTimerAccuracy = False)          
+        ret_code = self.DoTest(ExpectPlusOne = self.IncreaseExpected, OperationalPowerState = False, CheckTimerAccuracy = True)          
         return ret_code          
     # </define sub item scripts>
 

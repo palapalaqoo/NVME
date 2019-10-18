@@ -33,6 +33,8 @@ class NVME(object, NVMECom):
     
     
     def __init__(self, argv):
+        # backup sys.stdout
+        self.stdoutBk = sys.stdout
         # status
         self.status="normal"
         # init sub case
@@ -51,7 +53,9 @@ class NVME(object, NVMECom):
             # created in subcase
             self.isSubCaseOBJ=True
             mArgv = argv # ['/dev/nvme0n1'], only 1 args
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
+            
+        # ResumeSubCase=None means not reboot run script
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -252,6 +256,9 @@ class NVME(object, NVMECom):
                 
                           
     def RunScript(self):
+        # redirect console output to file by using tee class
+        sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)
+                
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
             for i in range(1, self.SubCaseMaxNum+1):
@@ -280,96 +287,104 @@ class NVME(object, NVMECom):
         else:
             PreTestIsPass = True
         
-        # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase32>
-        for SubCaseNum in range(1, self.SubCaseMaxNum+1):
-            if self.IsMethodOverride("SubCase%s"%SubCaseNum):                
-                
-                # get subcase content
-                SubCaseFunc = self.GetAbstractFunctionOrVariable(SubCaseNum, "subcase")
-                Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
-                SpecKeyWord=self.GetAbstractFunctionOrVariable(SubCaseNum, "keyword") 
-                Timeout=self.GetAbstractFunctionOrVariable(SubCaseNum, "timeout") 
-                # if not set timeout, then set default timeout=600(10minute)
-                Timeout=600 if Timeout=="" else Timeout
-                # if find subitem and PreTestIsPass=true, e.g. user assign it to run, then run it with time out=  timeOut, else return skip
-                if SubCaseNum in self.UserSubItems and PreTestIsPass:
-                    # set SubCasePoint for consol prefix
-                    self.SubCasePoint=SubCaseNum
-                    # print sub case titles
-                    self.Print ("")
-                    self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout), "b")
-                    self.Print ("-- %s"%Description)
-                    self.Print ("-- Keyword: %s"%SpecKeyWord)
-
-                    # enable RecordCmdToLogFile to recode command
-                    self.RecordCmdToLogFile=True             
-                    self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")                                         
-
-                    # run script, 3th,4th line equal 1,2 line statements
-                    #    @deadline(Timeout)
-                    #    Code=SubCaseFunc()
-                    SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
-                    Code=None
-                    
-                    # sub case execption
-                    try:
-                        Code = SubCaseFuncWithTimeOut()    
-                        
-                    # timeout execption     
-                    except TimedOutExc as e:              
-                        self.Print ("")
-                        self.Print( "Timeout!(%s seconds), quit Case %s test!"%(e, SubCaseNum), "f" )
-                        self.Print( "Fail", "f" )
-                        Code = 1               
-                    # other execption
-                    except Exception, error:
-                        self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%self.LogName_CmdDetail, "f" )
-                        self.Print( "Exception message as below", "f" )
-                        self.Print ("")
-                        self.Print( "=====================================", "f" )
-                        self.Print(str(error), "f" )
-                        self.Print( "=====================================", "f" )
-                        Code = 1
-                    
-                    #  prevent coding no return code, eg. 0/1/255
-                    if Code ==None:
-                        Code = 0
-                        
-
-                         
-                    # disable RecordCmdToLogFile to recode command
-                    self.RecordCmdToLogFile=True             
-                    self.Logger("</Case %s> ----------------------------"%SubCaseNum, mfile="cmd")
-                    self.Logger("", mfile="cmd")                             
-                else:
-                    # if user didn't assign subcase, return skip                              
-                    Code = 255
-                
-                # save code to SubCase_rtCode
-                self.SubCase_rtCode.append(Code)
-                
-                # write to log file    
-                self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
-        # </for function from SubCase1 to SubCaseX   >     
-
-        # if override Posttest(), then run it, or PreTestIsPass= true
-        if self.IsMethodOverride( "PostTest"):
-            # enable RecordCmdToLogFile to recode command
-            self.RecordCmdToLogFile=True             
-            self.Logger("<PostTest> ----------------------------", mfile="cmd") 
-                
-            PostTest = self.GetAbstractFunctionOrVariable(0, "posttest")
-            PostTestIsPass = PostTest()
+        if PreTestIsPass:
+            # if PreTestIsPass = true
+            # do subcase and posttest and get the self.rtCode
             
-            # disable RecordCmdToLogFile to recode command
-            self.RecordCmdToLogFile=True             
-            self.Logger("</PostTest> ----------------------------", mfile="cmd")       
-            self.Logger("", mfile="cmd")            
-        else:
-            PostTestIsPass = True
-        
-        # get rtCode from SubCase_rtCode
-        self.rtCode = self.GetrtCodeFrom_SubCase_rtCode()
+            # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase32>
+            # if ResumeSubCase!=None, mean the scrip is running after reboot, then skip from case1 to ResumeSubCase-1
+            StartSubCaseNum = 1 if self.ResumeSubCase==None else self.ResumeSubCase
+            for SubCaseNum in range(StartSubCaseNum, self.SubCaseMaxNum+1):
+                if self.IsMethodOverride("SubCase%s"%SubCaseNum):                
+                    
+                    # get subcase content
+                    SubCaseFunc = self.GetAbstractFunctionOrVariable(SubCaseNum, "subcase")
+                    Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
+                    SpecKeyWord=self.GetAbstractFunctionOrVariable(SubCaseNum, "keyword") 
+                    Timeout=self.GetAbstractFunctionOrVariable(SubCaseNum, "timeout") 
+                    # if not set timeout, then set default timeout=600(10minute)
+                    Timeout=600 if Timeout=="" else Timeout
+                    # if find subitem, e.g. user assign it to run, then run it with time out=  timeOut, else return skip
+                    if SubCaseNum in self.UserSubItems:
+                        # set SubCasePoint for consol prefix
+                        self.SubCasePoint=SubCaseNum
+                        # print sub case titles
+                        self.Print ("")
+                        self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout), "b")
+                        self.Print ("-- %s"%Description)
+                        self.Print ("-- Keyword: %s"%SpecKeyWord)
+    
+                        # enable RecordCmdToLogFile to recode command
+                        self.RecordCmdToLogFile=True             
+                        self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")                                         
+    
+                        # run script, 3th,4th line equal 1,2 line statements
+                        #    @deadline(Timeout)
+                        #    Code=SubCaseFunc()
+                        SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
+                        Code=None
+                        
+                        # sub case execption
+                        try:
+                            Code = SubCaseFuncWithTimeOut()    
+                            
+                        # timeout execption     
+                        except TimedOutExc as e:              
+                            self.Print ("")
+                            self.Print( "Timeout!(%s seconds), quit Case %s test!"%(e, SubCaseNum), "f" )
+                            self.Print( "Fail", "f" )
+                            Code = 1               
+                        # other execption
+                        except Exception, error:
+                            self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%self.LogName_CmdDetail, "f" )
+                            self.Print( "Exception message as below", "f" )
+                            self.Print ("")
+                            self.Print( "=====================================", "f" )
+                            self.Print(str(error), "f" )
+                            self.Print( "=====================================", "f" )
+                            Code = 1
+                        
+                        #  prevent coding no return code, eg. 0/1/255
+                        if Code ==None:
+                            Code = 0
+                            
+    
+                             
+                        # disable RecordCmdToLogFile to recode command
+                        self.RecordCmdToLogFile=True             
+                        self.Logger("</Case %s> ----------------------------"%SubCaseNum, mfile="cmd")
+                        self.Logger("", mfile="cmd")                             
+                    else:
+                        # if user didn't assign subcase, return skip                              
+                        Code = 255
+                    
+                    # save code to SubCase_rtCode
+                    self.SubCase_rtCode.append(Code)
+                    
+                    # write to log file    
+                    self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
+            # </for function from SubCase1 to SubCaseX   >     
+    
+            # if override Posttest(), then run it, or PreTestIsPass= true
+            if self.IsMethodOverride( "PostTest"):
+                # enable RecordCmdToLogFile to recode command
+                self.RecordCmdToLogFile=True             
+                self.Logger("<PostTest> ----------------------------", mfile="cmd") 
+                    
+                PostTest = self.GetAbstractFunctionOrVariable(0, "posttest")
+                PostTestIsPass = PostTest()
+                
+                # disable RecordCmdToLogFile to recode command
+                self.RecordCmdToLogFile=True             
+                self.Logger("</PostTest> ----------------------------", mfile="cmd")       
+                self.Logger("", mfile="cmd")            
+            else:
+                PostTestIsPass = True
+            
+            # get rtCode from SubCase_rtCode
+            self.rtCode = self.GetrtCodeFrom_SubCase_rtCode()
+        else: # PreTestIsPass = false
+            self.rtCode = 1
         
         sleep(1)
         # reset controller to initial status

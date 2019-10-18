@@ -1,12 +1,14 @@
-CASE 1 : Test critical warnings : Skip
-CASE 2 : Test data_units_read with read command : Skip
-CASE 3 : Test data_units_read with compare command : Skip
-CASE 4 : Test data_units_written with write command : Skip
-CASE 5 : Test data_units_written with Write Uncorrectable command : Skip
-CASE 6 : Test host_read_commands and host_write_commands : Skip
-CASE 7 : Test controller busy time : Skip
-CASE 8 : Test media error and error log : Skip
-CASE 9 : Test power cycle : Skip
-CASE 10 : Test Unsafe Shutdowns for POR : Skip
-CASE 11 : Test Unsafe Shutdowns for SPOR : Skip
-CASE 12 : Test 'Power On Hours' : Pass
+CASE 1 : Test if the operation of PF and VFs influences itself only : Skip
+CASE 2 : Test Data Integrity of POR and SPOR : Skip
+CASE 3 : Test NVMe read speed : Skip
+CASE 4 : Test NVMe write speed : Skip
+CASE 5 : Test SMI_SmartHealthLog.py for all VF/PF : Skip
+CASE 6 : Test SMI_SetGetFeatureCmd.py for all VF/PF : Skip
+CASE 7 : Test SMI_Read.py for all VF/PF : Skip
+CASE 8 : Test SMI_Write.py for all VF/PF : Skip
+CASE 9 : Test SMI_DSM.py for all VF/PF : Skip
+CASE 10 : Test SR-IOV in virtual machines(KVM/QEMU) : Skip
+CASE 11 : Test S3 mode(Suspend To Ram) for SR-IOV device : Skip
+CASE 12 : Test S4 mode(Suspend To Disk) for SR-IOV device : Skip
+CASE 13 : Test namespaces attach/delete/create operation : Skip
+CASE 14 : Test system reboot for SR-IOV device : Pass
