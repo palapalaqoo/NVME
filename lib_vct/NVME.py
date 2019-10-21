@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Import python built-ins
 '''
 Created on Aug 3, 2018
 

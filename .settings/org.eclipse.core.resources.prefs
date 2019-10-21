@@ -1,4 +1,5 @@
 eclipse.preferences.version=1
+encoding//lib_vct/NVME.py=utf-8
 encoding//lib_vct/NVMECom.py=utf-8
 encoding/SMI_AsynchronousEventRequest.py=utf-8
 encoding/SMI_ChangedNamespaceListLog.py=utf-8

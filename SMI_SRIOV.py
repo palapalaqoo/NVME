@@ -1474,24 +1474,12 @@ class SMI_SRIOV(NVME):
         # create AutoRunAfterReboot.sh(filePath)
         # content
         data = "#!/bin/sh" + "\n"
-        '''
-        # wait reboot finish by checking gnome-terminal and nvme-cli
-        data = data + "# wait reboot finish by checking gnome-terminal and nvme-cli" + "\n"
-        data = data + "terminalReady=$(command -v gnome-terminal 2>&1 >/dev/null ; echo $?)" + "\n"
-        data = data + "nvmecliReady=$(command -v nvme 2>&1 >/dev/null ; echo $?)" + "\n"
-        data = data + "while   [ $((terminalReady)) != 0 ] || [ $((nvmecliReady)) != 0 ] " + "\n"
-        data = data + "do" + "\n"
-        data = data + "	sleep 1" + "\n"
-        data = data + "	terminalReady=$(command -v gnome-terminal 2>&1 >/dev/null ; echo $?)" + "\n"
-        data = data + "	nvmecliReady=$(command -v nvme 2>&1 >/dev/null ; echo $?)" + "\n"
-        data = data + "done" + "\n"
-        '''
         # set display valuable
         data = data + "# set display valuable" + "\n"
         DISPLAY = self.shell_cmd("echo $DISPLAY")
         data = data + "export DISPLAY=%s"%DISPLAY + "\n"
         data = data + "# run command" + "\n"
-        data = data + "/bin/gnome-terminal -- bash -c '%s; exec bash'\n"%CMD + "\n"
+        data = data + "/bin/gnome-terminal --maximize -- bash -c '%s; exec bash'\n"%CMD + "\n"
         data = data + "exit 0" + "\n"
         # write
         with open(filePath, 'w') as mfile:
@@ -2477,10 +2465,10 @@ class SMI_SRIOV(NVME):
                 # flush all console messages, below syntax will call NVMECom.tee.flush()      
                 sys.stdout.flush()
                 sleepT=10
-                self.Print("Wait %s seconds and reboot .. , if detect 'ctrl+C' then skip it"%sleepT)
+                self.Print("Wait %s seconds and reboot .. , if detect 'ctrl+C' then skip this case"%sleepT)
                 for i in range(sleepT):
                     # PrintProgressBar
-                    self.PrintProgressBar(i, sleepT, prefix = 'Time:', length = 50)                    
+                    self.PrintProgressBar(i, sleepT, prefix = 'Time:', length = 20)                    
                     sleep(1)
                 os.system('reboot')
             except KeyboardInterrupt:
