@@ -1587,8 +1587,8 @@ class SMI_SRIOV(NVME):
     def __init__(self, argv): 
         # initial new parser if need, -t -d -s -p was used, dont use it again
         self.SetDynamicArgs(optionName="n", optionNameFull="numofvf", helpMsg="number of VF that will be enable and test", argType=int) 
-        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops for case11, case12", argType=int)
-        self.SetDynamicArgs(optionName="w", optionNameFull="wakeuptimer", helpMsg="wakeup timer in seconds for case11, case12", argType=int)
+        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops for case11, case12 and case14", argType=int)
+        self.SetDynamicArgs(optionName="w", optionNameFull="wakeuptimer", helpMsg="wakeup timer in seconds for case11, case12 and case14", argType=int)
         self.SetDynamicArgs(optionName="c", optionNameFull="CurrentLoopForResumeFromReboot", helpMsg="curren loop for resume from reboot, please do not set it", argType=int)
                 
         # initial parent class
@@ -1619,7 +1619,9 @@ class SMI_SRIOV(NVME):
         
         # if tkinter imported, using GUI
         self.UsingGUI = True if self.tkinter!=None else False
-        
+        # if testmode, set false
+        if self.mTestModeOn:
+            self.UsingGUI=False        
         
         
         ''' using -n to set number of VF that will be enable and test instead of using config file
@@ -1637,11 +1639,7 @@ class SMI_SRIOV(NVME):
         if self.mTestTime!=None:
             SMI_SRIOV.SubCase1TimeOut = 200+self.mTestTime
         
-        # UI define
-        if not self.mTestModeOn:
-            self.UsingGUI=self.CheckTkinter()
-        else:
-            self.UsingGUI=False
+
         
         #self.UsingGUI=False
         self.CurrItems=[]   # ex. ["nvme0n1", Lb0], ["nvme1n1", Lb1]
@@ -1713,7 +1711,7 @@ class SMI_SRIOV(NVME):
                     
         # get TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers)
         #self.TotalVFs = self.read_pcie(base = self.SR_IOVCAP, offset = 0x0E) + (self.read_pcie(base = self.SR_IOVCAP, offset = 0x0F)<<8)
-        self.TotalVFs = self.shell_cmd("cat /sys/bus/pci/devices/%s/sriov_totalvfs"%self.pcie_port)
+        self.TotalVFs = int(self.shell_cmd("cat /sys/bus/pci/devices/%s/sriov_totalvfs"%self.pcie_port))
                
         self.Print("Check if TotalVFs of SR-IOV Virtualization Extended Capabilities Register(PCIe Capabilities Registers) is large then 0(SR-IOV supported)") 
         self.Print("TotalVFs: %s"%self.TotalVFs)
@@ -2030,11 +2028,11 @@ class SMI_SRIOV(NVME):
         
         
         #if self.mTestModeOn: snchan
-        
+        '''
         if True:
             self.Print("skip sub case")
             return 255  
-            
+        '''    
         
         if self.paramiko==None:
             self.Print("paramiko not installed!, quit test!", "f")
@@ -2055,19 +2053,25 @@ class SMI_SRIOV(NVME):
             return 255
         else:
             self.Print("Pass!", "p")
+
+        self.Print("Trim whole disk for all VF/PF .. ") 
+        for dev in self.AllDevices:
+            SubDUT = NVME([dev]) 
+            SubDUT.TrimWholeDisk()   
+
             
         # snchan
         f_GetVM_IP = True   # must have
                 
-        f_CreateVM = False
+        f_CreateVM = True
         f_HostFIOtest = False   #
-        f_AttachPCIE = False
+        f_AttachPCIE = True
 
         f_CreateRawDiskImg = False
         f_MountPF=False
         f_AttachRawDisk = False
         
-        f_VM_FIO_WriteTestStandAlone = False  #
+        f_VM_FIO_WriteTestStandAlone = True  #
         f_VM_FIO_WriteTestSimultaneously = False
 
         f_VM_FIO_WriteTestSimultaneouslyRawDisk = False
@@ -2076,7 +2080,7 @@ class SMI_SRIOV(NVME):
         
         f_DettachRawDisk=False
         f_UmountPF=False
-        f_DetachPCIE =True
+        f_DetachPCIE =False
         # start ------------------------------------------------------------------------------    
         # init VMinfo and VMname
         for i in range(self.TotalVFs):    
@@ -2464,7 +2468,7 @@ class SMI_SRIOV(NVME):
             try:
                 # flush all console messages, below syntax will call NVMECom.tee.flush()      
                 sys.stdout.flush()
-                sleepT=10
+                sleepT = 10 if self.wakeuptimer==None else self.wakeuptimer
                 self.Print("Wait %s seconds and reboot .. , if detect 'ctrl+C' then skip this case"%sleepT)
                 for i in range(sleepT):
                     # PrintProgressBar

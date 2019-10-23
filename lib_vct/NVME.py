@@ -169,7 +169,7 @@ class NVME(object, NVMECom):
         self.GetLog = GetLog.GetLog_(self)
         self.Flow=Flow.Flow_(self)
         
-        self.pcie_port = self.GetPciePort(self.dev_port)         
+        self.pcie_port = self.GetPciePort(self.dev)         
         self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port))
         
         # get valume of ssd
@@ -203,8 +203,46 @@ class NVME(object, NVMECom):
         return int(self.GetStrFromREsearchByShellCMD(shellCMD = "nvme list-ns %s"%self.device, searchPattern = ".*:(.*)") ,16 )
         
     def GetPciePort(self, dev):
+    # dev = /dev/nvme0n1
     # e.x. return 0000:01:00.0
-        return self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(dev))
+        #return self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(dev))
+        mStr="/dev/nvme(\d+)n(\d+)"
+        if re.search(mStr, dev):
+            devID=re.search(mStr, dev).group(1)   
+            nsID=re.search(mStr, dev).group(2)      
+            # ex. /sys/class/nvme/nvme1/nvme0c1n5 or /sys/class/nvme/nvme1/nvme0n5
+            # get /sys/class/nvme/nvme1/ 
+            CMD = "find /sys/class/nvme/*/* -name 'nvme%s*n%s'  |cut -d '/' -f 1,2,3,4,5"%(devID, nsID)
+            rt = self.shell_cmd(CMD)    
+            if rt == "":
+                self.Print("Cant find pcie port, %s"%CMD, "f")  
+                sys.exit(1)  
+            rt = rt + "/device/uevent"    
+            CMD = "cat %s"%(rt)     
+            # read file 'uevent'           
+            rt = self.shell_cmd(CMD)    
+            if rt == "":
+                self.Print("Cant find file, %s"%rt, "f")  
+                sys.exit(1)  
+                
+            mStr="PCI_SLOT_NAME=([\:\d\.]+)" # dot and : and number only
+            if re.search(mStr, rt):
+                PciePort=re.search(mStr, rt).group(1)     
+            else:
+                self.Print("Cant find 'PCI_SLOT_NAME' in file, %s"%rt, "f")  
+                sys.exit(1)            
+                
+            return PciePort
+            
+
+                
+        ''' ex.
+        /sys/class/nvme/nvme0/nvme0c0n1
+        /sys/class/nvme/nvme1/nvme0c1n5
+        /sys/class/nvme/nvme2/nvme0c2n2
+        /sys/class/nvme/nvme3/nvme0c3n3
+        ''' 
+        self.shell_cmd("find /sys/class/nvme/*/* -name 'nvme*****' ")
 
     def GetMRBA(self):
         # Memory Register Base Address
