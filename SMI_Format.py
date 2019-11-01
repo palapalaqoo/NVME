@@ -25,7 +25,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20190305"
+    Version = "20191030"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -393,16 +393,20 @@ class SMI_Format(NVME):
     def SubCase5(self): 
         ret_code=0
         self.Print ("")
-        self.Print ("Send format command with PIL = 0")
+        self.Print ("Send format command with PIL = 0, PI = 0")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0);
         ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         self.Print ("")
-        self.Print ("Send format command with PIL = 1")
+        self.Print ("Send format command with PIL = 1, PI = 0")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 1);
         ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
-        
+        self.Print ("")
+        self.Print ("Send format command with PIL = 0, PI = 0")
+        self.Print ("Check return code, expected returned status code: Success")
+        mStr=self.Format(1, 0, 0, 0);
+        ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1        
         return ret_code
 
     SubCase6TimeOut = 600
@@ -420,7 +424,7 @@ class SMI_Format(NVME):
         
         
         self.Print ("")
-        self.Print ("Send format command with PI = 000b")
+        self.Print ("Send format command with PIL = 0, PI = 000b")
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0);
         ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
@@ -434,7 +438,7 @@ class SMI_Format(NVME):
                 break
         
         self.Print ("")
-        self.Print ("Send format command with PI = 001b")
+        self.Print ("Send format command with PIL = 0, PI = 001b")
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type1Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 1);
         if self.Type1Supported:
@@ -443,7 +447,7 @@ class SMI_Format(NVME):
             ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1
         
         self.Print ("")
-        self.Print ("Send format command with PI = 010b")
+        self.Print ("Send format command with PIL = 0, PI = 010b")
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type2Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 2);
         if self.Type1Supported:
@@ -453,7 +457,7 @@ class SMI_Format(NVME):
             
                     
         self.Print ("")
-        self.Print ("Send format command with PI = 011b")
+        self.Print ("Send format command with PIL = 0, PI = 011b")
         self.Print ("Check return code, expected returned status code: %s"%("Success" if self.Type3Supported else "Fail"))
         mStr=self.Format(1, PI_SupportedLBAF, 0, 0, 3);
         if self.Type1Supported:
@@ -463,7 +467,7 @@ class SMI_Format(NVME):
         
         
         self.Print (""       )
-        self.Print ("Send format command with PI from 100b to 111b (Reserved)")
+        self.Print ("Send format command with PIL = 0, PI from 100b to 111b (Reserved)")
         self.Print ("Check return code, expected returned status code: fail")
         for i in range(4, 8):
             mStr=self.Format(1, 0, 0, 0, i);

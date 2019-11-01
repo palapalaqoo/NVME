@@ -119,8 +119,12 @@ class SMI_DSM(NVME):
                   
         # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
+        self.SetDynamicArgs(optionName="n", optionNameFull="disableNsTest", helpMsg="disable namespace test, ex. '-n 1'", argType=int)    
         # initial parent class
         super(SMI_DSM, self).__init__(argv)
+        
+        self.disableNsTest = self.GetDynamicArgs(1)
+        self.disableNsTest = True if self.disableNsTest==1 else False        
         
         # <Parameter>
         self.DLFEAT = self.IdNs.DLFEAT
@@ -135,6 +139,9 @@ class SMI_DSM(NVME):
         
     # define pretest  
     def PreTest(self): 
+        if self.disableNsTest:
+            self.Print ("User disable namespace test", "f")         
+        
         if not self.DSMSupported:
             self.Print("DSM command not supported, skip all", "w")
             return False
@@ -265,7 +272,9 @@ class SMI_DSM(NVME):
     SubCase3Desc = "Test Attribute - Deallocate (AD), multi name spaces"    
     def SubCase3(self):
         self.Print ("Test the values read from a deallocated is euqal to DLFEAT reported value for multi namespaces ")
-         
+        if self.disableNsTest:
+            self.Print ("User disable namespace test, skip", "f") 
+            return 255
         ret_code=0
         if self.DSMSupported and self.NsSupported:          
             

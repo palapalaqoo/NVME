@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20191011"
+    Version = "20191030"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -307,18 +307,18 @@ class SMI_SetGetFeatureCMD(NVME):
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p was used, dont use it again
-        self.SetDynamicArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff, ex. '-x 1'", argType=int)        
+        self.SetDynamicArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff, ex. '-x 1'", argType=int)    
+        self.SetDynamicArgs(optionName="n", optionNameFull="disableNsTest", helpMsg="disable namespace test, ex. '-n 1'", argType=int)        
         
         # initial parent class
         super(SMI_SetGetFeatureCMD, self).__init__(argv)
         
         # get new parser if need, where args order is the same with initial order
         self.DisablePwr = self.GetDynamicArgs(0)
-        self.DisablePwr = True if self.DisablePwr==1 else False
-            
-
-        self.Print ("Nvme reset controller")
-        self.nvme_reset()    
+        self.DisablePwr = True if self.DisablePwr==1 else False        
+        self.disableNsTest = self.GetDynamicArgs(1)
+        self.disableNsTest = True if self.disableNsTest==1 else False
+          
         self.ret_code = 0
         self.Ns=1
         self.TestItems=[]
@@ -328,6 +328,14 @@ class SMI_SetGetFeatureCMD(NVME):
     
     # override
     def PreTest(self):
+        if self.DisablePwr:
+            self.Print ("User disable power off/on test", "f")     
+        if self.disableNsTest:
+            self.Print ("User disable namespace test", "f")  
+        self.Print ("")    
+        self.Print ("Issue nvme reset controller")
+        self.nvme_reset()
+        
         self.Print ("Check if Select field in Get Features - Command Dword 10 supported or not")
         self.Print ("")
         if self.SELSupport:
@@ -499,6 +507,8 @@ class SMI_SetGetFeatureCMD(NVME):
                         self.Print ("Controller don't support mulit namespaces!, quit this test item")
                     elif not changeable:
                         self.Print ("Feature is not changeable!, quit this test item")
+                    elif self.disableNsTest:
+                        self.Print ("-- User disable namespace test for this feature")
                     else:
                         # if only 1 namespace currently, create 2 namespaces
                         if self.Ns==1:
