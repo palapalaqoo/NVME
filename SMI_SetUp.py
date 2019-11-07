@@ -182,6 +182,30 @@ class SMI_SetUp(NVME):
             self.Print("system need to reboot for enable iommu!"        )
         
         return ret_code 
+  
+  
+    # <define sub item scripts>
+    SubCase5TimeOut = 600
+    SubCase5Desc = "install sshpass"   
+    SubCase5KeyWord = ""
+    def SubCase5(self):
+        ret_code=0
+        package = "sshpass"
+        self.Print("check if %s was installed"%package)        
+        if not self.isCMDExist(package):
+            self.Print("Not install , Try to install package"   )
+            self.shell_cmd("sudo yum install -y sshpass")
+            sleep(0.5)
+            if self.isCMDExist(package):
+                self.Print("Install success!")
+            else:
+                self.Print("Install fail!", "f" )
+                ret_code=1
+        else:
+            self.Print("Installed!"        )
+            
+        return ret_code  
+  
     
     # </define sub item scripts>
 
