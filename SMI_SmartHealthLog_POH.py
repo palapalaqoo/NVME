@@ -37,7 +37,7 @@ class SMI_SmartHealthLog_POH(NVME):
         self.Print("Start to keep watching on  'Power On Hours', time out:%s seconds"%timeout)
         timeUsage=0
         # PrintProgressBar
-        self.PrintProgressBar(timeUsage, timeout, prefix = 'Time:', length = 100)
+        self.PrintProgressBar(timeUsage, timeout, prefix = 'Time:', length = 50)
         try: 
             while True:
                 sleep(1)                  
@@ -54,7 +54,7 @@ class SMI_SmartHealthLog_POH(NVME):
                     break
                 # progress bar
                 if timeUsage%30==0:
-                    self.PrintProgressBar(timeUsage, timeout, prefix = 'Time:', length = 100)
+                    self.PrintProgressBar(timeUsage, timeout, prefix = 'Time:', length = 50)
                 
         except KeyboardInterrupt:
             self.Print("")

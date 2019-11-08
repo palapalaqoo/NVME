@@ -31,7 +31,7 @@ class SMI_SetUp(NVME):
     def SubCase1(self):
         ret_code=0
         package = "virsh"
-        self.Print("check if QEMU/KVM was installed"%package)        
+        self.Print("check if QEMU/KVM(%s) was installed"%package)        
         if not self.isCMDExist(package):
             self.Print("Not install , Try to install package"   )
             self.shell_cmd("sudo yum install -y qemu-kvm qemu-img virt-manager libvirt libvirt-python libvirt-client virt-install virt-viewer")

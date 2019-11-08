@@ -161,10 +161,22 @@ class mtest1(NVME):
     
     
 if __name__ == "__main__":
+
+    sys.stdout.write("\u001b[{s}")
+    for i in range(100):
+        #self.PrintProgressBar(i, 100)
+            
+                       
+        sleep(1)
+        sys.stdout.write(u"\u001b[1A") 
+        sys.stdout.flush()
+        sys.stdout.write("4488")
+        sys.stdout.flush()    
+    '''
     DUT = mtest1(sys.argv ) 
     DUT.RunScript()
     DUT.Finish() 
-    
+    '''
     
     
     

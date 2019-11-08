@@ -152,29 +152,22 @@ class mtest1(NVME):
     SubCase1Desc = "test 1"   
     SubCase1KeyWord = ""
     def SubCase1(self):
-        self.lock=threading.Lock()
-        ret_code=0
-        mThreads=[]
-        self.Print("start ++")     
-
-        t = threading.Thread(target = self.DoVM_FIOtestA)
-        t.start() 
-        mThreads.append(t) 
-
-        t = threading.Thread(target = self.DoVM_FIOtestB)
-        t.start() 
-        mThreads.append(t) 
 
 
 
        
-        for process in mThreads:
-            process.join()
-            self.Print("Done ++") 
+        #self.stdoutBk.write(u"\u001b[s")
+        
+        for i in range(20):
+            self.PrintProgressBar(i+1, 20, length = 50)
             
+            sleep(0.1)
+                       
+                       
+        #self.Print("done")
+
             
-        self.DoVM_FIOtestAS()
-        self.DoVM_FIOtestBS()
+
         '''
         t = threading.Thread(target = self.DoVM_FIOtestA)
         t.start() 
@@ -203,7 +196,7 @@ class mtest1(NVME):
         
         
         
-        return ret_code        
+        return 0        
         
         
         

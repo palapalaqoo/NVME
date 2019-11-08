@@ -144,6 +144,7 @@ class NVMECom():
                 #this flush method is needed for python 3 compatibility.
                 #this handles the flush command by doing nothing.
                 #you might want to specify some extra behavior here.
+            self.terminal.flush()
             self.log.close()
             self.log = open(self.mLogFile, "a")
              
@@ -642,7 +643,7 @@ class NVMECom():
             else:
                 return None
     
-    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = 'x'):
+    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 50, fill = 'x'):
     # Print iterations progress
     # Usage:  mNVME.PrintProgressBar(i + 1, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
         """
@@ -663,10 +664,23 @@ class NVMECom():
         bar = fill * filledLength + '-' * (length - filledLength)
         mstr = '%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
         #mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        '''
         sys.stdout.write(u"\033[1000D" + self.PrefixString()+mstr)
-        sys.stdout.flush()    
+        sys.stdout.flush() 
         self.stdoutBk.write(u"\033[1000D" + self.PrefixString()+mstr)
-        self.stdoutBk.flush()           
+        self.stdoutBk.flush()         
+        '''
+        # remove string  > console width
+        rows, columns = os.popen('stty size', 'r').read().split()
+        mStr = self.PrefixString()+mstr
+        mStr = mStr[:int(columns)-1]
+        
+        sys.stdout.write(u"\u001b[s") # saves the current cursor position
+        sys.stdout.write(u"\033[0J") # clear all string after courser
+        sys.stdout.write(mStr) # write
+        sys.stdout.flush() 
+        sys.stdout.write(u"\u001b[u") # restores the cursor to the last saved position
+             
         # Print New Line on Complete
         if iteration == total: 
             print ""

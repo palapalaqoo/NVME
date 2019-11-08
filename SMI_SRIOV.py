@@ -2032,7 +2032,7 @@ class SMI_SRIOV(NVME):
         testScriptName= "SMI_SetGetFeatureCmd.py"
         #  with option disable pwr,  '--disablepwr=1'
         #  with option disableNsTest,  '--disableNsTest=1'
-        ret_code = 0 if self.DO_Script_Test(testScriptName, "--disablepwr=1 --disableNsTest=1 ") else 1
+        ret_code = 0 if self.DO_Script_Test(testScriptName, " 1,2,3,4,5,6,7,8 --disablepwr=1 --disableNsTest=1 ") else 1
                       
         return ret_code    
     

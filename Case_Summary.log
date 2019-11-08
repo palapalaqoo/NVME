@@ -1,15 +1,1 @@
-CASE 1 : Test if the operation of PF and VFs influences itself only : Skip
-CASE 2 : Test Data Integrity of POR and SPOR : Skip
-CASE 3 : Test NVMe write speed : Skip
-CASE 4 : Test NVMe read speed : Skip
-CASE 5 : Test SMI_SmartHealthLog.py for all VF/PF : Skip
-CASE 6 : Test SMI_SetGetFeatureCmd.py for all VF/PF : Skip
-CASE 7 : Test SMI_Read.py for all VF/PF : Skip
-CASE 8 : Test SMI_Write.py for all VF/PF : Skip
-CASE 9 : Test SMI_DSM.py for all VF/PF : Skip
-CASE 10 : Test SR-IOV in virtual machines(KVM/QEMU) : Skip
-CASE 11 : Test S3 mode(Suspend To Ram) for SR-IOV device : Skip
-CASE 12 : Test S4 mode(Suspend To Disk) for SR-IOV device : Skip
-CASE 13 : Test namespaces attach/delete/create operation : Skip
-CASE 14 : Test system reboot for SR-IOV device : Skip
-CASE 15 : Test SR-IOV in virtual machines(KVM/QEMU) : Pass
+CASE 1 : test 1 : Pass
