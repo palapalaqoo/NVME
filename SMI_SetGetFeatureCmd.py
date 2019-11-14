@@ -304,6 +304,120 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print("Fail", "f")
             self.ret_code=1              
     
+    def VerifyNotSupport(self, mItem): 
+        
+        fid=mItem[item.fid]
+        self.Print ("Not supported", "w")
+        self.Print (""  )
+        self.Print ("-(1)-- Test Get Features with Select=0, Current --"    )
+        rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 0 >/dev/null 2>&1 ; echo $?"%(self.dev, fid)))
+        self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
+        self.Print ("Check if return code!=0")
+        if rtCode!=0:
+            self.Print("PASS", "p")  
+        else:
+            self.Print("Fail", "f")
+            self.ret_code=1 
+            
+        self.Print (""  )    
+        self.Print ("-(2)-- Test Get Features with Select=1, Default --"  )
+        rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 1 >/dev/null 2>&1 ; echo $?"%(self.dev, fid)))
+        self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
+        self.Print ("Check if return code!=0")
+        if rtCode!=0:
+            self.Print("PASS", "p")  
+        else:
+            self.Print("Fail", "f")
+            self.ret_code=1       
+            
+        self.Print (""  )    
+        self.Print ("-(3)--  Test Get Features with Select=2, Saved --"            )
+        rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 2 >/dev/null 2>&1  ; echo $?"%(self.dev, fid)))
+        self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
+        self.Print ("Check if return code!=0")
+        if rtCode!=0:
+            self.Print("PASS", "p")  
+        else:
+            self.Print("Fail", "f")
+            self.ret_code=1                        
+        
+             
+    
+    def VerifySaveAble(self, mItem):
+        supported=mItem[item.supported]
+        saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
+        nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
+        changeable=True if mItem[item.capabilities]&0b100 > 0 else False        
+        fid=mItem[item.fid]
+        # get default value
+        DefaultValue = self.GetFeature(fid, sel=1)        
+
+        self.Print ("Feature is saveable in capabilities filed") if saveable else self.Print ("Feature is not saveable in capabilities filed")
+        
+        rdValue=self.GetFeature(fid, sel=2)
+        SavedValuebk=rdValue    # backup saved value
+        # choice one value that is not equal to saved value (valid_value, DefaultValue, reset_value)
+        if rdValue!=mItem[item.valid_value]:
+            value=mItem[item.valid_value]
+        elif rdValue!=mItem[item.reset_value]:
+            value=mItem[item.reset_value]
+        else:
+            value=DefaultValue
+        
+        self.Print ("Read saved value = %s"%hex(rdValue)                )
+        self.Print ("Send set feature command with value = %s and SV field =1"%hex(value))
+    
+        # Send set feature command    
+        self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)
+        
+        # Send get feature command    
+        GetValue = self.GetFeature(fid, sel=2)              
+        SavedValue =   GetValue            
+        
+        # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
+        self.CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=saveable)   
+        
+        if saveable:
+            self.Print ("Test Persistent Across Power Cycle and Reset")
+            self.Print ("-- Issue Nvme Reset")
+            self.nvme_reset()
+            # Send get feature command    
+            GetValue = self.GetFeature(fid, sel=2)                
+            self.Print ("After reset, read feature saved value: %s "%hex(GetValue))
+            self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
+            if GetValue == value:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                self.ret_code=1 
+            
+            if self.DisablePwr:  
+                self.Print ("-- User disable power off and power on test")
+            else:
+                self.Print ("-- Do power off and power on ")
+                self.por_reset()
+                sleep(0.5)
+                # Send get feature command    
+                GetValue = self.GetFeature(fid, sel=2)                
+                self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
+                self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
+                if GetValue == value:
+                    self.Print("PASS", "p")  
+                else:
+                    self.Print("Fail", "f")
+                    self.ret_code=1                         
+                                                                    
+       
+            value = SavedValuebk
+            self.Print ("restore to previous 'saved value': %s"%hex(value))
+            if int(value)==0:
+                value = DefaultValue
+                self.Print ("becouse previous 'saved value' =0, set 'saved value' to default value: %s"%hex(value))                        
+            # Send set feature command    
+            self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)  
+            self.Print ("End of restore values")         
+            self.Print (""                          )     
+    
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p was used, dont use it again
@@ -364,49 +478,19 @@ class SMI_SetGetFeatureCMD(NVME):
             saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
             nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
             changeable=True if mItem[item.capabilities]&0b100 > 0 else False
+            
+            self.Print ("" )            
+            self.Print ("Supported", "p") if supported else self.Print("Not supported", "w")
+            self.Print ("Feature saveable: %s"%("Yes" if saveable else "No"))
+            self.Print ("Feature namespace specific: %s"%("Yes" if nsSpec else "No"))
+            self.Print ("Feature changeable: %s"%("Yes" if changeable else "No"))
+            self.Print ("")            
+            
             if not supported:
-                fid=mItem[item.fid]
-                self.Print ("Not supported", "w")
-                self.Print (""  )
-                self.Print ("-(1)-- Test Get Features with Select=0, Current --"    )
-                rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 0 >/dev/null 2>&1 ; echo $?"%(self.dev, fid)))
-                self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
-                self.Print ("Check if return code!=0")
-                if rtCode!=0:
-                    self.Print("PASS", "p")  
-                else:
-                    self.Print("Fail", "f")
-                    self.ret_code=1 
-                    
-                self.Print (""  )    
-                self.Print ("-(2)-- Test Get Features with Select=1, Default --"  )
-                rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 1 >/dev/null 2>&1 ; echo $?"%(self.dev, fid)))
-                self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
-                self.Print ("Check if return code!=0")
-                if rtCode!=0:
-                    self.Print("PASS", "p")  
-                else:
-                    self.Print("Fail", "f")
-                    self.ret_code=1       
-                    
-                self.Print (""  )    
-                self.Print ("-(3)--  Test Get Features with Select=2, Saved --"            )
-                rtCode = int(self.shell_cmd(" nvme get-feature %s -f %s -s 2 >/dev/null 2>&1  ; echo $?"%(self.dev, fid)))
-                self.Print ("Send get feature command, returned code: 0x%X "%(rtCode))
-                self.Print ("Check if return code!=0")
-                if rtCode!=0:
-                    self.Print("PASS", "p")  
-                else:
-                    self.Print("Fail", "f")
-                    self.ret_code=1                      
+                self.VerifyNotSupport(mItem)
                               
             else:
-                self.Print ("Supported", "p")
-                self.Print ("" )
-                self.Print ("Feature saveable: %s"%("Yes" if saveable else "No"))
-                self.Print ("Feature namespace specific: %s"%("Yes" if nsSpec else "No"))
-                self.Print ("Feature changeable: %s"%("Yes" if changeable else "No"))
-                self.Print ("")
+
                 
                 self.Print ("-(1)-- Test Get Features with Select=0, Current --"    )
                 self.Print ("        and test Features capabilities bit 2, Feature Identifier is changeable or not")
@@ -433,67 +517,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.Print ("")
                 
                 self.Print ("-(3)--  Test Get Features with Select=2, Saved --"            )
-                           
-                if saveable:
-                    self.Print ("Feature is saveable in capabilities filed")
-                    
-                    rdValue=self.GetFeature(fid, sel=2)
-                    SavedValuebk=rdValue    # backup saved value
-                    # choice one value that is not equal to saved value (valid_value, DefaultValue, reset_value)
-                    if rdValue!=mItem[item.valid_value]:
-                        value=mItem[item.valid_value]
-                    elif rdValue!=mItem[item.reset_value]:
-                        value=mItem[item.reset_value]
-                    else:
-                        value=DefaultValue
-                    
-                    self.Print ("Read saved value = %s"%hex(rdValue)                )
-                    self.Print ("Send set feature command with value = %s and SV field =1"%hex(value))
-                
-                    # Send set feature command    
-                    self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)
-                    
-                    # Send get feature command    
-                    GetValue = self.GetFeature(fid, sel=2)              
-                    SavedValue =   GetValue            
-                    
-                    # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
-                    self.CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)   
-                    
-                    self.Print ("Test Persistent Across Power Cycle and Reset")
-                    self.Print ("-- Issue Nvme Reset")
-                    self.nvme_reset()
-                    # Send get feature command    
-                    GetValue = self.GetFeature(fid, sel=2)                
-                    self.Print ("After reset, read feature saved value: %s "%hex(GetValue))
-                    self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
-                    if GetValue == value:
-                        self.Print("PASS", "p")  
-                    else:
-                        self.Print("Fail", "f")
-                        self.ret_code=1 
-                    
-                    if self.DisablePwr:  
-                        self.Print ("-- User disable power off and power on test")
-                    else:
-                        self.Print ("-- Do power off and power on ")
-                        self.por_reset()
-                        sleep(0.5)
-                        # Send get feature command    
-                        GetValue = self.GetFeature(fid, sel=2)                
-                        self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
-                        self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
-                        if GetValue == value:
-                            self.Print("PASS", "p")  
-                        else:
-                            self.Print("Fail", "f")
-                            self.ret_code=1                         
-                                                                            
-                    self.Print (""                          )
-                                
-                else:
-                    self.Print ("Feature is not saveable in capabilities filed")
-                    self.Print ("")
+                self.VerifySaveAble(mItem)
     
                 self.Print ("-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"        )
                 if not nsSpec:
@@ -596,15 +620,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 # Send set feature command    
                 self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
                                 
-                if saveable:
-                    value = SavedValuebk
-                    self.Print ("restore to previous 'saved value': %s"%hex(value))
-                    if int(value)==0:
-                        value = DefaultValue
-                        self.Print ("becouse previous 'saved value' =0, set 'saved value' to default value: %s"%hex(value))                        
-                    # Send set feature command    
-                    self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)  
-                self.Print ("End of restore values") 
+
 
         if self.Ns!=1:
             self.ResetNS()

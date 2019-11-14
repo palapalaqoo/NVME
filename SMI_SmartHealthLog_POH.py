@@ -119,7 +119,7 @@ class SMI_SmartHealthLog_POH(NVME):
     
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p was used, dont use it again
-        self.SetDynamicArgs(optionName="r", optionNameFull="Retain_Power_On_Hours", helpMsg="set '-r=1' to expect the 'Power On Hours' to be reatined(no change) in case3", argType=int)   
+        self.SetDynamicArgs(optionName="k", optionNameFull="Keep_Power_On_Hours", helpMsg="set '-k=1' to expect the 'Power On Hours' to be reatined(no change) in case3", argType=int)   
               
         # initial parent class
         super(SMI_SmartHealthLog_POH, self).__init__(argv)

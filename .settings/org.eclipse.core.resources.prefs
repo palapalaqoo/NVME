@@ -9,6 +9,7 @@ encoding/SMI_DSM.py=utf-8
 encoding/SMI_FeatureHCTM.py=utf-8
 encoding/SMI_FeatureNumberofQueues.py=utf-8
 encoding/SMI_FeatureTimestamp.py=utf-8
+encoding/SMI_FerriCase0.py=utf-8
 encoding/SMI_Format.py=utf-8
 encoding/SMI_Identify.py=utf-8
 encoding/SMI_MetadataTest.py=utf-8

@@ -907,10 +907,12 @@ class SMI_SRIOV(NVME):
             VM_xml_list.append([ device, fileName, SubDUT.pcie_port, VMname])   
         return VM_xml_list    
 
-    def MountPF(self):
-        # Format PF and mount to folder , where PF = AllDevices[0]
-        # mkfs PF
+    def FormatPFtoExt4(self):
+        # Format PF where PF = AllDevices[0]
         self.shell_cmd("sudo mkfs -t ext4 %s 2>&1 >/dev/null"%self.AllDevices[0])
+        
+    def MountPF(self):
+        # Mount PF to folder , where PF = AllDevices[0]
         # mkdir for further mount PF
         if not self.isfileExist("SRIOV_Resources/MntPF"):
             self.shell_cmd("sudo mkdir SRIOV_Resources/MntPF")
@@ -944,7 +946,7 @@ class SMI_SRIOV(NVME):
         numOfDisk = len(self.VMinfo)
         if not self.isNumOfRawDiskImgExist(numOfDisk):
             self.Print("Error, number of vmdisk in 'SRIOV_Resources/MntPF' is not match number of VM, expect %s files"%numOfDisk)
-            return []
+            return 1
         
         # for numOfDisk
         for i in range(numOfDisk):
@@ -1237,7 +1239,7 @@ class SMI_SRIOV(NVME):
         '''
         ReadWrite="write" if rw=="w" else "read" 
         return "fio --direct=0 --iodepth=128 --ioengine=libaio --bs=128k --rw=%s --numjobs=1 " \
-            "--offset=0 --filename=%s --name=mdata --do_verify=0 --runtime=5   " \
+            "--offset=0 --filename=%s --name=mdata --do_verify=0 --runtime=5 --time_based  " \
             "--output-format=terse,normal "%(ReadWrite, device)     
         
     def DO_Script_Test(self, testScriptName, option=""):
@@ -1293,7 +1295,7 @@ class SMI_SRIOV(NVME):
                     mList.append(device) 
         return mList
     
-    def DoVM_FIOtest_Simultaneously(self, targetDevice, rw, numDUT=None):
+    def DoVM_FIOtest_Simultaneously(self, targetDevice, rw, numDUT=None, sleepTime=5):
     # targetDevice: "SRIOV" or "RawDisk"
     # rw : r or w
     # numDUT, ex. if there are 4 VMs and you need to test 3 VMs only, then set numDUT=3
@@ -1340,7 +1342,8 @@ class SMI_SRIOV(NVME):
             if allfinished==1:        
                 break
             else:               
-                sleep(1)    
+                sleep(1)
+        sleep(sleepTime)    
 
     def DoTestSpeed(self, readWrite="write"):
         rtCode = True
@@ -2018,7 +2021,7 @@ class SMI_SRIOV(NVME):
         self.Print("test SMART / Health Information")
         testScriptName= "SMI_SmartHealthLog.py"
         #testScriptName= "mtest.py"
-        ret_code = 0 if self.DO_Script_Test(testScriptName) else 1
+        ret_code = 0 if self.DO_Script_Test(testScriptName, " 1,2,3,4,5,6,7,8 ") else 1
                       
         return ret_code
     
@@ -2032,7 +2035,7 @@ class SMI_SRIOV(NVME):
         testScriptName= "SMI_SetGetFeatureCmd.py"
         #  with option disable pwr,  '--disablepwr=1'
         #  with option disableNsTest,  '--disableNsTest=1'
-        ret_code = 0 if self.DO_Script_Test(testScriptName, " 1,2,3,4,5,6,7,8 --disablepwr=1 --disableNsTest=1 ") else 1
+        ret_code = 0 if self.DO_Script_Test(testScriptName, "--disablepwr=1 --disableNsTest=1 ") else 1
                       
         return ret_code    
     
@@ -2108,6 +2111,9 @@ class SMI_SRIOV(NVME):
 
             
         # snchan TODO1
+        sleepT = 2
+        SecondRun=False
+        
         f_TrimAll = True
         f_CreateVM = True        
         f_GetVM_IP = True   # must have  
@@ -2116,19 +2122,28 @@ class SMI_SRIOV(NVME):
         f_HostFIOtest = False   #
         f_AttachPCIE = True     # better have
 
+        f_FormatPFtoExt4=True
         f_MountPF=True
         f_CreateRawDiskImg = True
         f_AttachRawDisk = True
         RT1 = False
 
-        f_VM_FIO_WriteTestSimultaneously = True
-        f_VM_FIO_WriteTestSimultaneouslyRawDisk = True
-        f_VM_FIO_ReadTestSimultaneously = True
+        f_VM_FIO_WriteTestSimultaneously = False
+        f_VM_FIO_WriteTestSimultaneouslyRawDisk = False
+        f_VM_FIO_ReadTestSimultaneously = False
         f_VM_FIO_ReadTestSimultaneouslyRawDisk = True
         
-        f_DettachRawDisk=True
-        f_UmountPF=True
+        f_DettachRawDisk=False
+        f_UmountPF=False
         f_DetachPCIE =True   # better have or you can't find VF at next round test
+        
+        if SecondRun:
+            f_TrimAll=False
+            f_CreateVM=False
+            f_FormatPFtoExt4=False
+            f_MountPF=False
+            f_CreateRawDiskImg=False
+            f_AttachRawDisk=False
         # start ------------------------------------------------------------------------------    
         if f_TrimAll:
             self.Print("Trim whole disk for all VF/PF .. ") 
@@ -2165,7 +2180,7 @@ class SMI_SRIOV(NVME):
 
         if f_GetVM_IP:
             self.Print("")
-            timeout=600
+            timeout=60
             self.Print("Get IP address of all VMs for ssh connection, timeout %s s"%timeout)
             for info in self.VMinfo:
                 name = info.vmName
@@ -2230,10 +2245,17 @@ class SMI_SRIOV(NVME):
                 NVMEname= info.vmHostNVMEname
                 self.Print("Attach PCIe %s(%s) to %s"%(PCIEport, NVMEname, VMname))
                 self.AttachDeviceToVM(VMname, XMLfile)
+        
+        if f_FormatPFtoExt4:
+            self.Print("")     
+            self.Print("Format PF to Ext4 format ")                
+            self.FormatPFtoExt4()
+                
         if f_MountPF:    
             self.Print("")     
             self.Print("Mount PF to /SRIOV_Resources/MntPF ")              
             self.MountPF()
+            sleep(1)
 
         if f_CreateRawDiskImg:
             self.Print("")     
@@ -2265,38 +2287,38 @@ class SMI_SRIOV(NVME):
 
         if RT1:
             return 0
-        
+        sleep(2)
         if f_VM_FIO_WriteTestSimultaneously:
             for i in range(4):
                 nvf = i+1
                 sleep(1)
                 self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="w", numDUT=nvf)
+                self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="w", numDUT=nvf, sleepTime=sleepT)
                 self.Print("") 
-        sleep(5)        
+       
         if f_VM_FIO_WriteTestSimultaneouslyRawDisk:
             for i in range(4):
                 nvf = i+1
                 sleep(1)
                 self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="w", numDUT=nvf)
+                self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="w", numDUT=nvf, sleepTime=sleepT)
                 self.Print("")       
-        sleep(5)   
+
         #--------------------------------------------------------------        
         if f_VM_FIO_ReadTestSimultaneously:
             for i in range(4):
                 nvf = i+1
                 sleep(1)
                 self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="r", numDUT=nvf)
+                self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="r", numDUT=nvf, sleepTime=sleepT)
                 self.Print("") 
-        sleep(5)        
+      
         if f_VM_FIO_ReadTestSimultaneouslyRawDisk:
             for i in range(4):
                 nvf = i+1
                 sleep(1)
                 self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="r", numDUT=nvf)
+                self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="r", numDUT=nvf, sleepTime=sleepT)
                 self.Print("")     
         '''
         for i in range(4):
@@ -2335,7 +2357,7 @@ class SMI_SRIOV(NVME):
                 self.Print("Detach raw disk %s to %s"%( XMLfile, VMname))
                 self.DetachDeviceToVM(VMname, XMLfile)                   
             
-            
+        sleep(2)    
         if f_UmountPF:    
             # umount PF
             self.shell_cmd("sudo umount SRIOV_Resources/MntPF 2>&1 >/dev/null")            
