@@ -671,7 +671,10 @@ class NVMECom():
         self.stdoutBk.flush()         
         '''
         # remove string  > console width
-        rows, columns = os.popen('stty size', 'r').read().split()
+        try: # if using eclipse to debug, then set col to 40
+            rows, columns = os.popen('stty size', 'r').read().split()
+        except:
+            columns = 40
         mStr = self.PrefixString()+mstr
         mStr = mStr[:int(columns)-1]
         
