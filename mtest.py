@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+import subprocess
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -125,7 +126,22 @@ class mtest1(NVME):
     SubCase1TimeOut = 2000
     SubCase1Desc = "test 1"   
     SubCase1KeyWord = ""
+    
+    def mCMD(self, CMD):
+        
+        p = subprocess.Popen(CMD, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True,  executable='/bin/bash')           
+        
+        out, err = p.communicate()            
+
+        return out        
+        
+        
+        
+
     def SubCase1(self):
+
+        aa=self.mCMD("diff -q <(dd bs=512 count=24 if=/dev/nvme0n1 skip=512 ) <(tr \\\\000 \\\\205 < dd bs=512 count=24 if=/dev/zero  ) >/dev/null 2>&1; echo $?")
+        
         ret_code=0
         mThreads=[]
         self.Print("start ++")     
@@ -162,21 +178,14 @@ class mtest1(NVME):
     
 if __name__ == "__main__":
 
-    sys.stdout.write("\u001b[{s}")
-    for i in range(100):
-        #self.PrintProgressBar(i, 100)
+
             
                        
-        sleep(1)
-        sys.stdout.write(u"\u001b[1A") 
-        sys.stdout.flush()
-        sys.stdout.write("4488")
-        sys.stdout.flush()    
-    '''
+
     DUT = mtest1(sys.argv ) 
     DUT.RunScript()
     DUT.Finish() 
-    '''
+
     
     
     

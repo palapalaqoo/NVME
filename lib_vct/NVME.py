@@ -12,6 +12,8 @@ import os
 import threading
 import math
 import re
+import traceback
+import signal
 #import smi_comm
 from time import sleep
 from lib_vct.NVMECom import NVMECom
@@ -25,7 +27,7 @@ from lib_vct.NVMECom import deadline
 import re
 import time
 from shutil import copyfile
-
+import subprocess
 
 
 def foo1():
@@ -382,6 +384,7 @@ class NVME(object, NVMECom):
                             self.Print( "Exception message as below", "f" )
                             self.Print ("")
                             self.Print( "=====================================", "f" )
+                            self.Print(traceback.format_exc())
                             self.Print(str(error), "f" )
                             self.Print( "=====================================", "f" )
                             Code = 1
@@ -944,6 +947,48 @@ class NVME(object, NVMECom):
                 return False        
         self.status="normal"
         return True  
+    
+    # for fixing 'tr: write error: Broken pipe'
+    def default_sigpipe(self):
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)    
+    
+    def diff(self, SLB, NLB, cmpValue):
+        # SLB= start logic block
+        # NLB= number of logic block, start from 1
+        # cmpValue= value that will be compared
+        # return true/false
+        
+        oct_val=oct(cmpValue)[-3:]
+        CMD = 'diff -q <(dd bs=512 count=%s if=%s skip=%s 2>/dev/null) '\
+        '<(dd bs=512 count=%s if=/dev/zero 2>/dev/null |tr \\\\000 \\\\%s) >/dev/null 2>&1 ; echo $?'\
+        %(NLB, self.dev, SLB, NLB, oct_val)
+        p = subprocess.Popen(CMD, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True,  executable='/bin/bash', preexec_fn=self.default_sigpipe) 
+        out, err = p.communicate()
+        out=out.replace(" ", "")
+        value = int(out)
+        return True if value ==0 else False
+        '''
+        try:
+            value = int(out)
+            return True, value 
+        except:
+            return False, 0
+        '''
+
+          
+    '''
+    def diff(self, SLB, NLB, cmpValue):
+        # SLB= start logic block
+        # NLB= number of logic block, start from 1
+        # cmpValue= value that will be compared
+        # return true/false
+        
+        while True:
+            CMDok , value= self.diff_(SLB, NLB, cmpValue)
+            if CMDok:
+                return True if value ==0 else False
+    '''
+    
     
     def nvme_write_1_block(self, value, block, nsid=1):
         # write 1 block data, ex, nvme_write_1_block(0x32,0)
