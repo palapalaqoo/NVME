@@ -17,7 +17,7 @@ from time import sleep
 import threading
 import re
 import subprocess
-
+import random
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import deadline
@@ -139,8 +139,20 @@ class mtest1(NVME):
         
 
     def SubCase1(self):
-
-        aa=self.mCMD("diff -q <(dd bs=512 count=24 if=/dev/nvme0n1 skip=512 ) <(tr \\\\000 \\\\205 < dd bs=512 count=24 if=/dev/zero  ) >/dev/null 2>&1; echo $?")
+        
+        
+        self.shell_cmd("dd bs=1024 count=1 if=/dev/nvme0n1")
+        
+        
+        
+        kk=int(10/3)
+        
+        random.seed(1)
+        aa= random.sample(range(5),5)
+        random.seed(1)
+        bb= random.sample(range(1,2097152),5)
+        
+        #aa=self.mCMD("diff -q <(dd bs=512 count=24 if=/dev/nvme0n1 skip=512 ) <(tr \\\\000 \\\\205 < dd bs=512 count=24 if=/dev/zero  ) >/dev/null 2>&1; echo $?")
         
         ret_code=0
         mThreads=[]
