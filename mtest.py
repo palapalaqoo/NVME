@@ -140,34 +140,25 @@ class mtest1(NVME):
 
     def SubCase1(self):
         
+
+    
+        with open("file1.bin", "wb") as f:
+            for i in range(1024):
+                f.write(b"\x98")
+            
+
+            
+            f.close()
+          
+        with open("file1.bin", "r+b") as f:            
+            f.seek(0x7)    
+            f.write(b"\xaB")
+            
+            f.close()
         
-        self.shell_cmd("dd bs=1024 count=1 if=/dev/nvme0n1")
         
-        
-        
-        kk=int(10/3)
-        
-        random.seed(1)
-        aa= random.sample(range(5),5)
-        random.seed(1)
-        bb= random.sample(range(1,2097152),5)
-        
-        #aa=self.mCMD("diff -q <(dd bs=512 count=24 if=/dev/nvme0n1 skip=512 ) <(tr \\\\000 \\\\205 < dd bs=512 count=24 if=/dev/zero  ) >/dev/null 2>&1; echo $?")
-        
-        ret_code=0
-        mThreads=[]
-        self.Print("start ++")     
-        t = threading.Thread(target = self.DoVM_FIOtest0)
-        t.start() 
-        mThreads.append(t) 
-        t = threading.Thread(target = self.DoVM_FIOtest1)
-        t.start() 
-        mThreads.append(t)     
-       
-        for process in mThreads:
-            process.join()
-            self.Print("Done ++")          
-        
+        self.Print("done")     
+
         
         
         
@@ -179,7 +170,7 @@ class mtest1(NVME):
         
         
         
-        return ret_code        
+        return 0        
         
         
         

@@ -55,7 +55,9 @@ class RegDescriptor(object,NVMECom):
     
     @property
     def int(self):
-        mstr=self.get_reg(cmd=self.cmd, reg=self.reg, gettype=1, nsSpec=self.nsspec)        
+        mstr=self.get_reg(cmd=self.cmd, reg=self.reg, gettype=1, nsSpec=self.nsspec)
+        if mstr=="":
+            self.Print("Error read  %s %s"%(self.cmd, self.reg), "f")        
         if self.regtype==RegType.hex:         
             mstrint=int(mstr, 16)
         elif self.regtype==RegType.decimal:
