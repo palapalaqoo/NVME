@@ -119,7 +119,7 @@ class SMI_FerriCase0(NVME):
                 size = NLB
                 value=dataPattern
                 data = (((''.join(["%02x"%(value)]))*512)*size).decode("hex")
-                with open("img.bin", "r+b") as f:
+                with open("%s"%(self.ImageFileFullPath), "r+b") as f:
                     f.seek(offset)  
                     f.write(data)                    
                     f.close()  
@@ -214,10 +214,9 @@ class SMI_FerriCase0(NVME):
             writer.writerow(valueList)
     
     def CompareAll(self, Loop, SectorCnt, isSeqWrite):
-        self.CompareRtCode=True
         block_1 = -1
         totalSize = 2097152*512
-        CMD = "cmp -l %s img.bin -n %s"%(self.dev, totalSize)
+        CMD = "cmp -l %s %s -n %s"%(self.dev, self.ImageFileFullPath, totalSize)
         mStr="(\d+) " 
 
         valueList=[]
@@ -238,11 +237,16 @@ class SMI_FerriCase0(NVME):
                     #
                     failCnt=failCnt+1
                     block_1=block
-                    self.CompareRtCode=False
+                    
         if len(valueList)!=0:
             self.SaveToCSVFile(fileName, valueList)     
-                   
-        self.Print( "Number of compare failure blocks : %s blocks"%failCnt)
+        fCapacity = self.KMGT(failCnt*512)
+        self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(failCnt, fCapacity), "f")
+        # if >640k, then fail
+        if failCnt>=640*2:
+            self.CompareRtCode=False
+        else:
+            self.CompareRtCode=True
         return self.CompareRtCode            
         
             
@@ -283,13 +287,25 @@ class SMI_FerriCase0(NVME):
         return self.CompareRtCode
     
     
+    def CreateRamDisk(self, ImageFolderFullPath, ImageFileFullPath):
+        # ImageFolderFullPath = /mnt/SMI_RAM
+        # ImageFileFullPath = /mnt/SMI_RAM/img.bin
+        # create folder
+        if not self.isfileExist(ImageFolderFullPath):
+            self.shell_cmd("mkdir -p %s"%ImageFolderFullPath)
+        # if not mount     
+        if self.shell_cmd("mount |grep '%s'  >/dev/null 2>&1; echo $?"%ImageFolderFullPath) !="0":
+            self.shell_cmd("mount -t tmpfs tmpfs %s -o size=1G"%ImageFolderFullPath)
+        # init file  to 0x0, size 1G
+        self.shell_cmd("dd if=/dev/zero of=%s bs=1M count=1024 >/dev/null 2>&1"%ImageFileFullPath)
+    
     def SPOR(self, Loop, SectorCnt, isSeqWrite):
         
         self.per = 0        
         
         SizeInBlock= 2097152# 4096*512 = 2097152 =1G
-        writeType = "Sequence write" if isSeqWrite else "Random write"
-        self.Print("Loop: %s, Sector count: %s, Write type: %s"%(Loop, SectorCnt, writeType))
+        writeType = "Sequence write" if isSeqWrite else "Random write  "
+        self.Print("+-- Loop: %s, Sector count: %s, Write type: %s -- "%(Loop, SectorCnt, writeType), "b")
         self.Print("Clear first 1G data to 0x0")
         
         self.fio_write(offset=0, size="1G", pattern=0)
@@ -301,13 +317,8 @@ class SMI_FerriCase0(NVME):
             self.Print("Fail, can't write 0x0 to  first 1G space", "p")
             return False
         '''
-        self.Print("Clear image(img.bin) to 0x0")
-        size=1  # 1G
-        data = (((''.join(["%02x"%(0)]))*512)*size).decode("hex")        
-        with open("img.bin", "wb") as f:
-            for i in range(2097152):
-                f.write(data)            
-            f.close()        
+        self.Print("Create a super fast ram image for mapping device(at %s)"%(self.ImageFileFullPath))
+        self.CreateRamDisk(self.ImageFolderFullPath, self.ImageFileFullPath)
         self.Print("Done")
 
         # creat rand list
@@ -327,14 +338,18 @@ class SMI_FerriCase0(NVME):
         sleep(2)
         #if self.CompareAll(SectorCnt, SizeInBlock, WriteFail_Index, dataPattern, dataPattern_last):
         if self.CompareAll(Loop, SectorCnt, isSeqWrite):
-            self.Print("Pass", "p")    
+            self.Print("Failure size < 640k? Pass", "p")    
+            rtCode=True
         else:
-            self.Print("Fail", "p") 
+            self.Print("Failure size < 640k? Fail", "f")
+            rtCode=False 
  
             
             
         self.Print("")    
-        self.Print("Finish")            
+        self.Print("Finish")  
+        self.Print("") 
+        return rtCode         
                     
             
     def ThreadDoSPOR(self):
@@ -363,9 +378,9 @@ class SMI_FerriCase0(NVME):
             cTime = int(float(self.timer.time))
             
             if self.IssueSPORtimeBase:
-                self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %s s"%cTime)
                 # do spor
                 if not IssuedSPOR:
+                    self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %s s"%cTime)                    
                     if (doSPOR < cTime):
                         self.spor_reset()
                         IssuedSPOR = True
@@ -402,6 +417,10 @@ class SMI_FerriCase0(NVME):
         
         self.InitDirs()
         
+        # super fast ram for mapping device
+        self.ImageFolderFullPath = "/mnt/SMI_RAM"
+        self.ImageFileFullPath  =     "/mnt/SMI_RAM/img.bin"
+        
         self.lock=threading.Lock()
         
         self.per=0
@@ -435,11 +454,17 @@ class SMI_FerriCase0(NVME):
             
             for SectorCnt in range(1, 256):
                 isSeqWrite=True
-                self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite)
+                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                isSeqWrite=False
+                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                  
+                
+                #return 0 #
                 
             for SectorCnt in range(255, 0, -1):
+                isSeqWrite=True
+                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
                 isSeqWrite=False
-                self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite)            
+                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                
             
         
         
@@ -457,6 +482,9 @@ class SMI_FerriCase0(NVME):
 
     # define PostTest  
     def PostTest(self): 
+        if self.isfileExist(self.ImageFolderFullPath):
+            self.shell_cmd("umount %s"%self.ImageFolderFullPath)
+            self.shell_cmd("rm -r %s"%self.ImageFolderFullPath)
         return True 
 
 
