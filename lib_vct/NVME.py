@@ -998,7 +998,8 @@ class NVME(object, NVMECom):
         '''
         oct_val=oct(value)[-3:]
         if self.dev_alive and self.status=="normal":
-            self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null | nvme write %s --start-block=%s --data-size=512 2>&1 > /dev/null) "%(oct_val, self.dev, block))   
+            # must set stdbuf size if size>4096 bytes(default)
+            self.shell_cmd("  buf=$(dd if=/dev/zero bs=512 count=1 2>&1   |stdbuf -o 262144 tr \\\\000 \\\\%s 2>/dev/null | nvme write %s --start-block=%s --data-size=512 2>&1 > /dev/null) "%(oct_val, self.dev, block))   
         else:
             return False
         '''

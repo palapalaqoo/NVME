@@ -149,9 +149,10 @@ class SMI_FerriCase0(NVME):
         cdw11=slba>>32                
         cdw12=NLB
         oct_val=oct(value)[-3:]
-        CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
+        size = 512*(NLB+1)
+        CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
                              "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s >/dev/null 2>&1 ; echo $?"\
-                            %(NLB+1,oct_val, self.dev, 512*(NLB+1), cdw10, cdw11, cdw12)
+                            %(NLB+1, size , oct_val, self.dev, size, cdw10, cdw11, cdw12)
         mStr=self.shell_cmd(CMD)
         if mStr=="0":
             return True         
@@ -303,7 +304,7 @@ class SMI_FerriCase0(NVME):
         
         self.per = 0        
         
-        SizeInBlock= 2097152# 4096*512 = 2097152 =1G
+        SizeInBlock= 2097152#  2097152*512 =1G
         writeType = "Sequence write" if isSeqWrite else "Random write  "
         self.Print("+-- Loop: %s, Sector count: %s, Write type: %s -- "%(Loop, SectorCnt, writeType), "b")
         self.Print("Clear first 1G data to 0x0")
@@ -369,7 +370,7 @@ class SMI_FerriCase0(NVME):
         self.timer.start()
         self.Running=True
         while True:
-            if IssuedSPOR:
+            if IssuedSPOR or not self.Running: # if IssuedSPOR or stop by other thread using self.Running=false
                 break
             # get current writing percent
             percent = self.per
@@ -448,24 +449,31 @@ class SMI_FerriCase0(NVME):
     def SubCase1(self):   
         ret_code=0
 
-        isSeqWrite=True # sequence write
-        for loop in range(self.loops):
-            self.Print("loop: %s"%loop)
-            
-            for SectorCnt in range(1, 256):
-                isSeqWrite=True
-                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
-                isSeqWrite=False
-                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                  
+        try: 
+            for loop in range(self.loops):
+                self.Print("loop: %s"%loop)
                 
-                #return 0 #
-                
-            for SectorCnt in range(255, 0, -1):
-                isSeqWrite=True
-                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
-                isSeqWrite=False
-                if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                
-            
+                for SectorCnt in range(1, 256):
+                    isSeqWrite=True  # sequence write
+                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    isSeqWrite=False
+                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                  
+                    
+                    #return 0 #
+                    
+                for SectorCnt in range(255, 0, -1):
+                    isSeqWrite=True
+                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    isSeqWrite=False
+                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                
+        except KeyboardInterrupt:
+            self.Print("")
+            self.Print("Detect ctrl+C, quit", "w")  
+            # check device is alive or not
+            self.Running=False
+            if not self.dev_alive:
+                self.spor_reset()
+            return 255              
         
         
         
