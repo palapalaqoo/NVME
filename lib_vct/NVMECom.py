@@ -47,6 +47,7 @@ class NVMECom():
     LogName_CmdDetail="log"
     LogName_ConsoleOut="log"
     ScriptParserArgs=[]  
+    LastProgress=None
     def SubItemNum(self):
         self.SubItemNumValue+=1
         return self.SubItemNumValue
@@ -135,18 +136,32 @@ class NVMECom():
             self.terminal = sys.stdout
             self.mLogFile=logFile
             self.log = open(self.mLogFile, "a")
+            # handle progress bar
+            self.isProgress = False
+            self.ProgressMsg=None            
         
         def write(self, message):
             self.terminal.write(message)
-            self.log.write(message)  
+            
+            if self.isProgress:
+                pass
+            else:
+                # if last write is progress bar and it is finished, then print to log file
+                if self.ProgressMsg!=None:
+                    self.log.write(self.ProgressMsg)  
+                    self.log.write("\n")
+                    self.ProgressMsg=None
+                # print current message to log file
+                self.log.write(message)  
+                
         
         def flush(self):
                 #this flush method is needed for python 3 compatibility.
                 #this handles the flush command by doing nothing.
                 #you might want to specify some extra behavior here.
             self.terminal.flush()
-            self.log.close()
-            self.log = open(self.mLogFile, "a")
+            #self.log.close()
+            #self.log = open(self.mLogFile, "a")
              
         
        
@@ -678,12 +693,14 @@ class NVMECom():
         mStr = self.PrefixString()+mstr
         mStr = mStr[:int(columns)-1]
         
+        sys.stdout.isProgress=True
         sys.stdout.write(u"\u001b[s") # saves the current cursor position
         sys.stdout.write(u"\033[0J") # clear all string after courser
         sys.stdout.write(mStr) # write
+        sys.stdout.ProgressMsg=mStr # save to ProgressMsg for save to log file after progress is finished 
         sys.stdout.flush() 
         sys.stdout.write(u"\u001b[u") # restores the cursor to the last saved position
-             
+        sys.stdout.isProgress=False     
         # Print New Line on Complete
         if iteration == total: 
             print ""
@@ -701,6 +718,28 @@ class NVMECom():
         elif Size>=1024:
             SizeF="%sK"%(Size/(1024))            
         return SizeF
+    
+    def KMGT_reverse(self, size):
+    # ex. KMGT_reverse(1k), return int 2
+        size= size.upper()
+        
+        mStr = "(.*)K"        
+        if re.search(mStr, size): 
+            value = re.search(mStr, size).group(1)
+            unit=1024
+        mStr = "(.*)M"        
+        if re.search(mStr, size): 
+            value = re.search(mStr, size).group(1)
+            unit=1024*1024
+        mStr = "(.*)G"        
+        if re.search(mStr, size): 
+            value = re.search(mStr, size).group(1)
+            unit=1024*1024*1024         
+    
+        value=float(value)
+        value=int(value*unit/512)
+        return value    
+    
     def KelvinToC(self, K):
         return (K-273)
     def CToKelvin(self, C):

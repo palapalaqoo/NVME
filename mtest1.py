@@ -153,7 +153,14 @@ class mtest1(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
 
-
+        print self.KMGT_reverse("1k")
+        print self.KMGT_reverse("1M")
+        print self.KMGT_reverse("1G")
+        print self.KMGT_reverse("1.2k")
+        print self.KMGT_reverse("4k")
+        print self.KMGT_reverse("1280k")
+        print self.KMGT_reverse("640k")
+        return 0
 
        
         #self.stdoutBk.write(u"\u001b[s")

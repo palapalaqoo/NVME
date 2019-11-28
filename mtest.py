@@ -141,24 +141,9 @@ class mtest1(NVME):
     def SubCase1(self):
         
 
-    
-        with open("file1.bin", "wb") as f:
-            for i in range(1024):
-                f.write(b"\x98")
-            
-
-            
-            f.close()
-          
-        with open("file1.bin", "r+b") as f:            
-            f.seek(0x7)    
-            f.write(b"\xaB")
-            
-            f.close()
-        
-        
-        self.Print("done")     
-
+        for i in range(5):
+            self.PrintProgressBar(i, 5, length = 20)
+            sleep(0.5)
         
         
         

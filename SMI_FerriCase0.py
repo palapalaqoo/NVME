@@ -23,15 +23,21 @@ class SMI_FerriCase0(NVME):
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1)
         # if isSeqWrite, then return list [0, 1, 2, ...] else return random
-        if isSeqWrite:
-            self.RandAreaList = range(area)
-            self.RandContantList = range(contant)
-        else:
-            random.seed(seed)
-            self.RandAreaList = random.sample(range(area),area)
-            self.RandContantList = random.sample(range(contant),contant)
-        self.LenAreaList = len(self.RandAreaList)
-        self.LenContantList = len(self.RandContantList)
+        while True:
+            if isSeqWrite:
+                self.RandAreaList = range(area)
+                self.RandContantList = range(contant)
+            else:
+                random.seed(seed)
+                self.RandAreaList = random.sample(range(area),area)
+                self.RandContantList = random.sample(range(contant),contant)
+            self.LenAreaList = len(self.RandAreaList)
+            self.LenContantList = len(self.RandContantList)
+            # verify if range was create correctly
+            if self.LenAreaList == area and self.LenContantList == contant:
+                break
+            else:
+                sleep(0.1)
     
     def ResetRandIndex(self):
         self.RandIndex=0
@@ -127,7 +133,7 @@ class SMI_FerriCase0(NVME):
 
             self.per = float(cnt)/float(SizeInBlock)            
         # end of while            
-        t.join()
+        t.join(10)
         self.Print("")        
         return (self.RandIndex -1 ), dataPattern, dataPattern_last
         
@@ -153,7 +159,9 @@ class SMI_FerriCase0(NVME):
         CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
                              "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s >/dev/null 2>&1 ; echo $?"\
                             %(NLB+1, size , oct_val, self.dev, size, cdw10, cdw11, cdw12)
+        self.RecordCmdToLogFile=False
         mStr=self.shell_cmd(CMD)
+        self.RecordCmdToLogFile=True
         if mStr=="0":
             return True         
         else:
@@ -244,7 +252,7 @@ class SMI_FerriCase0(NVME):
         fCapacity = self.KMGT(failCnt*512)
         self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(failCnt, fCapacity), "f")
         # if >640k, then fail
-        if failCnt>=640*2:
+        if failCnt>=self.maximumFailureSizeNLB:
             self.CompareRtCode=False
         else:
             self.CompareRtCode=True
@@ -310,14 +318,13 @@ class SMI_FerriCase0(NVME):
         self.Print("Clear first 1G data to 0x0")
         
         self.fio_write(offset=0, size="1G", pattern=0)
-        '''
         self.Print("Verify if first 1G data is 0x0 now")
         if self.fio_isequal(offset=0, size="1G", pattern=0):
             self.Print("Pass", "p")
         else:
-            self.Print("Fail, can't write 0x0 to  first 1G space", "p")
+            self.Print("Fail", "p")
             return False
-        '''
+
         self.Print("Create a super fast ram image for mapping device(at %s)"%(self.ImageFileFullPath))
         self.CreateRamDisk(self.ImageFolderFullPath, self.ImageFileFullPath)
         self.Print("Done")
@@ -339,10 +346,10 @@ class SMI_FerriCase0(NVME):
         sleep(2)
         #if self.CompareAll(SectorCnt, SizeInBlock, WriteFail_Index, dataPattern, dataPattern_last):
         if self.CompareAll(Loop, SectorCnt, isSeqWrite):
-            self.Print("Failure size < 640k? Pass", "p")    
+            self.Print("Failure size < %s? Pass"%self.maximumFailureSize, "p")    
             rtCode=True
         else:
-            self.Print("Failure size < 640k? Fail", "f")
+            self.Print("Failure size < %s? Fail"%self.maximumFailureSize, "f")
             rtCode=False 
  
             
@@ -386,7 +393,7 @@ class SMI_FerriCase0(NVME):
                         self.spor_reset()
                         IssuedSPOR = True
                         break
-                if cTime>TimeOut:
+                if cTime>TimeOut+1:
                     break
             else:
                 self.PrintProgressBar(percent, 100, length = 20)
@@ -408,13 +415,31 @@ class SMI_FerriCase0(NVME):
     
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p -r was used, dont use it again
-        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop", argType=int) 
-        
+        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1", argType=int) 
+        self.SetDynamicArgs(optionName="m", optionNameFull="maximumFailureSize", \
+                            helpMsg="maximum failure size, e.x. '-m 640k' means less then 640k(1280 blocks) data lose is accceptable, default=640k", argType=str) 
+        self.SetDynamicArgs(optionName="c", optionNameFull="sectorSize", \
+                            helpMsg="sector size(sector count) in LBA for case2, default=1", argType=int) 
+        self.SetDynamicArgs(optionName="w", optionNameFull="writeType", \
+                            helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int)        
+                
         # initial parent class
         super(SMI_FerriCase0, self).__init__(argv)
         
         self.loops = self.GetDynamicArgs(0)  
         self.loops=1 if self.loops==None else self.loops
+        
+        self.maximumFailureSize = self.GetDynamicArgs(1)  
+        self.maximumFailureSize="640k" if self.maximumFailureSize==None else self.maximumFailureSize    #640k=1280 NLB
+        self.maximumFailureSizeNLB=self.KMGT_reverse(self.maximumFailureSize)
+        
+        self.sectorSize=self.GetDynamicArgs(2)
+        self.sectorSize=1 if self.sectorSize==None else self.sectorSize
+        
+        self.writeType=self.GetDynamicArgs(3)
+        self.writeType=0 if self.writeType==None else self.writeType
+        self.writeType="sequence" if self.writeType==0 else "random"
+        
         
         self.InitDirs()
         
@@ -443,15 +468,19 @@ class SMI_FerriCase0(NVME):
         return True            
 
     # <define sub item scripts>
-    SubCase1TimeOut = 6000
-    SubCase1Desc = ""   
+    SubCase1TimeOut = 6000000
+    SubCase1Desc = "Loop for SPOR testing"   
     SubCase1KeyWord = ""
     def SubCase1(self):   
         ret_code=0
+        self.Print("Start to test SPOR")
+        self.Print("Total test loop: %s"%self.loops, "f")
+        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "f")
+        self.Print("")
 
         try: 
             for loop in range(self.loops):
-                self.Print("loop: %s"%loop)
+                
                 
                 for SectorCnt in range(1, 256):
                     isSeqWrite=True  # sequence write
@@ -476,7 +505,29 @@ class SMI_FerriCase0(NVME):
             return 255              
         
         
-        
+    SubCase2TimeOut = 6000000
+    SubCase2Desc = "One time SPOR testing"   
+    SubCase2KeyWord = ""
+    def SubCase2(self):   
+        ret_code=0
+        self.Print("Start to test SPOR")
+        self.Print("Test type: %s"%self.writeType, "f")
+        self.Print("Sector size: %s LBA"%self.sectorSize, "f")
+        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "f")
+        self.Print("")
+
+        try: 
+            isSeqWrite=True if self.writeType=="sequence" else False  # sequence write
+            if not self.SPOR(Loop=0, SectorCnt = self.sectorSize, isSeqWrite=isSeqWrite): return 1        
+        except KeyboardInterrupt:
+            self.Print("")
+            self.Print("Detect ctrl+C, quit", "w")  
+            # check device is alive or not
+            self.Running=False
+            if not self.dev_alive:
+                self.spor_reset()
+            return 255              
+                
         
         
         
@@ -491,6 +542,8 @@ class SMI_FerriCase0(NVME):
     # define PostTest  
     def PostTest(self): 
         if self.isfileExist(self.ImageFolderFullPath):
+            with open("%s"%(self.ImageFileFullPath), "r+b") as f:                 
+                f.close()              
             self.shell_cmd("umount %s"%self.ImageFolderFullPath)
             self.shell_cmd("rm -r %s"%self.ImageFolderFullPath)
         return True 
