@@ -315,15 +315,23 @@ class SMI_FerriCase0(NVME):
         SizeInBlock= 2097152#  2097152*512 =1G
         writeType = "Sequence write" if isSeqWrite else "Random write  "
         self.Print("+-- Loop: %s, Sector count: %s, Write type: %s -- "%(Loop, SectorCnt, writeType), "b")
-        self.Print("Clear first 1G data to 0x0")
         
-        self.fio_write(offset=0, size="1G", pattern=0)
-        self.Print("Verify if first 1G data is 0x0 now")
-        if self.fio_isequal(offset=0, size="1G", pattern=0):
-            self.Print("Pass", "p")
-        else:
-            self.Print("Fail", "p")
-            return False
+        cnt=0
+        while True:
+            self.Print("Clear first 1G data to 0x0")        
+            self.fio_write(offset=0, size="1G", pattern=0)
+            self.Print("Verify if first 1G data is 0x0 now")
+            if self.fio_isequal(offset=0, size="1G", pattern=0):
+                self.Print("Pass", "p")
+                break
+            else:
+                self.Print("Fail", "f")
+                cnt=cnt+1
+                sleep(1)
+                
+            if cnt>=10:
+                self.Print("Fail to Clear first 1G data more then 10 times, quit test case1", "f")
+                return False
 
         self.Print("Create a super fast ram image for mapping device(at %s)"%(self.ImageFileFullPath))
         self.CreateRamDisk(self.ImageFolderFullPath, self.ImageFileFullPath)
@@ -346,10 +354,10 @@ class SMI_FerriCase0(NVME):
         sleep(2)
         #if self.CompareAll(SectorCnt, SizeInBlock, WriteFail_Index, dataPattern, dataPattern_last):
         if self.CompareAll(Loop, SectorCnt, isSeqWrite):
-            self.Print("Failure size < %s? Pass"%self.maximumFailureSize, "p")    
+            self.Print("Check if failure size < %s? Pass"%self.maximumFailureSize, "p")    
             rtCode=True
         else:
-            self.Print("Failure size < %s? Fail"%self.maximumFailureSize, "f")
+            self.Print("Check if failure size < %s? Fail"%self.maximumFailureSize, "f")
             rtCode=False 
  
             
@@ -367,7 +375,7 @@ class SMI_FerriCase0(NVME):
         TimeOut=20
         if self.IssueSPORtimeBase:            
             doSPOR = randint(1, TimeOut)
-            self.Print("Start thread to do SPOR when writing time > %s second"%doSPOR)       
+            self.Print("Start thread to do SPOR when writing time >= %s second"%doSPOR)       
         else:     
         # random time to run, range 1 to 90 of 1G writting
             doSPOR = randint(1, 90)
@@ -389,7 +397,7 @@ class SMI_FerriCase0(NVME):
                 # do spor
                 if not IssuedSPOR:
                     self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %s s"%cTime)                    
-                    if (doSPOR < cTime):
+                    if (doSPOR <= cTime):
                         self.spor_reset()
                         IssuedSPOR = True
                         break
