@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20191202"
+    Version = "20191205"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -152,11 +152,12 @@ class SMI_SetGetFeatureCMD(NVME):
         fid = 0xD
         supported = True if self.IdCtrl.HMPRE.int != 0 else False
         capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)    
-        if reset_value &0x1 >=1:
-            valid_value = reset_value & 0b0010
+        reset_value=self.GetFeature(fid = fid)  
+        # set value with Memory Return (MR) = 1, ie no need to provide Host Memory Descriptor List
+        if reset_value >=1:
+            valid_value = 0
         else:
-            valid_value = reset_value | 0b0001    
+            valid_value = 3    
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])  
     
@@ -254,18 +255,30 @@ class SMI_SetGetFeatureCMD(NVME):
         else:
             return -1
     
-    def SetFeature(self, fid, value, sv, nsid=0):
+    def SetFeature(self, fid, value, sv, nsid=0, printInfo=True):
     # nsid=0, not ns spec
         # if LBA range, create data structure for set feature command
+        mStr=""
         if fid==3:
             # Number of LBA Ranges is zero based, 0 means there is 1 LBA Range
             DS=self.CreateLBARangeDataStructure(value+1)
-            return self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)
+            mStr = self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS, withCMDrtCode=True)
         elif fid==0xC:
             DS='\\x0\\x0\\x0\\x0\\x0\\x0\\x0\\x0'
-            return self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)            
+            mStr = self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS, withCMDrtCode=True)            
         else:
-            return self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid)
+            mStr = self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, withCMDrtCode=True)
+            
+        if printInfo:
+            result = int(mStr.split()[-1])# last line is return code
+            msg = mStr.rsplit("\n",1)[0]# remove last line, return code
+            if int(result)==0:
+                self.Print("SetFeature cmd success, Return status =: %s"%msg)
+            else:
+                self.Print("SetFeature cmd fail, Return status =: %s"%msg)
+            
+        return mStr
+        
     
     def GetFeature(self, fid, sel=0, nsid=1):
         # if Interrupt Vector Configuration, read with cdw11=1
@@ -536,15 +549,14 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print("Success to set feature value = %s "%(original1), "p")
             value = mItem[item.valid_value]
             self.Print ("Set feature with nsid =2, value= %s"%value)
-            mStr = self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
-            self.Print ("Return status = %s"%mStr)
+            self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
             current1 = self.GetFeature(fid, sel=0, nsid=1)
             self.Print ("Check if feature value from ns1 = %s (not changed)"   %(original1))
             if current1==original1:
                 self.Print("PASS", "p")  
                 return True
             else:
-                self.Print("Fail", "f")
+                self.Print("Fail, current get feature value = %s "%(current1), "f")
                 self.ret_code=1 
                 return False
             

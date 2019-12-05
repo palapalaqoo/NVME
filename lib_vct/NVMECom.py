@@ -658,7 +658,7 @@ class NVMECom():
             else:
                 return None
     
-    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 50, fill = 'x'):
+    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 50, fill = 'x', showPercent=True):
     # Print iterations progress
     # Usage:  mNVME.PrintProgressBar(i + 1, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
         """
@@ -677,7 +677,10 @@ class NVMECom():
         percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
         filledLength = int(length * iteration // total)
         bar = fill * filledLength + '-' * (length - filledLength)
-        mstr = '%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        if showPercent:
+            mstr = '%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        else:
+            mstr = '%s |%s| %s' % (prefix, bar, suffix)
         #mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
         '''
         sys.stdout.write(u"\033[1000D" + self.PrefixString()+mstr)

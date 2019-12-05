@@ -152,6 +152,15 @@ class mtest1(NVME):
     SubCase1Desc = "test 1"   
     SubCase1KeyWord = ""
     def SubCase1(self):
+        mStr = self.shell_cmd("ls /des 2>&1 ; echo $? ")
+
+        result = int(mStr.splitlines(0))
+        msg = mStr.replace(result, "", 3)
+        if int(result)==0:
+            self.Print("SetFeature cmd success: %s"%msg)
+        else:
+            self.Print("SetFeature cmd fail: %s"%msg)
+
 
         print self.KMGT_reverse("1k")
         print self.KMGT_reverse("1M")

@@ -210,19 +210,25 @@ class SMI_FerriCase0(NVME):
             
         self.shell_cmd("cd CSV/Out; rm -f *.csv")
 
-    def SaveToCSVFile(self, fileName, valueList):
+    def SaveToCSVFile(self, fileName, valueList, titleList=None):
         fileNameFullPath = fileName
         # if file not exist, then create it
         if not os.path.exists(fileNameFullPath):
             f = open(fileNameFullPath, "w")
-            f.close()            
+            f.close()
+            # write titleList if titleList!=None, write in to file
+            if titleList!=None:                
+                with open(fileNameFullPath, 'a') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow(titleList)                
+                        
         
         # write
         with open(fileNameFullPath, 'a') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(valueList)
     
-    def CompareAll(self, Loop, SectorCnt, isSeqWrite):
+    def CompareAll(self, fileName, fileNameSum):
         block_1 = -1
         totalSize = 2097152*512
         CMD = "cmp -l %s %s -n %s"%(self.dev, self.ImageFileFullPath, totalSize)
@@ -230,8 +236,7 @@ class SMI_FerriCase0(NVME):
 
         valueList=[]
         failCnt=0
-        Wtype = "seq" if isSeqWrite else "rand"
-        fileName="./CSV/Out/loop%s_%s_secCnt%s.csv"%(Loop, Wtype, SectorCnt)         
+
         for line in self.yield_shell_cmd(CMD):             
             if re.search(mStr, line):
                 offset = int(re.search(mStr, line).group(1) )
@@ -248,9 +253,12 @@ class SMI_FerriCase0(NVME):
                     block_1=block
                     
         if len(valueList)!=0:
-            self.SaveToCSVFile(fileName, valueList)     
+            self.SaveToCSVFile(fileName, valueList)
+        # save to summary file [fileName, failCnt]
+        fName = fileName.replace("./CSV/Out/", "") # remove dir name
+        self.SaveToCSVFile(fileNameSum, [fName, failCnt], titleList=["file name", "number of failure blocks"])
         fCapacity = self.KMGT(failCnt*512)
-        self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(failCnt, fCapacity), "f")
+        self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(failCnt, fCapacity), "p")
         # if >640k, then fail
         if failCnt>=self.maximumFailureSizeNLB:
             self.CompareRtCode=False
@@ -308,7 +316,7 @@ class SMI_FerriCase0(NVME):
         # init file  to 0x0, size 1G
         self.shell_cmd("dd if=/dev/zero of=%s bs=1M count=1024 >/dev/null 2>&1"%ImageFileFullPath)
     
-    def SPOR(self, Loop, SectorCnt, isSeqWrite):
+    def SPOR(self, FileOutCnt, Loop, SectorCnt, isSeqWrite):
         
         self.per = 0        
         
@@ -333,7 +341,7 @@ class SMI_FerriCase0(NVME):
                 self.Print("Fail to Clear first 1G data more then 10 times, quit test case1", "f")
                 return False
 
-        self.Print("Create a super fast ram image for mapping device(at %s)"%(self.ImageFileFullPath))
+        self.Print("Create a ram image for mapping device(at %s)"%(self.ImageFileFullPath))
         self.CreateRamDisk(self.ImageFolderFullPath, self.ImageFileFullPath)
         self.Print("Done")
 
@@ -347,13 +355,16 @@ class SMI_FerriCase0(NVME):
             self.CreateRandSample(seed=seed, area=65536, contant=32, isSeqWrite=isSeqWrite) 
         
         WriteFail_Index, dataPattern, dataPattern_last  = self.WriteWithSPOR(SectorCnt, SizeInBlock, isSeqWrite)
-            
-        self.Print("Start to compare date")
-        #self.Print("%s, %s"%(dataPattern,dataPattern_last), "p")
         # sleep for waiting all the disk ready 
         sleep(2)
-        #if self.CompareAll(SectorCnt, SizeInBlock, WriteFail_Index, dataPattern, dataPattern_last):
-        if self.CompareAll(Loop, SectorCnt, isSeqWrite):
+
+        Wtype = "seq" if isSeqWrite else "rand"
+        # file that store compared failure block number
+        fileName="./CSV/Out/%s_loop%s_%s_secCnt%s.csv"%(FileOutCnt, Loop, Wtype, SectorCnt)     
+        # file that store summary of failure block number
+        fileNameSum="./CSV/Out/summary.csv"       
+        self.Print("Start to compare date and output to %s"%fileName) 
+        if self.CompareAll(fileName, fileNameSum):
             self.Print("Check if failure size < %s? Pass"%self.maximumFailureSize, "p")    
             rtCode=True
         else:
@@ -396,7 +407,7 @@ class SMI_FerriCase0(NVME):
             if self.IssueSPORtimeBase:
                 # do spor
                 if not IssuedSPOR:
-                    self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %s s"%cTime)                    
+                    self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %ss / 20s"%cTime, showPercent=False)                    
                     if (doSPOR <= cTime):
                         self.spor_reset()
                         IssuedSPOR = True
@@ -430,7 +441,9 @@ class SMI_FerriCase0(NVME):
                             helpMsg="sector size(sector count) in LBA for case2, default=1", argType=int) 
         self.SetDynamicArgs(optionName="w", optionNameFull="writeType", \
                             helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int)        
-                
+        self.SetDynamicArgs(optionName="k", optionNameFull="keepImageFile", \
+                            helpMsg="keep image file(/mnt/SMI_RAM/img.bin), e.x. -k 1, default=0(will not keep file)", argType=int)    
+                        
         # initial parent class
         super(SMI_FerriCase0, self).__init__(argv)
         
@@ -447,6 +460,10 @@ class SMI_FerriCase0(NVME):
         self.writeType=self.GetDynamicArgs(3)
         self.writeType=0 if self.writeType==None else self.writeType
         self.writeType="sequence" if self.writeType==0 else "random"
+        
+        self.keepImageFile=self.GetDynamicArgs(4)
+        self.keepImageFile=0 if self.keepImageFile==None else self.keepImageFile
+        self.keepImageFile=False if self.keepImageFile==0 else True
         
         
         self.InitDirs()
@@ -485,24 +502,31 @@ class SMI_FerriCase0(NVME):
         self.Print("Total test loop: %s"%self.loops, "f")
         self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "f")
         self.Print("")
-
+        FileOutCnt=0
         try: 
             for loop in range(self.loops):
                 
                 
                 for SectorCnt in range(1, 256):
                     isSeqWrite=True  # sequence write
-                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    FileOutCnt=FileOutCnt+1
+                    
                     isSeqWrite=False
-                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                  
+                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    FileOutCnt=FileOutCnt+1                  
                     
                     #return 0 #
                     
                 for SectorCnt in range(255, 0, -1):
                     isSeqWrite=True
-                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                    FileOutCnt=FileOutCnt+1
+                    
                     isSeqWrite=False
-                    if not self.SPOR(Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1                
+                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1   
+                    FileOutCnt=FileOutCnt+1
+                                 
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit", "w")  
@@ -523,10 +547,10 @@ class SMI_FerriCase0(NVME):
         self.Print("Sector size: %s LBA"%self.sectorSize, "f")
         self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "f")
         self.Print("")
-
+        FileOutCnt=0
         try: 
             isSeqWrite=True if self.writeType=="sequence" else False  # sequence write
-            if not self.SPOR(Loop=0, SectorCnt = self.sectorSize, isSeqWrite=isSeqWrite): return 1        
+            if not self.SPOR(FileOutCnt, Loop=0, SectorCnt = self.sectorSize, isSeqWrite=isSeqWrite): return 1        
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit", "w")  
@@ -549,11 +573,13 @@ class SMI_FerriCase0(NVME):
 
     # define PostTest  
     def PostTest(self): 
-        if self.isfileExist(self.ImageFolderFullPath):
-            with open("%s"%(self.ImageFileFullPath), "r+b") as f:                 
-                f.close()              
-            self.shell_cmd("umount %s"%self.ImageFolderFullPath)
-            self.shell_cmd("rm -r %s"%self.ImageFolderFullPath)
+        # if need to kill ImageFile
+        if not self.keepImageFile:
+            if self.isfileExist(self.ImageFolderFullPath):
+                with open("%s"%(self.ImageFileFullPath), "r+b") as f:                 
+                    f.close()              
+                self.shell_cmd("umount %s"%self.ImageFolderFullPath)
+                self.shell_cmd("rm -r %s"%self.ImageFolderFullPath)
         return True 
 
 

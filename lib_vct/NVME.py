@@ -733,11 +733,12 @@ class NVME(object, NVMECom):
             return ret 
         return ret
 
-    def set_feature(self, fid, value, SV=0, Data=None, nsid=0): 
+    def set_feature(self, fid, value, SV=0, Data=None, nsid=0, withCMDrtCode=False): 
     # feature id, value
     # Data example = '\\255\\255\\255\\000' or '\\xff\\xff'
     # if sv=1 and have data in
     # CMD = echo "\\255\\255\\255\\255\\255\\255" |nvme set-feature %s -f %s -n %s -v %s -s 2>&1
+    # withCMDrtCode, add "echo $?" for get command return code, last line is return code in return string
         
         CMD=""
         if Data!=None:
@@ -755,6 +756,9 @@ class NVME(object, NVMECom):
             CMD = CMD +"-l %s "%Data.count('\\')
         
         CMD = CMD +"2>&1 "
+        
+        if withCMDrtCode:
+            CMD = CMD +"; echo $? "
 
         return self.shell_cmd(CMD)
     
@@ -936,7 +940,12 @@ class NVME(object, NVMECom):
     
     def spor_reset(self):
         self.status="reset"
-        self.shell_cmd("/usr/local/sbin/PWOnOff %s spor off 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+        self.shell_cmd("/usr/local/sbin/PWOnOff %s spor off 2>&1 > /dev/null" %(self.dev_port), 0.5) 
+        # if system file exist, then remove them,ex. /dev/nvme0n1 and /dev/nvme0
+        if self.isfileExist(self.dev):
+            self.shell_cmd("rm %s -f"%self.dev)
+        if self.isfileExist(self.dev_port):
+            self.shell_cmd("rm %s -f"%self.dev_port)
         self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
         # if on fail, do more 10 time power on 
         cnt=0
@@ -944,7 +953,8 @@ class NVME(object, NVMECom):
             self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
             cnt=cnt+1
             if cnt >=10:
-                return False        
+                return False     
+        sleep(0.5)   
         self.status="normal"
         return True  
     
