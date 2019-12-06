@@ -228,26 +228,35 @@ class SMI_FerriCase0(NVME):
             writer = csv.writer(csvfile)
             writer.writerow(valueList)
     
-    def CompareAll(self, fileName, fileNameSum):
+    def CompareAll(self, fileName, fileNameSum, fileNameFailDetail):
         block_1 = -1
         totalSize = 2097152*512
         CMD = "cmp -l %s %s -n %s"%(self.dev, self.ImageFileFullPath, totalSize)
-        mStr="(\d+) " 
+        # cmp output: ex,    1894400 0 324,     where 1894400=address, 0=value in self.dev(currentValue), 324=self.ImageFileFullPath(expectedValue)
+        mStr="(\d+)\s+(\d+)\s+(\d+)" 
+        #mStr="(\d+)"
 
         valueList=[]
         failCnt=0
-
+        failList=[]
+        failList.append(["block", "expected value", "current value"])
         for line in self.yield_shell_cmd(CMD):             
             if re.search(mStr, line):
                 offset = int(re.search(mStr, line).group(1) )
                 block = (offset -1)/512 # value from cmp command start form 1
+                currentValue = int(re.search(mStr, line).group(2) )
+                expectedValue = int(re.search(mStr, line).group(3) )                
                 if block!=block_1:
                     #self.Print( "compare fail at block: %s"%block)                    
                     # save to csv
                     valueList.append(block)
                     if len(valueList)>=10:
                         self.SaveToCSVFile(fileName, valueList)
-                        valueList=[]                 
+                        valueList=[]   
+                        
+                    # save to list, ["block", "expected value", "current value"]
+                    failList.append([block, expectedValue, currentValue])
+                                      
                     #
                     failCnt=failCnt+1
                     block_1=block
@@ -262,6 +271,9 @@ class SMI_FerriCase0(NVME):
         # if >640k, then fail
         if failCnt>=self.maximumFailureSizeNLB:
             self.CompareRtCode=False
+            # write to file for 'Detail infomation of failure blocks'
+            for mList in failList:
+                self.SaveToCSVFile(fileNameFailDetail , mList)
         else:
             self.CompareRtCode=True
         return self.CompareRtCode            
@@ -305,8 +317,8 @@ class SMI_FerriCase0(NVME):
     
     
     def CreateRamDisk(self, ImageFolderFullPath, ImageFileFullPath):
-        # ImageFolderFullPath = /mnt/SMI_RAM
-        # ImageFileFullPath = /mnt/SMI_RAM/img.bin
+        # ImageFolderFullPath = ./mnt
+        # ImageFileFullPath = ./mnt/img.bin
         # create folder
         if not self.isfileExist(ImageFolderFullPath):
             self.shell_cmd("mkdir -p %s"%ImageFolderFullPath)
@@ -362,13 +374,15 @@ class SMI_FerriCase0(NVME):
         # file that store compared failure block number
         fileName="./CSV/Out/%s_loop%s_%s_secCnt%s.csv"%(FileOutCnt, Loop, Wtype, SectorCnt)     
         # file that store summary of failure block number
-        fileNameSum="./CSV/Out/summary.csv"       
+        fileNameSum="./CSV/Out/summary.csv"  
+        fileNameFailDetail="./CSV/Out/summary_fail_block_details.csv"     
         self.Print("Start to compare date and output to %s"%fileName) 
-        if self.CompareAll(fileName, fileNameSum):
+        if self.CompareAll(fileName, fileNameSum, fileNameFailDetail):
             self.Print("Check if failure size < %s? Pass"%self.maximumFailureSize, "p")    
             rtCode=True
         else:
             self.Print("Check if failure size < %s? Fail"%self.maximumFailureSize, "f")
+            self.Print("Detail infomation of failure blocks at file: %s"%fileNameFailDetail, "f")
             rtCode=False 
  
             
@@ -442,7 +456,7 @@ class SMI_FerriCase0(NVME):
         self.SetDynamicArgs(optionName="w", optionNameFull="writeType", \
                             helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int)        
         self.SetDynamicArgs(optionName="k", optionNameFull="keepImageFile", \
-                            helpMsg="keep image file(/mnt/SMI_RAM/img.bin), e.x. -k 1, default=0(will not keep file)", argType=int)    
+                            helpMsg="keep image file(./mnt/img.bin), e.x. -k 1, default=0(will not keep file)", argType=int)    
                         
         # initial parent class
         super(SMI_FerriCase0, self).__init__(argv)
@@ -469,8 +483,8 @@ class SMI_FerriCase0(NVME):
         self.InitDirs()
         
         # super fast ram for mapping device
-        self.ImageFolderFullPath = "/mnt/SMI_RAM"
-        self.ImageFileFullPath  =     "/mnt/SMI_RAM/img.bin"
+        self.ImageFolderFullPath = "./mnt"
+        self.ImageFileFullPath  =     "./mnt/img.bin"
         
         self.lock=threading.Lock()
         

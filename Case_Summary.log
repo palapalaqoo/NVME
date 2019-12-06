@@ -1,1 +1,2 @@
-CASE 1 :  : Pass
+CASE 1 : Loop for SPOR testing : Skip
+CASE 2 : One time SPOR testing : Fail

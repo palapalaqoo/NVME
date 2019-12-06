@@ -724,8 +724,11 @@ class NVMECom():
     
     def KMGT_reverse(self, size):
     # ex. KMGT_reverse(1k), return int 2
+    #  KMGT_reverse(2), return int 0
         size= size.upper()
         
+        value = size
+        unit=1
         mStr = "(.*)K"        
         if re.search(mStr, size): 
             value = re.search(mStr, size).group(1)
@@ -740,7 +743,13 @@ class NVMECom():
             unit=1024*1024*1024         
     
         value=float(value)
-        value=int(value*unit/512)
+        # ex. 0-> 0, 1-> 1, 2-> 1 ....  512-> 1, 513 -> 2
+        if (value*unit)%512!=0:
+            value=int(value*unit/512)
+            value=value+1
+        else:
+            value=int(value*unit/512)
+            
         return value    
     
     def KelvinToC(self, K):
