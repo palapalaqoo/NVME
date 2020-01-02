@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20190808"
+    Version = "20200102"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -357,6 +357,13 @@ class SMI_Sanitize(NVME):
         
     # override PreTest()
     def PreTest(self):
+        self.Print ("")
+        self.Print ("Check if the controller supports the Write Uncorrectable command or not in identify - ONCS")   
+        self.WriteUncSupported=self.IdCtrl.ONCS.bit(1)    
+        self.WriteUncSupported=True if self.WriteUncSupported=="1" else False
+        self.Print ("Write Uncorrectable command supported", "p") if self.WriteUncSupported else self.Print ("Write Uncorrectable command not supported", "f")        
+        self.Print ("")               
+        
         self.Print ("Check Sanitize Capabilities (SANICAP)")
         self.Print("Crypto Erase sanitize operation is Supported", "p")  if self.CryptoEraseSupport else self.Print("Crypto Erase sanitize operation is not Supported", "f") 
         self.Print("Block Erase sanitize operation is Supported", "p")  if self.BlockEraseSupport else self.Print("Block Erase sanitize operation is not Supported", "f") 
@@ -395,8 +402,7 @@ class SMI_Sanitize(NVME):
             self.SANACT=3
         else:
             self.SANACT=0
-    
-              
+       
         
     # <sub item scripts>
     SubCase1TimeOut = 1000
@@ -592,6 +598,9 @@ class SMI_Sanitize(NVME):
         self.Print ("Test While a sanitize operation is in progress and check if controller return zeros in the LBA field for get Error Information log command")
         ret_code=0   
         self.Print ("")
+        self.Print ("Write Uncorrectable Supported", "p") if self.WriteUncSupported else self.Print ("Write Uncorrectable Not Supported, skip", "f")
+        if not self.WriteUncSupported: return 255
+        
         self.Print ("Create Error Information by reading uncorrectable block")
         self.Print ("Set uncorrectable block, start block=0, block count=127")
         self.write_unc(SLB=0, BlockCnt=127)

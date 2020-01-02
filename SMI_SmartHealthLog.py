@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20191003"
+    Version = "20200102"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -129,7 +129,7 @@ class SMI_SmartHealthLog(NVME):
                 
         self.Print ("")
         self.Print ("Check if the controller supports the Write Uncorrectable command or not in identify - ONCS")   
-        self.WriteUncSupported=self.IdCtrl.ONCS.bit(0)    
+        self.WriteUncSupported=self.IdCtrl.ONCS.bit(1)    
         self.WriteUncSupported=True if self.WriteUncSupported=="1" else False
         self.Print ("Write Uncorrectable command supported", "p") if self.WriteUncSupported else self.Print ("Write Uncorrectable command not supported", "f")        
         self.Print ("")
