@@ -662,11 +662,11 @@ class NVME(object, NVMECom):
         else:
             return "0"
     
-    def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1):
+    def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1, fio_bs="64k"):
         devPort=self.dev_port if devPort==None else devPort
         DEV=devPort+"n%s"%nsid 
-        return self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=64k --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, DEV, offset, size, pattern))
+        return self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
+        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, DEV, offset, size, pattern))
     
     def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1, printMsg=False):
     #-- return boolean
@@ -1244,6 +1244,9 @@ class NVME(object, NVMECom):
         else:            
             sizePerBlock=512*pow(2,(Now_LBADS-9)) + Now_MS        
         return sizePerBlock
+    
+    def GetTotalNumberOfBlock(self):
+        return self.IdNs.NUSE.int
         
     def MaxNLBofCDW12(self):   
         # ret maximum value of Number of Logical Blocks (NLB) in current format 
