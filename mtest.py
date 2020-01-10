@@ -139,11 +139,12 @@ class mtest1(NVME):
         
 
     def SubCase1(self):
+        mData=[]
+        mData.append("Number of VF")
+        mData.extend("VM%s"%i for i in range(3))
         
-
-        for i in range(5):
-            self.PrintProgressBar(i, 5, length = 20)
-            sleep(0.5)
+        print mData
+                    
         
         
         

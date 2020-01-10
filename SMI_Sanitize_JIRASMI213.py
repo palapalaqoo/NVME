@@ -42,9 +42,64 @@ class SMI_Sanitize_JIRASMI213(NVME):
                 self.Print("Error, Time out!", "f")  
         return finish       
         
+    def TestFlow(self, TestSize):
+        self.Print("1. prewrite(sequential write, blocksize=8*512B, pattern=0x57, fua=0) 10% of full disk as background data")
+        self.fio_write(offset=0, size=TestSize, pattern=0x57, fio_bs="4k")
+        self.Print("2. comparecheck background data to confirm data are successfully written")
+        if self.fio_isequal(offset=0, size=TestSize, pattern=0x57, fio_bs="4k"):
+            self.Print("Data compare pass!", "p")
+        else:
+            self.Print("Data compare fail!, quit", "f")
+            return False
+        
+        self.Print("")        
+        self.SANACT=2
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
+        self.Print ("3. issue Sanitize block erase cmd: %s"%CMD) 
+        self.shell_cmd(CMD)   
+        self.Print("4. check sanitize command completed, timeout 600s")
+        if not self.WaitSanitizeOperationFinish(600):
+            self.Print("Time out!, exit all test ", "f")  
+            return False       
+
+        self.Print("") 
+        Stime = randint(1, 5000)
+        Stime=float(Stime)/1000
+        self.Print("Sleep %.6f seconds"%(Stime) )
+        sleep(Stime)
+        self.Print("5. issue asyc power off and on") 
+        
+        if not self.spor_reset():
+            self.Print("6. power on fail, can not find device: %s, quit!"%self.dev, "f")  
+            return False
+        self.Print("6. power on now")  
+        
+        self.Print("")        
+        self.Print("7. check sanitize command completed, timeout 600s")
+        if not self.WaitSanitizeOperationFinish(600):
+            self.Print("Time out!, exit all test ", "f")  
+            return False 
+        
+        self.Print("")        
+        self.Print("8. comparecheck background data (pattern 0)")    
+        if self.fio_isequal(offset=0, size=TestSize, pattern=0x0, fio_bs="4k"):
+            self.Print("Data compare pass!", "p")
+        else:
+            self.Print("Data compare fail!, quit", "f")
+            return False  
+        
+        return True
+                 
+        
     def __init__(self, argv):
+        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1", argType=int) 
+        
         # initial parent class
         super(SMI_Sanitize_JIRASMI213, self).__init__(argv)
+        
+        self.loops = self.GetDynamicArgs(0)  
+        self.loops=1 if self.loops==None else self.loops        
+        
         self.CryptoEraseSupport = True if (self.IdCtrl.SANICAP.bit(0) == "1") else False
         self.BlockEraseSupport = True if (self.IdCtrl.SANICAP.bit(1) == "1") else False
         self.OverwriteSupport = True if (self.IdCtrl.SANICAP.bit(2) == "1") else False        
@@ -63,7 +118,6 @@ class SMI_Sanitize_JIRASMI213(NVME):
     SubCase1Desc = "Test flow YMTC JIRA SMI-213"   
     SubCase1KeyWord = ""
     def SubCase1(self):
-        ret_code=0
 
         TNOB = self.GetTotalNumberOfBlock()
         TestNLB = ((TNOB/10)/8)*8
@@ -71,53 +125,17 @@ class SMI_Sanitize_JIRASMI213(NVME):
         self.Print("Total number of blocks: %s"%TNOB)
         self.Print("Test size of blocks: %s(10%% of total blocks)"%TestNLB)
         self.Print("Test size: %s(Test size of blocks*512)"%TestSize)
-        self.Print("")
-        self.Print("1. prewrite(sequential write, blocksize=8*512B, pattern=0x57, fua=0) 10% of full disk as background data")
-        self.fio_write(offset=0, size=TestSize, pattern=0x57, fio_bs="4k")
-        self.Print("2. comparecheck background data to confirm data are successfully written")
-        if self.fio_isequal(offset=0, size=TestSize, pattern=0x57, fio_bs="4k"):
-            self.Print("Data compare pass!", "p")
-        else:
-            self.Print("Data compare fail!, quit", "f")
-            return 1
-        
-        self.Print("")        
-        self.SANACT=2
-        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
-        self.Print ("3. issue Sanitize block erase cmd: %s"%CMD) 
-        self.shell_cmd(CMD)   
-        self.Print("4. check sanitize command completed, timeout 600s")
-        if not self.WaitSanitizeOperationFinish(600):
-            self.Print("Time out!, exit all test ", "f")  
-            return 1       
-
-        self.Print("") 
-        Stime = randint(1, 5000)
-        Stime=float(Stime)/1000
-        self.Print("Sleep %.6f seconds"%(Stime) )
-        sleep(Stime)
-        self.Print("5. issue asyc power off and on") 
-        self.spor_reset()
-        self.Print("6. power on now")  
-        
-        self.Print("")        
-        self.Print("7. check sanitize command completed, timeout 600s")
-        if not self.WaitSanitizeOperationFinish(600):
-            self.Print("Time out!, exit all test ", "f")  
-            return 1 
-        
-        self.Print("")        
-        self.Print("8. comparecheck background data (pattern 0)")    
-        if self.fio_isequal(offset=0, size=TestSize, pattern=0x0, fio_bs="4k"):
-            self.Print("Data compare pass!", "p")
-        else:
-            self.Print("Data compare fail!, quit", "f")
-            return 1            
+        self.Print("Test loop: %s"%self.loops)
         
         
+        for loop in range(self.loops):
+            self.Print("")
+            self.Print("loop: %s"%loop)
+            if not self.TestFlow(TestSize):
+                return 1
+         
         
-        
-        return ret_code
+        return 0
 
     # </define sub item scripts>
 

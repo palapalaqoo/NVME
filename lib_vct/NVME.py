@@ -227,7 +227,8 @@ class NVME(object, NVMECom):
                 self.Print("Cant find file, %s"%rt, "f")  
                 sys.exit(1)  
                 
-            mStr="PCI_SLOT_NAME=([\:\d\.]+)" # dot and : and number only
+            #mStr="PCI_SLOT_NAME=([\:\d\.]+)" # dot and : and number only
+            mStr="PCI_SLOT_NAME=(\S+)"
             if re.search(mStr, rt):
                 PciePort=re.search(mStr, rt).group(1)     
             else:

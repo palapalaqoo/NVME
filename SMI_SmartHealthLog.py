@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20200102"
+    Version = "20200109"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -510,77 +510,7 @@ class SMI_SmartHealthLog(NVME):
         else:
             return 1      
 
-    SubCase12TimeOut = 7200
-    SubCase12Desc = "Test Power_On_Hours"
-    def SubCase12(self): 
-        ret_code=0
-        POH0=self.GetLog.SMART.PowerOnHours
-        self.Print("")
-        self.Print("Get current 'Power On Hours': %s"%POH0)
-        
-        self.Print("")
-        self.timer.start()
-        self.Print("Start to issue nvme read command to keep controller in the operational power state")        
-        DWUATT=DevWakeUpAllTheTime(self)
-        DWUATT.Start()  
-        POH=0
-        cnt=0
-        timeout = 3660
-        timeoutOcc=False
-        self.Print("Start to keep watching on  'Power On Hours', time out:%s seconds"%timeout)
-        self.PrintProgressBar(cnt, timeout, prefix = 'Time:', length = 100)
-        try: 
-            while True:
-                sleep(1)                  
-                POH=self.GetLog.SMART.PowerOnHours
-                #  no change
-                if POH==POH0:
-                    pass
-                else:
-                    break
-                # time out 
-                cnt = cnt +1
-                if cnt >=timeout:
-                    timeoutOcc=True
-                    break
-                # progress bar
-                if cnt%30==0:
-                    self.PrintProgressBar(cnt, timeout, prefix = 'Time:', length = 100)
-                
-        except KeyboardInterrupt:
-            self.Print("")
-            self.Print("Detect ctrl+C, quit all")  
-            DWUATT.Stop()          
-            self.timer.stop()   
-            return 255   
-        
-        self.Print("")           
-        # stop timer    
-        self.timer.stop()
-        timeUsage = self.timer.time
-        # stop write
-        DWUATT.Stop()
-        
-        self.Print("")
-        self.Print("Current 'Power On Hours' : %s"%POH)
-        self.Print("Time usage: %s second"%timeUsage)  
-        # time out
-        if timeoutOcc:
-            self.Print("Time out!", "f")            
-            self.Print("Fail!, 'Power On Hours' never changed", "f")
-            ret_code = 1
-        # pass, value==value+1
-        elif POH==(POH0+1):
-            self.Print("Pass!, 'Power On Hours' +1", "p")
-            self.Print("Last value: %s, expect value: %s, current value: %s"%(POH0, POH0+1, POH), "p")
-            ret_code = 0
-        # fail, value!=value+1
-        else:
-            self.Print("Fail!, 'Power On Hours' changed incorrectly", "f")
-            self.Print("Last value: %s, expect value: %s, current value: %s"%(POH0, POH0+1, POH), "f")
-            ret_code = 1            
-            
-        return ret_code  
+
      
     # </sub item scripts>
     

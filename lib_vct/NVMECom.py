@@ -784,7 +784,31 @@ class NVMECom():
         except:
             self.Print("File not found","f")
             return None
-        return l        
+        return l       
+    
+    def WriteCSVFile(self, fileNameFullPath, mData): 
+    # if need to clear file, use self.rmFile()
+    # fileNameFullPath: ex. './CSV/Out/mOut.csv'
+    # mData: list type, ex. [name, value]
+        # If ./CSV not exist, Create it
+        if not os.path.exists("./CSV"):
+            os.makedirs("./CSV")        
+        # If ./CSV/In not exist, Create it
+        if not os.path.exists("./CSV/In"):
+            os.makedirs("./CSV/In")
+        # If ./CSV/Out not exist, Create it       
+        if not os.path.exists("./CSV/Out"):
+            os.makedirs("./CSV/Out")  
+            
+        # if file not exist, then create it
+        if not os.path.exists(fileNameFullPath):
+            f = open(fileNameFullPath, "w")
+            f.close()            
+        
+        # write
+        with open(fileNameFullPath, 'a') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(mData)  
     
     def InitFolder(self, path):       
         # if folder exist, remove it    
@@ -1299,5 +1323,3 @@ class LBARangeDataStructure_():
         
         self.Pattern=Pat
         
-        
-       

@@ -1134,6 +1134,7 @@ class SMI_SRIOV(NVME):
             return False  
         else:   
             self.Print("FIO %s %s: bw=%.1f MiB/s,  bandwidth (KB/s):%s"%(ReadWrite, VMname, speedInKbyte/float(1024), speedInKbyte), "f") 
+            self.FIOresultList.append([VMname, speedInKbyte])
             return True
   
 
@@ -1238,7 +1239,7 @@ class SMI_SRIOV(NVME):
             "--output-format=terse,normal --runtime=10"%(ReadWrite, device)        
         '''
         ReadWrite="write" if rw=="w" else "read" 
-        return "fio --direct=0 --iodepth=128 --ioengine=libaio --bs=128k --rw=%s --numjobs=1 " \
+        return "fio --direct=0 --iodepth=128 --ioengine=libaio --bs=128k --rw=%s --numjobs=1 --size=10G " \
             "--offset=0 --filename=%s --name=mdata --do_verify=0 --runtime=5 --time_based  " \
             "--output-format=terse,normal "%(ReadWrite, device)     
         
@@ -1295,7 +1296,7 @@ class SMI_SRIOV(NVME):
                     mList.append(device) 
         return mList
     
-    def DoVM_FIOtest_Simultaneously(self, targetDevice, rw, numDUT=None, sleepTime=5):
+    def DoVM_FIOtest_Simultaneously(self, targetDevice, rw, numDUT=None, sleepTime=5, TrimAllBeforeTest=False):
     # targetDevice: "SRIOV" or "RawDisk"
     # rw : r or w
     # numDUT, ex. if there are 4 VMs and you need to test 3 VMs only, then set numDUT=3
@@ -1319,7 +1320,15 @@ class SMI_SRIOV(NVME):
         if numDUT!=None:
             if numDUT<=len(self.VMinfo):
                 nDUT=numDUT
-                
+
+        if TrimAllBeforeTest:
+            self.Print("Trim whole disk for all VF .. ") 
+            for info in self.VMinfo:
+            #for dev in self.AllDevices:
+                IP=info.vmIpAddr
+                FIO_CMD = "nvme dsm %s -s 0 -b %s -d 2>&1" % (dev, self.NUSE)              
+                self.VM_shell_cmd(IP, FIO_CMD)  
+            self.Print("Done")
   
         for info in self.VMinfo:            
             t = threading.Thread(target = self.DoVM_FIOtest, args=(info, dev, rw,))
@@ -1635,6 +1644,46 @@ class SMI_SRIOV(NVME):
         '''
         return True
 
+    def Case10TestFunc(self, targetDevice, rw, OutCSVfullPath, testLoop, sleepTimeForEveryLoop, TrimAllBeforeTest=False):
+    # targetDevice: SRIOV or RawDisk
+    # rw: r/w
+    # OutCSVfullPath: csv file name
+    # testLoop: number of loops to be tested for testing 1 VF to all VF at the same time 
+    # sleepTimeForEveryLoop: sleep seconds after every loop
+    # TrimAllBeforeTest: trim disk before test, true/false
+        if True:
+            self.rmFile(OutCSVfullPath)
+            # print header, ex. "Number of VF", "VM0 KB/s", "VM1 KB/s", "VM2 KB/s"
+            totalVF = len(self.VMinfo)
+            mData=[]
+            mData.append("Number of VF")
+            mData.extend("VM%s KB/s"%i for i in range(totalVF))
+            self.WriteCSVFile(OutCSVfullPath, mData) 
+            
+            # for 1 VF to all VF
+            for i in range(totalVF):
+                nvf = i+1
+                sleep(1)       
+                # test testLoop times, ex. 10 times         
+                for loop in range(testLoop):
+                    self.FIOresultList=[]   # clear
+                    self.Print("test for %sVF, loop: %s"%(nvf, loop)) 
+                    self.DoVM_FIOtest_Simultaneously(targetDevice = targetDevice , rw=rw, numDUT=nvf, sleepTime=sleepTimeForEveryLoop, TrimAllBeforeTest=TrimAllBeforeTest)
+                    # save to csv
+                    SortedByName=[0 for s in range(nvf)]
+                    for result in self.FIOresultList: #VMname, speedInKbyte
+                        VMname=result[0]    # 'VM0'
+                        speedInKbyte=result[1]
+                        ID=VMname.replace("VM", "")
+                        ID = int(ID)
+                        SortedByName[ID]=speedInKbyte
+                    # mData = current value of "Number of VF", "VM0 KB/s", "VM1 KB/s", "VM2 KB/s"
+                    mData = []
+                    mData.append(nvf)
+                    mData.extend(SortedByName)
+                    self.WriteCSVFile(OutCSVfullPath, mData)
+                    # end of save to csv
+                    self.Print("")         
 
     
     def __init__(self, argv): 
@@ -1744,6 +1793,8 @@ class SMI_SRIOV(NVME):
         # VM
         
         self.VMinfo=[]  # [ VMinfoClass, VMinfoClass ...]
+        self.FIOresultList=[]
+        self.NUSE = self.IdNs.NUSE.int # for trim whole disk
         
         
         # others
@@ -2108,13 +2159,11 @@ class SMI_SRIOV(NVME):
         else:
             self.Print("Pass!", "p")
 
-
-            
         # snchan TODO1
         sleepT = 2
         SecondRun=False
         
-        f_TrimAll = True
+        f_TrimAll = False#True
         f_CreateVM = True        
         f_GetVM_IP = True   # must have  
         f_OpenTerminal = False              
@@ -2122,16 +2171,17 @@ class SMI_SRIOV(NVME):
         f_HostFIOtest = False   #
         f_AttachPCIE = True     # better have
 
-        f_FormatPFtoExt4=True
-        f_MountPF=True
-        f_CreateRawDiskImg = True
-        f_AttachRawDisk = True
+        f_FormatPFtoExt4=False#True
+        f_MountPF=False#True
+        f_CreateRawDiskImg = False#True
+        f_AttachRawDisk = False#True
         RT1 = False
 
-        f_VM_FIO_WriteTestSimultaneously = False
+        testLoop=1
+        f_VM_FIO_WriteTestSimultaneously = True
         f_VM_FIO_WriteTestSimultaneouslyRawDisk = False
         f_VM_FIO_ReadTestSimultaneously = False
-        f_VM_FIO_ReadTestSimultaneouslyRawDisk = True
+        f_VM_FIO_ReadTestSimultaneouslyRawDisk = False
         
         f_DettachRawDisk=False
         f_UmountPF=False
@@ -2289,37 +2339,31 @@ class SMI_SRIOV(NVME):
             return 0
         sleep(2)
         if f_VM_FIO_WriteTestSimultaneously:
-            for i in range(4):
-                nvf = i+1
-                sleep(1)
-                self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="w", numDUT=nvf, sleepTime=sleepT)
-                self.Print("") 
+            self.Print("")
+            OutCSVfullPath = "./CSV/Out/SRIOV_Case10_WriteTestSimultaneously.csv"   
+            self.Case10TestFunc(targetDevice="SRIOV", rw="w", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+                                sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)
        
         if f_VM_FIO_WriteTestSimultaneouslyRawDisk:
-            for i in range(4):
-                nvf = i+1
-                sleep(1)
-                self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="w", numDUT=nvf, sleepTime=sleepT)
-                self.Print("")       
+            self.Print("")
+            OutCSVfullPath = "./CSV/Out/SRIOV_Case10_WriteTestSimultaneouslyRawDisk.csv"   
+            self.Case10TestFunc(targetDevice="RawDisk", rw="w", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+                                sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)            
+   
 
         #--------------------------------------------------------------        
         if f_VM_FIO_ReadTestSimultaneously:
-            for i in range(4):
-                nvf = i+1
-                sleep(1)
-                self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "SRIOV" , rw="r", numDUT=nvf, sleepTime=sleepT)
-                self.Print("") 
+            self.Print("")
+            OutCSVfullPath = "./CSV/Out/SRIOV_Case10_ReadTestSimultaneously.csv"   
+            self.Case10TestFunc(targetDevice="SRIOV", rw="r", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+                                sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)
       
         if f_VM_FIO_ReadTestSimultaneouslyRawDisk:
-            for i in range(4):
-                nvf = i+1
-                sleep(1)
-                self.Print("test for %sVF"%nvf) 
-                self.DoVM_FIOtest_Simultaneously(targetDevice = "RawDisk" , rw="r", numDUT=nvf, sleepTime=sleepT)
-                self.Print("")     
+            self.Print("")
+            OutCSVfullPath = "./CSV/Out/SRIOV_Case10_ReadTestSimultaneouslyRawDisk.csv"   
+            self.Case10TestFunc(targetDevice="RawDisk", rw="r", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+                                sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)            
+   
         '''
         for i in range(4):
             nvf = i+1

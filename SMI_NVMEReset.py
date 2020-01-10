@@ -120,6 +120,7 @@ class SMI_NVMeReset(NVME):
         # set DST command nsid
         self.Flow.DST.SetNSID(0xFFFFFFFF)#0x1
         # set DST type : 1= Short device self-test operation, 2= extended device self-test operation
+        self.Print("Short device self-test operation, DST type : 1")
         self.Flow.DST.SetDstType(1)  
         # set Event
         self.Flow.DST.SetEventTrigger(triggerFunc)                   
