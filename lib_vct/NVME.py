@@ -765,7 +765,7 @@ class NVME(object, NVMECom):
     
         
      
-    def get_feature(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False): 
+    def get_feature(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False, cmdExtention=""): 
     # feature id, cdw11(If applicable)
         CMD=""
         
@@ -779,7 +779,20 @@ class NVME(object, NVMECom):
             CMD = CMD +"-n %s "%nsid
         
         CMD = CMD +"2>&1 "
-        return self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s -s %s -n %s 2>&1"%(self.dev, fid, cdw11, sel, nsid))
+        CMD = CMD +" %s"%cmdExtention
+        
+        #mStr = self.shell_cmd(" nvme get-feature %s -f %s --cdw11=%s -s %s -n %s 2>&1"%(self.dev, fid, cdw11, sel, nsid))
+        value = self.shell_cmd(CMD)
+        return value
+
+    def get_feature_with_sc(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False): 
+    # using get_feature with echo $? to get value and Status code
+        cmdExtention = ";echo $?"
+        mStr = self.get_feature(fid, cdw11, sel, nsid, nsSpec, cmdExtention)
+        SC = int(mStr.split()[-1])# last line is status code
+        value = mStr.rsplit("\n",1)[0]# remove last line, return value
+ 
+        return value, SC
 
         
     def asynchronous_event_request(self): 

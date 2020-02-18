@@ -139,11 +139,10 @@ class mtest1(NVME):
         
 
     def SubCase1(self):
-        mData=[]
-        mData.append("Number of VF")
-        mData.extend("VM%s"%i for i in range(3))
+        aa= self.get_feature(1)
+        bb, cc = self.get_feature_with_sc(1)
         
-        print mData
+        print aa
                     
         
         

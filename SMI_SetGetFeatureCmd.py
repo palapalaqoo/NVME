@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20200102"
+    Version = "20200115"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -48,56 +48,56 @@ class SMI_SetGetFeatureCMD(NVME):
         description = "Arbitration"
         fid = 1
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=reset_value+(1<<24)
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
         
         description = "Power Management"
         fid = 2
         supported = True if self.IdCtrl.NPSS.int!=0 else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=0 if reset_value!=0 else 1
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
         
         description = "LBA Range Type"
         fid = 3
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=0 if reset_value!=0 else 1
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
         
         description = "Temperature Threshold"
         fid = 4
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=reset_value+1
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])    
         
         description = "Error Recovery"
         fid = 5
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=reset_value+1
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])        
         
         description = "Volatile Write Cache"
         fid = 6
         supported = True if self.IdCtrl.VWC.bit(0) == "1" else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])            
         '''    
         description = "Number of Queues"
         fid = 7
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         NCQR=self.int2bytes(reset_value, 2)
         NSQR=self.int2bytes(reset_value, 0)
         valid_value=((NCQR-1)<<16) + (NSQR-1)
@@ -107,16 +107,16 @@ class SMI_SetGetFeatureCMD(NVME):
         description = "Interrupt Coalescing"
         fid = 8
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])              
         
         description = "Interrupt Vector Configuration(Testing secend Interrupt Vector where cdw11=0x1)"
         fid = 9
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         CoalescingDisable=self.int2bytes(reset_value, 4)
         if CoalescingDisable>=1:
             valid_value = reset_value & 0xFFFF
@@ -127,32 +127,32 @@ class SMI_SetGetFeatureCMD(NVME):
         description = "Write Atomicity Normal"
         fid = 0xA
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])   
             
         description = "Asynchronous Event Configuration"
         fid = 0xB
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])   
             
         description = "Autonomous Power State Transition"
         fid = 0xC
         supported = True if self.IdCtrl.APSTA.bit(0) == "1" else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
         
         description = "Host Memory Buffer"
         fid = 0xD
         supported = True if self.IdCtrl.HMPRE.int != 0 else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)  
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)  
         # set value with Memory Return (MR) = 1, ie no need to provide Host Memory Descriptor List
         if reset_value >=1:
             valid_value = 0
@@ -164,8 +164,8 @@ class SMI_SetGetFeatureCMD(NVME):
         description = "Host Controlled Thermal Management"
         fid = 0x10
         supported = True if self.IdCtrl.HCTMA.bit(0) == "1" else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)    
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)    
         # Note, MNTMT<= valid_value <=MXTMT
         MXTMT = self.IdCtrl.MXTMT.int
         TMT1=MXTMT-1
@@ -180,32 +180,32 @@ class SMI_SetGetFeatureCMD(NVME):
         description = "Software Progress Marker"
         fid = 0x80
         supported = True
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])          
         
         description = "Host Identifier"
         fid = 0x81
         supported = True if self.IdCtrl.ONCS.bit(5) == "1" else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])      
         
         description = "Reservation Notification Mask"
         fid = 0x82
         supported = True if self.IdNs.RESCAP.int !=0 else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=2 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
         
         description = "Reservation Persistance"
         fid = 0x83
         supported = True if self.IdNs.RESCAP.int !=0 else False
-        capabilities=self.GetFeatureSupportedCapabilities(fid)
-        reset_value=self.GetFeature(fid = fid)
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        reset_value , SC=self.GetFeature(fid = fid)
         valid_value=1 if reset_value==0 else 0
         self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
                     
@@ -229,9 +229,10 @@ class SMI_SetGetFeatureCMD(NVME):
             print mItem[item.description]
                 
     
-    def GetFeatureValue(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
+    def GetFeatureValueWithSC(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
+    # get feature with status code
         Value=0 
-        buf = self.get_feature(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
+        buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
         mStr="0"
         if sel==0:
             mStr="Current value:(.+)"
@@ -246,7 +247,7 @@ class SMI_SetGetFeatureCMD(NVME):
             Value=int(re.search(mStr, buf).group(1),16)
         else:
             Value= -1
-        return Value
+        return Value, SC
     
     
     def GetFeatureSupportedCapabilities(self, fid):
@@ -256,6 +257,7 @@ class SMI_SetGetFeatureCMD(NVME):
             return -1
     
     def SetFeature(self, fid, value, sv, nsid=0, printInfo=True):
+    # return intger, Status Code
     # nsid=0, not ns spec
         # if LBA range, create data structure for set feature command
         mStr=""
@@ -270,26 +272,28 @@ class SMI_SetGetFeatureCMD(NVME):
             mStr = self.set_feature(fid = fid, value = value, SV = sv, nsid = nsid, withCMDrtCode=True)
             
         if printInfo:
-            result = int(mStr.split()[-1])# last line is return code
+            result = int(mStr.split()[-1])# last line is status code
             msg = mStr.rsplit("\n",1)[0]# remove last line, return code
             if int(result)==0:
                 self.Print("SetFeature cmd success, Return status =: %s"%msg)
             else:
                 self.Print("SetFeature cmd fail, Return status =: %s"%msg)
             
-        return mStr
+        return result #status code
         
     
     def GetFeature(self, fid, sel=0, nsid=1):
         # if Interrupt Vector Configuration, read with cdw11=1
+        # nsSpec=True for test purpuse
         if fid==3:
-            return self.GetFeatureValue(fid=fid, sel=sel, nsid=nsid, nsSpec=True)
+            return self.GetFeatureValueWithSC(fid=fid, sel=sel, nsid=nsid, nsSpec=True)
         if fid==9:
-            return self.GetFeatureValue(fid=fid, sel=sel, cdw11=1, nsid=nsid, nsSpec=False)
+            return self.GetFeatureValueWithSC(fid=fid, sel=sel, cdw11=1, nsid=nsid, nsSpec=True)
         else:
-            return self.GetFeatureValue(fid=fid, sel=sel, nsid=nsid, nsSpec=False)
+            return self.GetFeatureValueWithSC(fid=fid, sel=sel, nsid=nsid, nsSpec=True)
+        
     def DifferentValueFromCurrent(self, fid):
-        currentValue = self.GetFeature(fid, sel=0)
+        currentValue  ,SC= self.GetFeature(fid, sel=0)
         resetValue=0
         validValue=0
         for mItem in self.TestItems:
@@ -364,11 +368,11 @@ class SMI_SetGetFeatureCMD(NVME):
         changeable=True if mItem[item.capabilities]&0b100 > 0 else False        
         fid=mItem[item.fid]
         # get default value
-        DefaultValue = self.GetFeature(fid, sel=1)        
+        DefaultValue  ,SC= self.GetFeature(fid, sel=1)        
 
         self.Print ("Feature is saveable in capabilities filed") if saveable else self.Print ("Feature is not saveable in capabilities filed")
         
-        rdValue=self.GetFeature(fid, sel=2)
+        rdValue , SC=self.GetFeature(fid, sel=2)
         SavedValuebk=rdValue    # backup saved value
         # choice one value that is not equal to saved value (valid_value, DefaultValue, reset_value)
         if rdValue!=mItem[item.valid_value]:
@@ -385,7 +389,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)
         
         # Send get feature command    
-        GetValue = self.GetFeature(fid, sel=2)              
+        GetValue  ,SC= self.GetFeature(fid, sel=2)              
         SavedValue =   GetValue            
         
         # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
@@ -396,7 +400,7 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print ("-- Issue Nvme Reset")
             self.nvme_reset()
             # Send get feature command    
-            GetValue = self.GetFeature(fid, sel=2)                
+            GetValue  ,SC= self.GetFeature(fid, sel=2)                
             self.Print ("After reset, read feature saved value: %s "%hex(GetValue))
             self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
             if GetValue == value:
@@ -412,7 +416,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.por_reset()
                 sleep(0.5)
                 # Send get feature command    
-                GetValue = self.GetFeature(fid, sel=2)                
+                GetValue  ,SC= self.GetFeature(fid, sel=2)                
                 self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
                 self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
                 if GetValue == value:
@@ -432,14 +436,14 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print ("End of restore values")         
             self.Print (""                          )     
     
-    def TestNsSupport(self, mItem):
+    def TestNsInMulitNS(self, mItem):
         supported=mItem[item.supported]
         saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
         nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
         changeable=True if mItem[item.capabilities]&0b100 > 0 else False        
         fid=mItem[item.fid]
         # get default value
-        DefaultValue = self.GetFeature(fid, sel=1)  
+        DefaultValue  ,SC= self.GetFeature(fid, sel=1)  
         # if only 1 namespace currently, create 2 namespaces
         if self.Ns==1:
             self.Print ("Create 2 namespaces, size  1G")
@@ -455,8 +459,8 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print ("Reset feature value = %s for nsid=1 and nsid=2"%value)
             self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
             self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
-            original1 = self.GetFeature(fid, sel=0, nsid=1)
-            original2 = self.GetFeature(fid, sel=0, nsid=2)
+            original1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+            original2  ,SC= self.GetFeature(fid, sel=0, nsid=2)
             #self.Print ("Check if feature value = %s or not in all namespaces"%value                )
             if original1 != value or original2!=value:
                 self.Print("Fail, value from ns1= %s ,ns2= %s "%(original1,original2), "f")
@@ -466,8 +470,8 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.Print ("Set feature with nsid =1, value= %s"%value                    )
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
                 
-                current1 = self.GetFeature(fid, sel=0, nsid=1)
-                current2 = self.GetFeature(fid, sel=0, nsid=2)
+                current1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+                current2  ,SC= self.GetFeature(fid, sel=0, nsid=2)
                 
                 self.Print ("Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 )
                 self.Print ("Check if feature value from ns1 = %s and value from ns2 = %s "   %(value,original2)   )
@@ -484,15 +488,15 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.Print ("Reset feature value = %s for nsid=1 and nsid=2"%value)
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=2)                    
-                original1 = self.GetFeature(fid, sel=0, nsid=1)
-                original2 = self.GetFeature(fid, sel=0, nsid=2)  
+                original1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+                original2  ,SC= self.GetFeature(fid, sel=0, nsid=2)  
                    
                 value = mItem[item.valid_value]               
                 self.Print ("Set feature with nsid =2, value= %s"%value)
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
                 
-                current1 = self.GetFeature(fid, sel=0, nsid=1)
-                current2 = self.GetFeature(fid, sel=0, nsid=2)
+                current1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+                current2  ,SC= self.GetFeature(fid, sel=0, nsid=2)
                 
                 self.Print ("Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 )
                 self.Print ("Check if feature value from ns1 = %s and value from ns2 = %s "   %(original1, value)   )
@@ -509,15 +513,15 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.Print ("Reset feature value = %s for nsid=1 and nsid=2"%value)
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=1)
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=2)                    
-                original1 = self.GetFeature(fid, sel=0, nsid=1)
-                original2 = self.GetFeature(fid, sel=0, nsid=2)  
+                original1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+                original2  ,SC= self.GetFeature(fid, sel=0, nsid=2)  
                    
                 value = mItem[item.valid_value]               
                 self.Print ("Set feature with nsid =3, value= %s"%value)
                 self.SetFeature(fid=fid, value=value, sv=0, nsid=3)
                 
-                current1 = self.GetFeature(fid, sel=0, nsid=1)
-                current2 = self.GetFeature(fid, sel=0, nsid=2)
+                current1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+                current2  ,SC= self.GetFeature(fid, sel=0, nsid=2)
                 
                 self.Print ("Get feature values from ns1= %s ,ns2= %s "%(current1,current2)                 )
                 self.Print ("Check if feature value from ns1 = %s and value from ns2 = %s "   %(original1,original2)   )
@@ -528,37 +532,69 @@ class SMI_SetGetFeatureCMD(NVME):
                     self.Print("Fail", "f")
                     self.ret_code=1
                 
-    def TestNsNotSupport(self, mItem):
+    def TestNsStatusCode(self, mItem, nsid_w, expectStatusCode_w, nsid_r, expectStatusCode_r):
+    # nsid_w to be write
+    # nsid_r to be read
+    # expectStatusCode, Completion Queue Entry, incoude Status Code Type (SCT) and Status Code (SC)
         supported=mItem[item.supported]
         saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
         nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
         changeable=True if mItem[item.capabilities]&0b100 > 0 else False        
         fid=mItem[item.fid]
-        # get default value
-        DefaultValue = self.GetFeature(fid, sel=1)     
-        self.Print ("")
-        self.Print ("Test if after setting feature cmd with nsid=2, value from get feature cmd with nsid=1 has kept the last value(not changed)") 
+        # Restore value    
         value = mItem[item.reset_value]        
-        self.Print ("Restore current value by setting feature value to %s"%value)
+        self.Print ("Restore current value by setting feature value to 0x%X"%value)
         self.SetFeature(fid=fid, value=value, sv=0, nsid=0) # nsid=0, not ns spec
-        original1 = self.GetFeature(fid, sel=0, nsid=1)
+        original1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
         if original1 != value :
-            self.Print("Fail to set feature value = %s, current get feature value = %s "%(value, original1), "f")
+            self.Print("Fail to set feature value = 0x%X, current get feature value = 0x%X "%(value, original1), "f")
             self.ret_code=1    
         else:
-            self.Print("Success to set feature value = %s "%(original1), "p")
-            value = mItem[item.valid_value]
-            self.Print ("Set feature with nsid =2, value= %s"%value)
-            self.SetFeature(fid=fid, value=value, sv=0, nsid=2)
-            current1 = self.GetFeature(fid, sel=0, nsid=1)
-            self.Print ("Check if feature value from ns1 = %s (not changed)"   %(original1))
-            if current1==original1:
-                self.Print("PASS", "p")  
-                return True
+            self.Print("Success to set feature value = 0x%X "%(original1), "p")
+            # write, value_w= write value, SC_w return SC
+            value_w = mItem[item.valid_value]
+            self.Print ("Set feature with nsid =0x%X, value= 0x%X"%(nsid_w, value_w))
+            SC_w = self.SetFeature(fid=fid, value=value_w, sv=0, nsid=nsid_w)
+            self.Print ("Return Status Code: 0x%X"%SC_w)
+            self.Print ("Check if Status Code = 0x%X"   %(expectStatusCode_w))
+            if SC_w==expectStatusCode_w:
+                self.Print("PASS", "p")
             else:
-                self.Print("Fail, current get feature value = %s "%(current1), "f")
+                self.Print("Fail", "f")
                 self.ret_code=1 
-                return False
+                
+            # read
+            self.Print ("")
+            self.Print ("Get feature value with nsid 0x%X"%nsid_r)
+            current1  ,SC_r= self.GetFeature(fid, sel=0, nsid=nsid_r)
+            self.Print ("Return Status Code: 0x%X"%SC_r)
+            self.Print ("Check if Status Code = 0x%X"   %(expectStatusCode_r))
+            if SC_r==expectStatusCode_r:
+                self.Print("PASS", "p")
+            else:
+                self.Print("Fail", "f")
+                self.ret_code=1 
+            
+            # if read success, then compare value
+            if SC_r==expectStatusCode_r:
+                self.Print ("Return current value: 0x%X"%current1)   
+                if SC_w==0: # if write success, expect new value
+                    self.Print ("Expected current value: 0x%X (write success)"%value_w)
+                    ExpectedValue = value_w
+                else:
+                    self.Print ("Expected current value: 0x%X (write fail)"%original1)
+                    ExpectedValue = original1
+                
+                self.Print ("Check if current value = Expected value")
+                if current1==ExpectedValue:
+                    self.Print("PASS", "p")
+                else:
+                    self.Print("Fail", "f")
+                    self.ret_code=1                 
+        self.Print ("")
+        #self.Print ("2) Test if the return code of set/get feature cmd with nsid=2 is 'invalid field in command' (0x2)")
+         
+                        
             
             
             
@@ -570,26 +606,55 @@ class SMI_SetGetFeatureCMD(NVME):
         changeable=True if mItem[item.capabilities]&0b100 > 0 else False        
         fid=mItem[item.fid]
         # get default value
-        DefaultValue = self.GetFeature(fid, sel=1)     
-        
+        DefaultValue  ,SC= self.GetFeature(fid, sel=1)
+        self.Print ("")     
         if not nsSpec:
             self.Print ("Feature is not namespace specific in capabilities filed")
-            self.TestNsNotSupport(mItem)
         else:
-            self.Print ("Feature is namespace specificin in capabilities filed")
-            self.Print ("Test if Feature Identifier is namespace specific or not")
-            self.Print ("")
+            self.Print ("Feature is namespace specific in capabilities filed")      
+              
+        self.Print ("")
+        self.Print ("-(4.1)--  test set/get feature with nsid=2")     
+        if not nsSpec:
+            self.Print ("Expected set feature and get feature command fail with status code = 0x2")
+            self.TestNsStatusCode(mItem=mItem, nsid_w=2, expectStatusCode_w=0x2, nsid_r=2, expectStatusCode_r=0x2 )
+        else:
+            self.Print ("Expected set feature and get feature command fail with status code = 0xB")         
+            self.TestNsStatusCode(mItem=mItem, nsid_w=2, expectStatusCode_w=0xB, nsid_r=2, expectStatusCode_r=0xB )            
+            
+        self.Print ("")
+        self.Print ("-(4.2)--  test set feature with nsid=0xFFFFFFFF")                 
+        self.Print ("Expected set feature command success with status code = 0x0")
+        # set with nsid_w=0xFFFFFFFF, expectStatusCode_w=0 and read with nsid=1, expect SC=0
+        self.TestNsStatusCode(mItem=mItem, nsid_w=0xFFFFFFFF, expectStatusCode_w=0, nsid_r=1, expectStatusCode_r=0x0 )
+   
+        self.Print ("")
+        self.Print ("-(4.3)--  test get feature with nsid=0xFFFFFFFF")     
+        if not nsSpec:
+            self.Print ("Expected get feature command success with status code = 0x0")
+            self.TestNsStatusCode(mItem=mItem, nsid_w=1, expectStatusCode_w=0x0, nsid_r=0xFFFFFFFF, expectStatusCode_r=0x0 )
+        else:
+            self.Print ("Expected get feature command fail with status code = 0xB")         
+            self.TestNsStatusCode(mItem=mItem, nsid_w=1, expectStatusCode_w=0x0, nsid_r=0xFFFFFFFF, expectStatusCode_r=0xB )  
+            
+                        
+        self.Print ("")            
+        if not nsSpec:
+            pass
+        else:
+            self.Print ("Implement 2 namespaces to test feature in mulit namespaces")
             if not self.NsSupported:
-                self.Print ("Fail, Controller don't support mulit namespaces!, but Feature Identifier is namespace specific", "f")
-                self.ret_code = 1
+                self.Print ("Controller don't support mulit namespaces!, skip to test for mulit namespaces", "w")
             elif not changeable:
-                self.Print ("Fail, Feature is not changeable!, but Feature Identifier is namespace specific", "f")
-                self.ret_code = 1
+                self.Print ("Feature is not changeable!, skip to test for mulit namespaces", "w")
             elif self.disableNsTest:
                 self.Print ("-- User disable namespace test for this feature")
             else:
-                self.TestNsSupport(mItem)
-    
+                self.TestNsInMulitNS(mItem)
+                
+        if self.Ns!=1:
+            self.Print ("Remove all created namespaces")
+            self.ResetNS()    
     
     def VerifyFID(self, fid):
         
@@ -619,11 +684,11 @@ class SMI_SetGetFeatureCMD(NVME):
             else:
 
                 
-                self.Print ("-(1)-- Test Get Features with Select=0, Current --"    )
+                self.Print ("-(1)-- Test Get Features with Select=0, Current --"    , "b")
                 self.Print ("        and test Features capabilities bit 2, Feature Identifier is changeable or not")
                 self.Print ("        "+ "Feature is changeable, all the fallowing test should change the value" if changeable else "Feature is no changeable, all the fallowing test should not change the value")
                 fid=mItem[item.fid]
-                rdValue=self.GetFeature(fid, sel=0)
+                rdValue , SC=self.GetFeature(fid, sel=0)
                 value=self.DifferentValueFromCurrent(fid)
                 self.Print ("Send get feature command, returned feature value: %s "%hex(rdValue))
                 self.Print ("Send set feature command with value = %s"%hex(value))
@@ -632,26 +697,26 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
                 
                 # Send get feature command    
-                GetValue = self.GetFeature(fid, sel=0)
+                GetValue  ,SC= self.GetFeature(fid, sel=0)
                 
                 # check if (value is set if changeable=true) or  (value is not set if changeable=false) 
                 self.CheckResult(OriginValue=value, CurrentValue=GetValue, ExpectMatch=changeable)    
                 self.Print ("")
     
-                self.Print ("-(2)--  Test Get Features with Select=1, Default --"  )
-                DefaultValue = self.GetFeature(fid, sel=1)
+                self.Print ("-(2)--  Test Get Features with Select=1, Default --"  , "b")
+                DefaultValue  ,SC= self.GetFeature(fid, sel=1)
                 self.Print ("Send get feature command with Select=1, returned feature default value: %s "%hex(DefaultValue))
                 self.Print ("")
                 
-                self.Print ("-(3)--  Test Get Features with Select=2, Saved --"            )
+                self.Print ("-(3)--  Test Get Features with Select=2, Saved --" , "b")
                 self.VerifySaveAble(mItem)
     
                 self.Print ("")
-                self.Print ("-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific"        )
-                self.VerifyNSspec(mItem)
+                self.Print ("-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific" , "b")
+                self.VerifyNSspec(mItem)                
                 
                 self.Print ("")
-                self.Print ("-(5)--  Test Set Features if capabilities bit 2 = 0, Feature Identifier is not changeable"        )
+                self.Print ("-(5)--  Test Set Features if capabilities bit 2 = 0, Feature Identifier is not changeable", "b")
                 if changeable:
                     self.Print( "Feature Identifier is changeable, quit" )
                 else:
@@ -659,15 +724,15 @@ class SMI_SetGetFeatureCMD(NVME):
                     self.Print ("Send set feature command with value = %s"%hex(value))                    
                     # Send set feature command    
                     CMD_Result = self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
-                    self.Print ("Check set feature command status code, expected code: FEATURE_NOT_CHANGEABLE")
-                    if re.search("FEATURE_NOT_CHANGEABLE", CMD_Result):  
+                    self.Print ("Check set feature command status code, expected code: FEATURE_NOT_CHANGEABLE (0x0E)")
+                    if CMD_Result==0x0E:  
                         self.Print("PASS", "p")  
                     else:
                         self.Print("Fail", "f")
                         self.ret_code=1                                    
-                
+
                 self.Print ("") 
-                self.Print ("-(6)--  Restore values")     
+                self.Print ("-(6)--  Restore values", "b")     
                 
                 value=mItem[item.reset_value]
                 self.Print ("restore to previous 'current value': %s"%hex(value))
@@ -675,9 +740,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
                                 
 
-
-        if self.Ns!=1:
-            self.ResetNS()        
+        
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):

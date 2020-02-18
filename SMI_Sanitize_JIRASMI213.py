@@ -11,7 +11,7 @@ from lib_vct.NVME import NVME
 class SMI_Sanitize_JIRASMI213(NVME):
     ScriptName = "SMI_Sanitize_JIRASMI213.py"
     Author = "Sam"
-    Version = "20200103"
+    Version = "20200212"
 
     def WaitSanitizeOperationFinish(self, timeout=600, printInfo=False):
     # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout )         
@@ -57,10 +57,21 @@ class SMI_Sanitize_JIRASMI213(NVME):
         CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
         self.Print ("3. issue Sanitize block erase cmd: %s"%CMD) 
         self.shell_cmd(CMD)   
-        self.Print("4. check sanitize command completed, timeout 600s")
-        if not self.WaitSanitizeOperationFinish(600):
-            self.Print("Time out!, exit all test ", "f")  
-            return False       
+        self.Print("4. check if sanitize is in progress(SPROG change), timeout 60s")
+        WaitCnt = 0
+        per=0
+        while True:
+            per = self.GetLog.SanitizeStatus.SPROG
+            if per!=0 and per!=65536:
+                break;
+            else:
+                WaitCnt = WaitCnt+1
+            if WaitCnt>60:
+                self.Print("Time out!, SPROG never changed, exit all test ", "f")  
+                return False   
+            sleep(1)             
+        self.Print("Sanitize is in progress now, SPROG= %s"%per)
+    
 
         self.Print("") 
         Stime = randint(1, 5000)

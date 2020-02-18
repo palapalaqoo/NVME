@@ -2171,11 +2171,11 @@ class SMI_SRIOV(NVME):
         f_HostFIOtest = False   #
         f_AttachPCIE = True     # better have
 
-        f_FormatPFtoExt4=False#True
-        f_MountPF=False#True
-        f_CreateRawDiskImg = False#True
-        f_AttachRawDisk = False#True
-        RT1 = False
+        f_FormatPFtoExt4=True#True
+        f_MountPF=True#True
+        f_CreateRawDiskImg = True#True
+        f_AttachRawDisk = True#True
+        RT1 = True
 
         testLoop=1
         f_VM_FIO_WriteTestSimultaneously = True
@@ -2341,13 +2341,13 @@ class SMI_SRIOV(NVME):
         if f_VM_FIO_WriteTestSimultaneously:
             self.Print("")
             OutCSVfullPath = "./CSV/Out/SRIOV_Case10_WriteTestSimultaneously.csv"   
-            self.Case10TestFunc(targetDevice="SRIOV", rw="w", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+            self.Case10TestFunc(targetDevice="SRIOV", rw="w", OutCSVfullPath=OutCSVfullPath, testLoop=testLoop, \
                                 sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)
        
         if f_VM_FIO_WriteTestSimultaneouslyRawDisk:
             self.Print("")
             OutCSVfullPath = "./CSV/Out/SRIOV_Case10_WriteTestSimultaneouslyRawDisk.csv"   
-            self.Case10TestFunc(targetDevice="RawDisk", rw="w", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+            self.Case10TestFunc(targetDevice="RawDisk", rw="w", OutCSVfullPath=OutCSVfullPath, testLoop=testLoop, \
                                 sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)            
    
 
@@ -2355,13 +2355,13 @@ class SMI_SRIOV(NVME):
         if f_VM_FIO_ReadTestSimultaneously:
             self.Print("")
             OutCSVfullPath = "./CSV/Out/SRIOV_Case10_ReadTestSimultaneously.csv"   
-            self.Case10TestFunc(targetDevice="SRIOV", rw="r", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+            self.Case10TestFunc(targetDevice="SRIOV", rw="r", OutCSVfullPath=OutCSVfullPath, testLoop=testLoop, \
                                 sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)
       
         if f_VM_FIO_ReadTestSimultaneouslyRawDisk:
             self.Print("")
             OutCSVfullPath = "./CSV/Out/SRIOV_Case10_ReadTestSimultaneouslyRawDisk.csv"   
-            self.Case10TestFunc(targetDevice="RawDisk", rw="r", OutCSVfullPath=OutCSVfullPath, testLoop=10, \
+            self.Case10TestFunc(targetDevice="RawDisk", rw="r", OutCSVfullPath=OutCSVfullPath, testLoop=testLoop, \
                                 sleepTimeForEveryLoop=sleepT, TrimAllBeforeTest=True)            
    
         '''
