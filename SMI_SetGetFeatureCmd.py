@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20200115"
+    Version = "20200219"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -591,9 +591,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 else:
                     self.Print("Fail", "f")
                     self.ret_code=1                 
-        self.Print ("")
-        #self.Print ("2) Test if the return code of set/get feature cmd with nsid=2 is 'invalid field in command' (0x2)")
-         
+    
                         
             
             

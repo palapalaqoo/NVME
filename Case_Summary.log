@@ -1,18 +1,15 @@
-CASE 1 : Arbitration : Fail
-CASE 2 : Power Management : Skip
-CASE 3 : LBA Range Type : Skip
-CASE 4 : Temperature Threshold : Skip
-CASE 5 : Error Recovery : Skip
-CASE 6 : Volatile Write Cache : Skip
-CASE 7 : Number of Queues : Skip
-CASE 8 : Interrupt Coalescing : Skip
-CASE 9 : Interrupt Vector Configuration(Testing secend Interrupt Vector where cdw11=0x1) : Skip
-CASE 10 : Write Atomicity Normal : Skip
-CASE 11 : Asynchronous Event Configuration : Skip
-CASE 12 : Autonomous Power State Transition : Skip
-CASE 13 : Host Memory Buffer : Skip
-CASE 14 : Host Controlled Thermal Management : Skip
-CASE 15 : Software Progress Marker : Skip
-CASE 16 : Host Identifier : Skip
-CASE 17 : Reservation Notification Mask : Skip
-CASE 18 : Reservation Persistance : Skip
+CASE 1 : Test if the operation of PF and VFs influences itself only : Skip
+CASE 2 : Test Data Integrity of POR and SPOR : Skip
+CASE 3 : Test NVMe write speed : Skip
+CASE 4 : Test NVMe read speed : Skip
+CASE 5 : Test SMI_SmartHealthLog.py for all VF/PF : Skip
+CASE 6 : Test SMI_SetGetFeatureCmd.py for all VF/PF : Skip
+CASE 7 : Test SMI_Read.py for all VF/PF : Skip
+CASE 8 : Test SMI_Write.py for all VF/PF : Skip
+CASE 9 : Test SMI_DSM.py for all VF/PF : Skip
+CASE 10 : Test SR-IOV in virtual machines(KVM/QEMU) : Skip
+CASE 11 : Test S3 mode(Suspend To Ram) for SR-IOV device : Skip
+CASE 12 : Test S4 mode(Suspend To Disk) for SR-IOV device : Skip
+CASE 13 : Test namespaces attach/delete/create operation : Skip
+CASE 14 : Test system reboot for SR-IOV device : Pass
+CASE 15 : Test FLR(function level reset) fucntion for all VF/PF : Skip

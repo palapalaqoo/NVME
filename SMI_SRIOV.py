@@ -23,7 +23,7 @@ from random import randint
 class SMI_SRIOV(NVME):
     ScriptName = "SMI_SRIOV.py"
     Author = "Sam"
-    Version = "20190415"
+    Version = "20200221"
     
     TypeInt=0x0
     TypeStr=0x1    
@@ -343,7 +343,7 @@ class SMI_SRIOV(NVME):
             #if MS!=0 and LBADS>=9:                           
             self.FormatTestItems.append([x, RP, LBADS, MS])       
     # -------------------------------------------------------------------
-    def TestWriteRead(self, SubDUT, writeValue):
+    def TestWriteRead(self, SubDUT, writeValue=0):
     # SubDUT type is NVME
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
@@ -354,7 +354,7 @@ class SMI_SRIOV(NVME):
             return False
            
     
-    def TestWriteCompare(self, SubDUT, writeValue):
+    def TestWriteCompare(self, SubDUT, writeValue=0):
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
         # compare command
@@ -368,7 +368,7 @@ class SMI_SRIOV(NVME):
             self.Print("Device: %s TestWriteCompare fail: expected pattern is %s"%(SubDUT, writeValue), "f")
             return False      
     
-    def TestWriteFormatRead(self, SubDUT, writeValue):
+    def TestWriteFormatRead(self, SubDUT, writeValue=0):
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)
         # format
@@ -384,7 +384,7 @@ class SMI_SRIOV(NVME):
             self.Print("Device: %s TestWriteFormatRead fail: expected pattern is %s"%(SubDUT, 0), "f")
             return False         
    
-    def TestWriteSanitizeRead(self, SubDUT, writeValue):  
+    def TestWriteSanitizeRead(self, SubDUT, writeValue=0):  
         # wait if sanitize is in progressing
         if not SubDUT.WaitSanitizeFinish(120): return False
               
@@ -408,7 +408,7 @@ class SMI_SRIOV(NVME):
             self.Print("Device: %s TestWriteSanitizeRead fail: expected pattern is %s"%(SubDUT, 0), "f")
             return False    
     
-    def TestWriteUncRead(self, SubDUT, writeValue):
+    def TestWriteUncRead(self, SubDUT, writeValue=0):
         # write 10M data with writeValue
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)    
         # write unc
@@ -434,27 +434,27 @@ class SMI_SRIOV(NVME):
         SubDUT.fio_write(offset=0, size="10M", pattern=writeValue, nsid=1, devPort=SubDUT.dev_port)                  
         return True     
 
-    def nvme_reset(self, SubDUT, writeValue):
+    def nvme_reset(self, SubDUT, writeValue=0):
         rtcode = self.shell_cmd("  nvme reset %s; echo $? "%(SubDUT.dev_port), 0.5)
         sleep(1) 
         return True if rtcode=="0" else False
     
-    def hot_reset(self, SubDUT, writeValue):
+    def hot_reset(self, SubDUT, writeValue=0):
         self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(SubDUT.pcie_port), 0.1) 
         self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.1)
         sleep(1)     
         return True        
     
-    def FunctionLevel_reset(self, SubDUT, writeValue):       
+    def FunctionLevel_reset(self, SubDUT, writeValue=0):       
         SubDUT.write_pcie(SubDUT.PXCAP, 0x9, SubDUT.IFLRV)
         sleep(1)
-        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(SubDUT.pcie_port), 1) 
+        self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/reset " %(SubDUT.pcie_port), 2) 
         if SubDUT.dev_alive:            
             return True        
         else:
             return False     
     
-    def DeleteCreateAttach_NS(self, SubDUT, writeValue):        
+    def DeleteCreateAttach_NS(self, SubDUT, writeValue=0):        
         return SubDUT.ResetNS()                
                       
     
@@ -606,7 +606,7 @@ class SMI_SRIOV(NVME):
         self.IsPass=True
         isPF=True
         for Dev in self.AllDevices:
-            # first is PF, other if VF
+            # first is PF, others are VF
             if isPF:
                 DevType = "PF"
                 isPF=False
@@ -1534,13 +1534,22 @@ class SMI_SRIOV(NVME):
     def CreateCronShellScript(self, filePath, CMD):
         # create AutoRunAfterReboot.sh(filePath)
         # content
+        # after this will write to AutoRunAfterReboot.sh with following strings
+        '''
+            #!/bin/sh
+            # set display valuable
+            export DISPLAY=:10.0
+            # run command
+            /bin/gnome-terminal --maximize -- bash -c 'cd /home/root/sam/eclipse/NVME; python SMI_SRIOV.py /dev/nvme0n1 14 -t -n 2 -c 0 -r 14; exec bash'
+        '''
         data = "#!/bin/sh" + "\n"
         # set display valuable
         data = data + "# set display valuable" + "\n"
         DISPLAY = self.shell_cmd("echo $DISPLAY")
         data = data + "export DISPLAY=%s"%DISPLAY + "\n"
         data = data + "# run command" + "\n"
-        data = data + "/bin/gnome-terminal --maximize -- bash -c '%s; exec bash'\n"%CMD + "\n"
+        TerminalLocation = self.shell_cmd("which gnome-terminal")
+        data = data + "%s --maximize -- bash -c '%s; exec bash'\n"%(TerminalLocation, CMD) + "\n"
         data = data + "exit 0" + "\n"
         # write
         with open(filePath, 'w') as mfile:
@@ -1574,23 +1583,36 @@ class SMI_SRIOV(NVME):
         # add '-r \d' for resumeFromCaseNo if not find
         if not re.search("(-r \d+)", itemAll):  
             itemAll = "%s -r %s"%(itemAll, resumeFromCaseNo)
+            
+        # if isUbuntu, using sudo to run python  for file AutoRunAfterReboot.sh        
+        if self.isCentOS:
+            CMD="cd %s; python %s"%(mDir, itemAll)
+        else:
+            CMD="cd %s; echo '%s' | sudo -S python %s"%(mDir, self.UserPw, itemAll)         
         
-        CMD="cd %s; python %s"%(mDir, itemAll)
         self.Print(CMD) if printInfo else None
                         
         self.CreateCronShellScript(fPath, CMD)
         
-        # setting crontab, copy current environment to /etc/crontab as below content
+        # setting crontab, copy current environment to /etc/crontab as below content for centos
         '''
         SHELL=/usr/bin/bash
         PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
         @reboot root sleep 20 && /home/root/sam/eclipse/NVME/AutoRunAfterReboot.sh
         '''
+        # for Ubuntu
+        '''
+        @reboot 'useracc' sleep 20 && /home/root/sam/eclipse/NVME/AutoRunAfterReboot.sh
+        '''
+        
         mStr = self.shell_cmd("which bash")        
         data = "SHELL=%s"%mStr + "\n"   
         mStr = self.shell_cmd("echo $PATH")        
-        data = data + "PATH=%s"%mStr + "\n"   
-        data = data + "@reboot root sleep 20 && %s"%fPath + "\n" 
+        data = data + "PATH=%s"%mStr + "\n" 
+        if self.isCentOS:
+            data = data + "@reboot root sleep 20 && %s"%fPath + "\n"
+        else:
+            data = data + "@reboot %s sleep 20 && %s"%(self.UserAcc, fPath) + "\n" 
         
         # and write everything back
         with open("/etc/crontab", 'w') as mfile:
@@ -1692,6 +1714,8 @@ class SMI_SRIOV(NVME):
         self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops for case11, case12 and case14", argType=int)
         self.SetDynamicArgs(optionName="w", optionNameFull="wakeuptimer", helpMsg="wakeup timer in seconds for case11, case12 and case14", argType=int)
         self.SetDynamicArgs(optionName="c", optionNameFull="CurrentLoopForResumeFromReboot", helpMsg="curren loop for resume from reboot, please do not set it", argType=int)
+        self.SetDynamicArgs(optionName="acc", optionNameFull="CurrentUbuntuUserAccount", helpMsg="Current Ubuntu user account", argType=str)
+        self.SetDynamicArgs(optionName="pw", optionNameFull="CurrentUbuntuUserPassword", helpMsg="Current Ubuntu user password", argType=str)
                 
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
@@ -1702,7 +1726,9 @@ class SMI_SRIOV(NVME):
         self.loops = self.GetDynamicArgs(1)  
         self.wakeuptimer = self.GetDynamicArgs(2)  # if no wakeuptimer arg in, wakeuptimer = None
         self.CurrentLoopForResumeFromReboot = int(self.GetDynamicArgs(3)  ) if self.GetDynamicArgs(3)!=None else None
-        
+        self.UserAcc = "" if self.GetDynamicArgs(4)==None else self.GetDynamicArgs(4)
+        self.UserPw = "" if self.GetDynamicArgs(5)==None else self.GetDynamicArgs(5)
+
         # set defalut loop =1   
         self.loops=1 if self.loops==None else self.loops
         
@@ -1712,6 +1738,10 @@ class SMI_SRIOV(NVME):
         if not self.ResumeFromReboot==None and self.loops==0:
             self.Print("Error, loop must >=1","f")
             return 255
+        
+        #check OS is isCentOS or Ubuntu
+        self.isCentOS = True if self.shell_cmd("cat /etc/os-release |grep 'CentOS' 2>&1 >/dev/null; echo $?")=="0" else False
+        self.isUbuntu = True if self.shell_cmd("cat /etc/os-release |grep 'Ubuntu' 2>&1 >/dev/null; echo $?")=="0" else False
         
         # import module if installed, else yum install module 
         self.tkinter = self.ImportModuleWithAutoYumInstall("Tkinter", "sudo yum -y install tkinter python-tools")
@@ -1806,6 +1836,16 @@ class SMI_SRIOV(NVME):
         if self.mTestModeOn:
             self.Print("Test mode on")   
 
+        if self.isCentOS:
+            self.Print("OS: CentOS", "p")
+        elif self.isUbuntu:
+            self.Print("OS: Ubuntu", "p")
+            if self.UserAcc=="" or self.UserPw=="":
+                self.Print("For Ubuntu, please run python with current user account and password for root permission", "f")
+                self.Print("E.g. python SMI_SRIOV ...(options) -acc='account' -pw='password'", "f")
+                return False            
+        else:
+            self.Print("OS: unknow", "w")
         self.Print("")
         
         if self.Sysfs_SRIOV_Supported:
@@ -2598,10 +2638,6 @@ class SMI_SRIOV(NVME):
                 
         return ret_code  
         
-    # </define sub item scripts>
-
-
-    # define PostTest 
     
     SubCase14TimeOut = 1800
     SubCase14Desc = "Test system reboot for SR-IOV device"   
@@ -2644,10 +2680,34 @@ class SMI_SRIOV(NVME):
 
         return ret_code   
 
+    SubCase15TimeOut = 1800
+    SubCase15Desc = "Test FLR(function level reset) fucntion for all VF/PF"   
+    SubCase15KeyWord = ""
+    def SubCase15(self):             
+        ret_code=0
+        isPF=True
+        for Dev in self.AllDevices:
+            # first is PF, others are VF
+            self.Print("test FLR for %s: %s"%("PF" if isPF else "VF", Dev))
+            # create SubDUT to use NVME object for specific device, e.x. /dev/nvme2n1, note that argv is type list
+            SubDUT = NVME([Dev]) 
+            self.Print("Issue function level reset")   
+            self.FunctionLevel_reset(SubDUT)
+            self.Print("Check if device is alive for %s"%Dev)
+            if SubDUT.dev_alive:
+                self.Print("Pass!", "p")
+            else:
+                self.Print("Fail, device is missing!", "f")
+                ret_code = 1
+            isPF = False
+            self.Print("") 
+            
+        return ret_code       
+
+    # </define sub item scripts>
 
 
-
-        
+    # define PostTest 
     def PostTest(self): 
         # if not test mode, reset VF to 0
         if not self.mTestModeOn:        
