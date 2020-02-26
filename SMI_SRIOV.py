@@ -23,7 +23,7 @@ from random import randint
 class SMI_SRIOV(NVME):
     ScriptName = "SMI_SRIOV.py"
     Author = "Sam"
-    Version = "20200221"
+    Version = "20200226"
     
     TypeInt=0x0
     TypeStr=0x1    
@@ -1275,13 +1275,14 @@ class SMI_SRIOV(NVME):
         # if created VF is nvme1n1 nvme2n1 ...
         if PFPort.find("nvme-subsys")==-1: 
             PF_PciePort=self.pcie_port
+            # 0000:02:00.0, bus=0000, dev=02, func=00.0
             # get device bus and device number, remove function number
-            PF_BusDeviceNum = PF_PciePort[:-2]
+            PF_BusDeviceNum = PF_PciePort[:-5]
             # get nvme list all devices
             NvmeList=self.GetCurrentNvmeList()
             for device in NvmeList:
                 Port = self.GetPciePort(device)                            
-                BusDeviceNum = Port[:-2]
+                BusDeviceNum = Port[:-5]
                 # if not PF device and (bus and device num) is the same, than it is VF from PF
                 if PF_BusDeviceNum==BusDeviceNum and device!=self.dev:
                     mList.append(device)           
@@ -1534,7 +1535,7 @@ class SMI_SRIOV(NVME):
     def CreateCronShellScript(self, filePath, CMD):
         # create AutoRunAfterReboot.sh(filePath)
         # content
-        # after this will write to AutoRunAfterReboot.sh with following strings
+        # This function will create AutoRunAfterReboot.sh with following example strings
         '''
             #!/bin/sh
             # set display valuable
@@ -1583,12 +1584,20 @@ class SMI_SRIOV(NVME):
         # add '-r \d' for resumeFromCaseNo if not find
         if not re.search("(-r \d+)", itemAll):  
             itemAll = "%s -r %s"%(itemAll, resumeFromCaseNo)
-            
-        # if isUbuntu, using sudo to run python  for file AutoRunAfterReboot.sh        
+        
+        '''
+            if isCentos
+                CMD='cd /home/root/sam/eclipse/NVME; python SMI_SRIOV.py /dev/nvme0n1 14 -t -n 2 -c 0 -r 14'
+            if isUbuntu, using sudo to run python  for file AutoRunAfterReboot.sh
+                CMD='cd /home/root/sam/eclipse/NVME; echo '%s' | sudo -S python SMI_SRIOV.py /dev/nvme0n1 14 -t -n 2 -c 0 -r 14 -acc sam -pw Smi888'            
+            if isUbuntu, SMI_SRIOV.py must run with -acc and -pw to specify current user accout and pw for root privileges,  e.x. '-acc sam -pw Smi888'
+        '''
+        # if find 2.7, then using python2.7 to run command , else using default version     
+        pythonVer = "2.7" if int(self.shell_cmd("which python2.7 >/dev/null 2>&1 ; echo $?"))==0 else ""
         if self.isCentOS:
-            CMD="cd %s; python %s"%(mDir, itemAll)
+            CMD="cd %s; python%s %s"%(mDir, pythonVer, itemAll)
         else:
-            CMD="cd %s; echo '%s' | sudo -S python %s"%(mDir, self.UserPw, itemAll)         
+            CMD="cd %s; echo '%s' | sudo -S python%s %s"%(mDir, self.UserPw, pythonVer, itemAll)         
         
         self.Print(CMD) if printInfo else None
                         
@@ -2668,10 +2677,13 @@ class SMI_SRIOV(NVME):
                 sys.stdout.flush()
                 sleepT = 10 if self.wakeuptimer==None else self.wakeuptimer
                 self.Print("Wait %s seconds and reboot .. , if detect 'ctrl+C' then skip this case"%sleepT)
-                for i in range(sleepT):
+                for i in range(sleepT+1):
                     # PrintProgressBar
                     self.PrintProgressBar(i, sleepT, prefix = 'Time:', length = 20)                    
                     sleep(1)
+                self.Print("Start to reboot..")    
+                self.FlushConsoleMsg()
+                sleep(0.5)
                 os.system('reboot')
             except KeyboardInterrupt:
                 self.Print("")
@@ -2703,7 +2715,7 @@ class SMI_SRIOV(NVME):
             self.Print("") 
             
         return ret_code       
-
+     
     # </define sub item scripts>
 
 

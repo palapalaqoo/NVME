@@ -128,6 +128,11 @@ class NVMECom():
         f.write(mStr)
         f.write("\n")        
         f.close()        
+    
+    def FlushConsoleMsg(self):
+    # flush all console messages to log file
+        sys.stdout.flush()
+        #sleep(1)
         
     class tee(object):
     # if need to flush all console messages to log, below syntax will call NVMECom.tee.flush()  to do it
@@ -160,6 +165,7 @@ class NVMECom():
                 #this handles the flush command by doing nothing.
                 #you might want to specify some extra behavior here.
             self.terminal.flush()
+            self.log.flush()
             #self.log.close()
             #self.log = open(self.mLogFile, "a")
              
@@ -690,7 +696,7 @@ class NVMECom():
         '''
         # remove string  > console width
         try: # if using eclipse to debug, then set col to 40
-            rows, columns = os.popen('stty size', 'r').read().split()
+            columns = self.shell_cmd("tput cols")
         except:
             columns = 40
         mStr = self.PrefixString()+mstr

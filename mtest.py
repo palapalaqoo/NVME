@@ -11,6 +11,7 @@
         #=======================================================================     
         
 # Import python built-ins
+import platform
 import sys
 import time
 from time import sleep
@@ -137,13 +138,35 @@ class mtest1(NVME):
         
         
         
-
+    
     def SubCase1(self):
-        aa= self.get_feature(1)
-        bb, cc = self.get_feature_with_sc(1)
-        
+
+        aa=self.shell_cmd("which python2.7 >/dev/null 2>&1 ; echo $?")
         print aa
-                    
+        aa=self.shell_cmd("which python >/dev/null 2>&1 ; echo $?")
+        print aa        
+        aa=self.shell_cmd("which python2.7.5 >/dev/null 2>&1 ; echo $?")
+        print aa        
+        
+        return 0
+        self.Print("Wait")
+        self.Print("Wait")
+        self.Print("Wait")
+        self.Print("Wait")
+        self.Print("Wait")
+        aa=self.por_reset()
+        bb=self.spor_reset()
+        
+
+        sleepT=5
+        for i in range(sleepT+1):
+        # PrintProgressBar
+            self.PrintProgressBar(i, sleepT, prefix = 'Time:', length = 20)  
+            sleep(1)
+
+        self.Print("")
+        self.Print("Wait")
+        self.FlushConsoleMsg()                      
         
         
         

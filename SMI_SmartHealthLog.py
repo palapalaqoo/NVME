@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20200109"
+    Version = "20200226"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -89,12 +89,12 @@ class SMI_SmartHealthLog(NVME):
         if Mode=="POR":
             self.Print("Do POR")
             if not self.por_reset():
-                self.Print("Fail to power on device!, quit", "f")
+                self.Print("Fail to power off and on device!, please check power module, quit", "f")
                 return False
         else:
             self.Print("Do SPOR")
             if not self.spor_reset():
-                self.Print("Fail to power on device!, quit", "f")
+                self.Print("Fail to power off and on device!, please check power module, quit", "f")
                 return False
                             
         self.Print("Done")
@@ -478,7 +478,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Get current 'Power Cycles': %s"%PowerCycles0)
         self.Print("Do POR")
         if not self.por_reset():
-            self.Print("Fail to power on device!, quit", "f")
+            self.Print("Fail to power off and on device!, please check power module, quit", "f")
         self.Print("Done")
         sleep(2)
         PowerCycles1=self.GetLog.SMART.PowerCycles

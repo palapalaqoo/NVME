@@ -300,20 +300,23 @@ class NVME(object, NVMECom):
         return mStr
                 
                           
-    def RunScript(self):
-        # redirect console output to file by using tee class
-        sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)
-                
+    def RunScript(self):                
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
             for i in range(1, self.SubCaseMaxNum+1):
                 self.UserSubItems.append(i)
         
-        # print information
-        self.PrintInfo()
+        # print information if not resume from reboot(first run this script), else information will not recorded
+        if self.ResumeSubCase==None: 
+            # redirect console output to file by using tee class
+            sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                       
+            self.PrintInfo() 
+        else:
+            self.PrintInfo() 
+            sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                     
+
         # print document only
-        if self.mScriptDoc:
-            return 0 
+        if self.mScriptDoc: return 0 
            
         
         # if override Pretest(), then run it, or PreTestIsPass= true
@@ -939,38 +942,40 @@ class NVME(object, NVMECom):
 
         
     def por_reset(self):
-        self.status="reset"
-        self.shell_cmd("/usr/local/sbin/PWOnOff %s por off 2>&1 > /dev/null" %(self.dev_port), 0.1) 
-        self.shell_cmd("/usr/local/sbin/PWOnOff %s por on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
-        # if on fail, do more 10 time power on 
-        cnt=0
-        while not self.ctrl_alive:
-            self.shell_cmd("/usr/local/sbin/PWOnOff %s por on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
-            cnt=cnt+1
-            if cnt >=10:
-                return False
-        self.status="normal"
-        return True            
+        return self.do_por_reset("por")           
     
     def spor_reset(self):
-        self.status="reset"
-        self.shell_cmd("/usr/local/sbin/PWOnOff %s spor off 2>&1 > /dev/null" %(self.dev_port), 0.5) 
+        return self.do_por_reset("spor") 
+
+    def do_por_reset(self, mode):
+    # mode = por/spor
+        self.status="reset"        
+        #power off, and check if device was removed by OS(10 time)
+        cnt=0
+        while self.ctrl_alive:            
+            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s off 2>&1 > /dev/null" %(self.dev_port, mode), 0.5) 
+            cnt=cnt+1
+            if cnt >=10:
+                self.Print("can't power device off", "f")
+                return False 
+
         # if system file exist, then remove them,ex. /dev/nvme0n1 and /dev/nvme0
         if self.isfileExist(self.dev):
             self.shell_cmd("rm %s -f"%self.dev)
         if self.isfileExist(self.dev_port):
             self.shell_cmd("rm %s -f"%self.dev_port)
-        self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
-        # if on fail, do more 10 time power on 
+            
+        #power on, and check if device was removed by OS(10 time)            
         cnt=0
         while not self.ctrl_alive:
-            self.shell_cmd("/usr/local/sbin/PWOnOff %s spor on 2>&1 > /dev/null" %(self.dev_port), 0.1) 
+            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s on 2>&1 > /dev/null" %(self.dev_port, mode), 0.5) 
             cnt=cnt+1
             if cnt >=10:
+                self.Print("can't power device on", "f")
                 return False     
-        sleep(0.5)   
+            
         self.status="normal"
-        return True  
+        return True         
     
     # for fixing 'tr: write error: Broken pipe'
     def default_sigpipe(self):
@@ -1343,6 +1348,11 @@ class NVME(object, NVMECom):
             return int(self.shell_cmd("cat %s"%path))
         else:
             return None
+        
+    def ReloadNVMeDriverWithSpecificParameter(self, par=None):
+        self.shell_cmd("rmmod nvme", 1)
+        # ex. modprobe nvme max_host_mem_size_mb=0 to set HMB=0
+        self.shell_cmd("modprobe nvme %s"%par, 1)
            
 # ==============================================================    
 class DevWakeUpAllTheTime():
