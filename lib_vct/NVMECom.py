@@ -209,6 +209,15 @@ class NVMECom():
         fd.close()
         sleep(sleep_time)
         return msg 
+    
+    def shell_cmd_with_sc(self, cmd, sleep_time=0):
+        # return command info(string) and status code(int)
+        cmd = cmd + "; echo $?"
+        mStr = self.shell_cmd(cmd, sleep_time)        
+        SC = int(mStr.split()[-1])# last line is status code
+        value = mStr.rsplit("\n",1)[0]# after remove the last line, is return value
+        return value, SC
+        
 
     def yield_shell_cmd(self, cmd):
         # like shell_cmd(), but it will yield new line
@@ -1252,6 +1261,8 @@ class NVMECom():
             self.Print("shellCMD: %s"%shellCMD, "f")
             self.Print("searchPattern: %s"%searchPattern, "f")
             return None
+        
+
             
 #== end NVMECom =================================================
 

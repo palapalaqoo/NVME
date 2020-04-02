@@ -1,1 +1,9 @@
-CASE 1 : Test Host Memory Buffer : Pass
+CASE 1 : Test CNS=0x00, Identify Namespace data structure : Skip
+CASE 2 : Test CNS=0x01, Identify Controller Data Structure : Skip
+CASE 3 : Test CNS=0x02, A list of 1024 namespace IDs containing active NSIDs : Skip
+CASE 4 : Test CNS=0x03, Namespace Identification Descriptor structures : Skip
+CASE 5 : Test CNS=0x10, A list of 1024 namespace IDs containing allocated NSIDs : Skip
+CASE 6 : Test CNS=0x11, Identify Namespace data structure for the namespace specified NSID : Skip
+CASE 7 : Test CNS=0x12, Controller List for specified Namespace : Skip
+CASE 8 : Test CNS=0x13, Controller List of NVM subsystem : Skip
+CASE 9 : Test Namespace Utilization (NUSE) : Pass

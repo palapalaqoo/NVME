@@ -26,7 +26,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20190114"
+    Version = "20200402"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -49,6 +49,35 @@ class SMI_IdentifyCommand(NVME):
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    
+    def WaitSanitizeOperationFinish(self, timeout=600, printInfo=False):
+    # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout )         
+        if printInfo:
+            self.Print ("")
+            self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = %s)"%timeout)
+                        
+        per = self.GetLog.SanitizeStatus.SPROG
+        finish=True
+        if per != 65535:
+            # self.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 120s)", "w")
+            WaitCnt=0
+            while per != 65535:
+                #print ("Sanitize Progress: %s"%per)
+                per = self.GetLog.SanitizeStatus.SPROG
+                WaitCnt = WaitCnt +1
+                if WaitCnt ==timeout:
+                    #self.Print("Time out!", "f")  
+                    finish=False
+                    break
+                sleep(1)
+            #self.Print ("Recent sanitize operation was completed")
+   
+        if printInfo:
+            if finish:
+                self.Print("Done", "p")
+            else:
+                self.Print("Error, Time out!", "f")  
+        return finish        
     
     def GetValueFromUserFile(self, UserFile, idName):
         value=None
@@ -938,6 +967,233 @@ class SMI_IdentifyCommand(NVME):
             self.Print("Namespace Management supported: No")
             self.Print("Quit this test case")        
         return ret_code      
+ 
+    SubCase9TimeOut = 60
+    SubCase9Desc = "Test Namespace Utilization (NUSE)" 
+    def SubCase9(self): 
+        ret_code=0
+        
+        ThinProvisioningSupported =True if self.IdNs.NSFEAT.bit(0)=="1" else False
+        if not ThinProvisioningSupported:    
+            self.Print("ThinProvisioning not supported", "p")
+        else:
+            self.Print("ThinProvisioning supported", "p")
+                    
+        self.Print("")
+        self.Print("Try to format device with LBAF0")
+        consoleOut, Status = self.shell_cmd_with_sc("nvme format %s -n 1 -l 0 -s 0 -i 0"%self.dev)
+        if (Status!=0):
+            self.Print("fail to format device, quit!", "f")
+            return 1
+        else:
+            self.Print("Done")
+            
+        # return LBAF[[0, MS, LBADS, RP], [1, MS, LBADS, RP].. ,[15, MS, LBADS, RP]] , all value is interger
+        self.Print("Try to get current LBA Data Size (LBADS)")
+        LBAF = self.GetAllLbaf()
+        LBADS = LBAF[0][2]
+        LBADSinByte = pow(2,LBADS)
+        self.Print("Current LBADS: %s byte"%LBADSinByte)
+        
+        self.Print("")
+        self.Print("-- write command -------------------------------")    
+        NUSE = self.IdNs.NUSE.int
+        self.Print("Current NUSE: %s"%hex(NUSE), "p")        
+        
+        testSizeInLBA = 128
+        ActualSize = testSizeInLBA*LBADSinByte
+        self.Print("Try to write %s LBA(%s bytes), start from 0x0, pattern = 0xCE"%(testSizeInLBA, ActualSize))        
+        self.fio_write(offset = 0, size = ActualSize, pattern = 0xCE)
+        if self.fio_isequal(offset = 0, size = ActualSize, pattern = 0xCE):
+            self.Print("Done")
+        else:
+            self.Print("Fail to write data, quit!", "f")
+            return 1
+        
+        NUSE_c = self.IdNs.NUSE.int
+        self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+
+        # if write can not change NUSE, and not ThinProvisioning, the quit case
+        if(NUSE == NUSE_c):
+            if not ThinProvisioningSupported:
+                self.Print("NUSE was not changed after command")
+                self.Print("Because ThinProvisioning not supported, according to Spec.. , skip test case")
+                self.Print("- A controller may report NUSE equal to NCAP at all times")
+                self.Print("- if the product is not targeted for thin provisioning environments.")
+                return 0
+            else:
+                self.Print("NUSE was not changed after command, fail", "f")
+                ret_code = 1    
+      
+        
+        self.Print("")
+        DiffNUSE = NUSE_c - NUSE
+        self.Print("Difference value of NUSE: %s"%(DiffNUSE))
+        self.Print("Check if Difference value of NUSE = %s or not"%testSizeInLBA)
+        if(DiffNUSE == testSizeInLBA):
+            self.Print("Pass!", "p")
+        else:
+            self.Print("Fail!", "f")
+            ret_code = 1        
+
+        self.Print("")
+        self.Print("-- write uncorrectable command ------------")
+        WriteUncSupported = True if self.IdCtrl.ONCS.bit(1)=="1" else False
+        if not WriteUncSupported:    
+            self.Print("Write Uncorrectable not supported", "w")
+        else:
+            self.Print("Write Uncorrectable supported", "p")
+
+            self.Print("Try to format device with LBAF0")
+            consoleOut, Status = self.shell_cmd_with_sc("nvme format %s -n 1 -l 0 -s 0 -i 0"%self.dev)
+            if (Status!=0):
+                self.Print("fail to format device, quit!", "f")
+                return 1
+            else:
+                self.Print("Done")
+
+            NUSE = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
+            testSizeInLBA = 64
+            self.Print("Issue write uncorrectable command with start LBA = 0, BlockCnt = %s"%(testSizeInLBA))
+            self.write_unc(SLB = 0, BlockCnt = testSizeInLBA-1)
+            
+            NUSE_c = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("")
+            DiffNUSE = NUSE_c - NUSE
+            self.Print("Difference value of NUSE: %s"%(DiffNUSE))
+            self.Print("Check if Difference value of NUSE = %s or not"%(testSizeInLBA))
+            if(DiffNUSE == testSizeInLBA):
+                self.Print("Pass!", "p")
+            else:
+                self.Print("Fail!", "f")
+                ret_code = 1
+
+
+            
+        self.Print("")
+        self.Print("-- Deallocate command ------------")
+        DSMSupported = True if self.IdCtrl.ONCS.bit(2)=="1" else False
+        if not DSMSupported:    
+            self.Print("DSM(deallocate) not supported(deallocate)", "w")  
+        else:
+            self.Print("DSM(deallocate) supported", "p")
+
+            self.Print ("Start to write 100M data from block 0 with pattern is 0x5A")
+            self.fio_write(0, "100M", 0x5A, 1) 
+
+            NUSE = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
+            testSizeInLBA = 128
+            self.Print("Issue deallocate command with start LBA = 0, BlockCnt = %s"%(testSizeInLBA))
+            CMD = "nvme dsm %s -s 0 -b %s -d"%(self.dev, testSizeInLBA)
+            mStr, Status = self.shell_cmd_with_sc(CMD)
+            if (Status!=0):
+                self.Print("Write deallocate fail!", "f")
+                self.Print("Command: %s"%CMD, "f")
+                self.Print("Quit!", "f")
+                return 1
+            else:
+                self.Print("Done", "p")
+                
+            
+            NUSE_c = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("")
+            DiffNUSE = NUSE - NUSE_c
+            self.Print("Difference value of NUSE: %s"%(DiffNUSE))
+            self.Print("Check if Difference value of NUSE = %s or not"%(testSizeInLBA))
+            if(DiffNUSE == testSizeInLBA):
+                self.Print("Pass!", "p")
+            else:
+                self.Print("Fail!", "f")
+                ret_code = 1
+
+        self.Print("")
+        self.Print("-- Write zeros command ------------")
+        WZeroSupported = True if self.IdCtrl.ONCS.bit(3)=="1" else False
+        if not WZeroSupported:    
+            self.Print("Write zeros not supported(deallocate)", "w")  
+        else:
+            self.Print("Write zeros supported", "p")
+
+            self.Print ("Start to write 100M data from block 0 with pattern is 0x5A")
+            self.fio_write(0, "100M", 0x5A, 1) 
+
+            NUSE = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
+            testSizeInLBA = 64
+            self.Print("Issue write zero command with start LBA = 0, BlockCnt = %s"%(testSizeInLBA))
+            CMD = "nvme write-zeroes %s -s 0 -c %s"%(self.dev, testSizeInLBA)
+            mStr, Status = self.shell_cmd_with_sc(CMD)
+            if (Status!=0):
+                self.Print("Write zeroes fail!", "f")
+                self.Print("Command: %s"%CMD, "f")
+                self.Print("Quit!", "f")
+                return 1
+            else:
+                self.Print("Done", "p")
+                
+            
+            NUSE_c = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("")
+            DiffNUSE = NUSE - NUSE_c
+            self.Print("Difference value of NUSE: %s"%(DiffNUSE))
+            self.Print("Check if Difference value of NUSE = %s or not"%(testSizeInLBA))
+            if(DiffNUSE == testSizeInLBA):
+                self.Print("Pass!", "p")
+            else:
+                self.Print("Fail!", "f")
+                ret_code = 1            
+            
+        self.Print("")
+        self.Print("-- Sanitize(BlockErase) command ------------")
+        BlockEraseSupport = True if (self.IdCtrl.SANICAP.bit(1) == "1") else False
+        SANACT=2
+        if not BlockEraseSupport:    
+            self.Print("Sanitize(BlockErase) not supported", "w")  
+        else:
+            self.Print("Sanitize(BlockErase) supported", "p")
+
+            self.Print ("Start to write 100M data from block 0 with pattern is 0x5A")
+            self.fio_write(0, "100M", 0x5A, 1) 
+
+            NUSE = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
+            self.Print("Issue Sanitize BlockErase command")
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, SANACT)  
+            mStr, Status = self.shell_cmd_with_sc(CMD)
+            if (Status!=0):
+                self.Print("Sanitize fail!", "f")
+                self.Print("Command: %s"%CMD, "f")
+                self.Print("Quit!", "f")
+                return 1
+            else:
+                self.Print("Done", "p")
+            
+            self.Print("Wait sanitize command finish, timeout: 240s")    
+            if not self.WaitSanitizeOperationFinish(timeout=240, printInfo=False):   
+                self.Print("Time out, quit", "f")
+                return 1
+
+            self.Print("Sanitize operation was finished")   
+            NUSE_c = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("")
+            self.Print("Check if NUSE = 0 or not")
+            if(NUSE_c == 0):
+                self.Print("Pass!", "p")
+            else:
+                self.Print("Fail!", "f")
+                ret_code = 1               
+            
+            
+            
+              
+          
+        return ret_code  
     
     # </sub item scripts>    
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ from random import randint
 class SMI_SRIOV(NVME):
     ScriptName = "SMI_SRIOV.py"
     Author = "Sam"
-    Version = "20200226"
+    Version = "20200325"
     
     TypeInt=0x0
     TypeStr=0x1    
@@ -176,6 +176,10 @@ class SMI_SRIOV(NVME):
                 if value!=0: 
                     # wait for os to create drive        
                     sleep(2)
+                    # backup dmesg
+                    dmesgFileNameLast = "dmesgAfterSRIOV_Last.txt"
+                    dmesgFileNameCurr = "dmesgAfterSRIOV_Curr.txt"            
+                    self.DmesgBackup(dmesgFileNameLast, dmesgFileNameCurr)
                     # get VF list
                     self.VFDevices = self.GetVFListCreatedByPF()
                     # save to AllDevices
@@ -1716,6 +1720,16 @@ class SMI_SRIOV(NVME):
                     # end of save to csv
                     self.Print("")         
 
+    def DmesgBackup(self, dmesgFileNameLast, dmesgFileNameCurr):
+        self.Print("Backup current dmesg to %s"%dmesgFileNameCurr)  
+        # move to last
+        if self.isfileExist(dmesgFileNameCurr):
+            self.shell_cmd("mv %s %s"%(dmesgFileNameCurr, dmesgFileNameLast)) 
+        # print timestamp
+        timeStamp = self.PrefixString()
+        self.shell_cmd("echo '%s' > %s"%(timeStamp, dmesgFileNameCurr))
+        # print dmesg
+        self.shell_cmd("dmesg >> %s"%(dmesgFileNameCurr))         
     
     def __init__(self, argv): 
         # initial new parser if need, -t -d -s -p was used, dont use it again
@@ -1725,6 +1739,8 @@ class SMI_SRIOV(NVME):
         self.SetDynamicArgs(optionName="c", optionNameFull="CurrentLoopForResumeFromReboot", helpMsg="curren loop for resume from reboot, please do not set it", argType=int)
         self.SetDynamicArgs(optionName="acc", optionNameFull="CurrentUbuntuUserAccount", helpMsg="Current Ubuntu user account", argType=str)
         self.SetDynamicArgs(optionName="pw", optionNameFull="CurrentUbuntuUserPassword", helpMsg="Current Ubuntu user password", argType=str)
+        self.SetDynamicArgs(optionName="v", optionNameFull="timerAfterReboot", helpMsg="waiting timer After Reboot, then run script for case14", argType=int) 
+        
                 
         # initial parent class
         super(SMI_SRIOV, self).__init__(argv)      
@@ -1737,6 +1753,15 @@ class SMI_SRIOV(NVME):
         self.CurrentLoopForResumeFromReboot = int(self.GetDynamicArgs(3)  ) if self.GetDynamicArgs(3)!=None else None
         self.UserAcc = "" if self.GetDynamicArgs(4)==None else self.GetDynamicArgs(4)
         self.UserPw = "" if self.GetDynamicArgs(5)==None else self.GetDynamicArgs(5)
+        self.timerAfterReboot = self.GetDynamicArgs(6)
+        
+        if self.timerAfterReboot!= None:
+            self.Print("timerAfterReboot: %s, sleep for %s seconds"%(self.timerAfterReboot, self.timerAfterReboot))
+            sleep(self.timerAfterReboot)    
+            
+        dmesgFileNameLast = "dmesgBeforeSRIOV_Last.txt"
+        dmesgFileNameCurr = "dmesgBeforeSRIOV_Curr.txt"            
+        self.DmesgBackup(dmesgFileNameLast, dmesgFileNameCurr)
 
         # set defalut loop =1   
         self.loops=1 if self.loops==None else self.loops

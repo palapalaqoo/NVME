@@ -130,6 +130,68 @@ class SMI_XT_SRIOV(NVME):
         else: 
             self.Print("Done", "p")
             return True 
+
+    def Format(self, nsid, lbaf, ses, pil=0, pi=0, ms=0):
+        # namespace-id, 
+        # LBA format, 
+        # Secure Erase Settings, 
+        # Protection Information Location, 
+        # Protection Information,
+        # Metadata Settings
+        mbuf=self.shell_cmd_with_sc(" nvme format %s -n %s -l %s -s %s -p %s -i %s -m %s 2>&1"%(self.dev_port, nsid, lbaf, ses, pil, pi, ms))
+        return mbuf
+    
+    def FormatNSID_01(self):
+        value, SC, = self.Format(0x1, 0, 0) 
+        self.Print("Command status code: %s"%SC)
+        if int(SC)==0:
+            self.Print("Success", "p")
+            return True
+        else:
+            self.Print("Fail", "f")
+            self.Print("Command return info: %s"%value, "f")
+            return False
+            
+    def SanitizeBlockErase(self):
+        self.SANACT=2
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
+        value, SC = self.shell_cmd_with_sc(CMD)
+        self.Print("Command status code: %s"%SC)
+        if int(SC)==0:
+            self.Print("Success", "p")
+            # wait if sanitize is in progressing
+            self.Print("Wait for sanitize finish!, timeout=120s")
+            if not self.WaitSanitizeFinish(120): 
+                self.Print("After 120s, Sanitize is still in progress,  timeout")
+                return False
+            self.Print("Sanitize is finish now")           
+            return True
+        else:
+            self.Print("Fail", "f")
+            self.Print("Command return info: %s"%value, "f")
+            return False        
+
+    def VerifyAllDevices(self, excludeDev=None, printInfo=True, expectedPatternWasCleared=False):
+        # vierify if  '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc.. , for all VF/PV and exclude excludeDev device
+        # if expectedPatternWasCleared, expected data was cleared
+        mPass=True
+        for Dev in self.AllDevices:     
+            if Dev!=excludeDev:    
+                # verify
+                mStr = self.shell_cmd("hexdump %s -n 512 -C 2>&1"%Dev)
+                if not expectedPatternWasCleared:
+                    if bool(re.search("%s"%Dev, mStr)):
+                        self.Print("Check %s: Expected string at block 0 is '%s' : Pass"%(Dev, Dev), "p") if printInfo else None
+                    else:
+                        self.Print("Check %s: Expected string at block 0 is '%s' : Fail"%(Dev, Dev), "f") if printInfo else None
+                        mPass=False
+                else:
+                    if bool(re.search("%s"%Dev, mStr)):
+                        self.Print("Check %s: Expected string at block 0 is not '%s' : Fail"%(Dev, Dev), "f") if printInfo else None
+                        mPass=False  
+                    else:
+                        self.Print("Check %s: Expected string at block 0 is not '%s' : Pass"%(Dev, Dev), "p") if printInfo else None                                          
+        return mPass    
     
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops for cases", argType=int)
@@ -170,6 +232,13 @@ class SMI_XT_SRIOV(NVME):
         self.Print("")
         nmuvfs = self.GetCurrentNumOfVF()
         self.Print("Current Num Of VF: %s"%nmuvfs, "p")   
+        
+        # wait if sanitize is in progressing
+        self.Print("Check if last sanitize is in progress!, timeout=120s")
+        if not self.WaitSanitizeFinish(120): 
+            self.Print("After 120s, Sanitize is still in progress,  timeout")
+            return False
+        self.Print("Sanitize is not in progress now")
                
               
         return True            
@@ -178,8 +247,7 @@ class SMI_XT_SRIOV(NVME):
     SubCase1TimeOut = 1800
     SubCase1Desc = "Test Host Memory Buffer"   
     SubCase1KeyWord = ""
-    def SubCase1(self):      
-        ret_code=0
+    def SubCase1(self):
         
         self.Print("Check if crontroller support HMB or not (identify HMPRE >0)")
         if self.IdCtrl.HMPRE.int==0:
@@ -202,18 +270,84 @@ class SMI_XT_SRIOV(NVME):
             TargetMHMB=0
             if not self.TestHMB(TargetMHMB): return 1
             TargetMHMB=MHMB
-            if not self.TestHMB(TargetMHMB): return 1       
+            if not self.TestHMB(TargetMHMB): return 1   
+            
+        return 0    
+            
+    SubCase2TimeOut = 1800
+    SubCase2Desc = "Test NVMe Format"   
+    SubCase2KeyWord = ""
+    def SubCase2(self):      
+        self.Print("NVMe format test")
+        self.Print("")
+        self.Print("1) Enable all VF") 
+        if not self.EnableAllVF(): return False
+        
+        #write data to all devices, except SpecificDevice
+        self.Print("2) Write pattern to all devices, e.g. '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc..")
+        for Dev in self.AllDevices:         
+            # write '/dev/nvme0n1' to the first block of /dev/nvme0n1 and  '/dev/nvme1n1' to /dev/nvme1n1                
+            CMD= "echo %s | nvme write %s --data-size=512 --prinfo=1 2>&1 > /dev/nul"%(Dev, Dev)
+            self.shell_cmd(CMD)
+            
+        # verify    
+        self.Print("3) Check if the Write pattern is success")
+        if not self.VerifyAllDevices(excludeDev=None, printInfo=True): return 1 
+        
+        # issue format cmd                            
+        self.Print("4) Issue NVMe format with LBAF=0 for PF")         
+        if not self.FormatNSID_01(): return 1 
+        
+        # check all VF/PF data
+        self.Print("5) Check if the Write pattern was erased after format command for all VF/PF")
+        if not self.VerifyAllDevices(excludeDev=None, printInfo=True, expectedPatternWasCleared=True): return 1         
+        
+        self.Print("6) Disable all VF") 
+        if not self.DisableAllVF(): return False
+        self.Print("Done", "p")           
+        
+        return 0        
                  
             
-
+    SubCase3TimeOut = 1800
+    SubCase3Desc = "Test NVMe Sanitize"   
+    SubCase3KeyWord = ""
+    def SubCase3(self):      
+        self.Print("NVMe Sanitize test")
+        self.Print("")
+        self.Print("1) Enable all VF") 
+        if not self.EnableAllVF(): return False
+        
+        #write data to all devices, except SpecificDevice
+        self.Print("2) Write pattern to all devices, e.g. '/dev/nvme0n1' to the first block of /dev/nvme0n1, etc..")
+        for Dev in self.AllDevices:         
+            # write '/dev/nvme0n1' to the first block of /dev/nvme0n1 and  '/dev/nvme1n1' to /dev/nvme1n1                
+            CMD= "echo %s | nvme write %s --data-size=512 --prinfo=1 2>&1 > /dev/nul"%(Dev, Dev)
+            self.shell_cmd(CMD)
+            
+        # verify    
+        self.Print("3) Check if the Write pattern is success")
+        if not self.VerifyAllDevices(excludeDev=None, printInfo=True): return 1 
+        
+        # issue sanitize cmd                                         
+        self.Print ("4) issue Sanitize block erase") 
+        if not self.SanitizeBlockErase(): return 1         
+        
+        # check all VF/PF data
+        self.Print("5) Check if the Write pattern was erased after sanitize command for all VF/PF")
+        if not self.VerifyAllDevices(excludeDev=None, printInfo=True, expectedPatternWasCleared=True): return 1         
+        
+        self.Print("6) Disable all VF") 
+        if not self.DisableAllVF(): return False
+        self.Print("Done", "p")           
+        
+        return 0     
             
                                  
                 
                 
   
-                
-        
-        return ret_code     
+                  
     # </define sub item scripts>
 
     # define PostTest  
