@@ -141,6 +141,9 @@ class mtest1(NVME):
     
     def SubCase1(self):
 
+
+        aa = self.GetPciePort("/dev/nvme1n1")
+
         aa=self.shell_cmd("which python2.7 >/dev/null 2>&1 ; echo $?")
         print aa
         aa=self.shell_cmd("which python >/dev/null 2>&1 ; echo $?")

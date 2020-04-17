@@ -18,6 +18,7 @@ import re
 import os
 import csv
 import shutil
+from random import randint
 # Import VCT modules
 from lib_vct.NVME import NVME
 
@@ -968,7 +969,7 @@ class SMI_IdentifyCommand(NVME):
             self.Print("Quit this test case")        
         return ret_code      
  
-    SubCase9TimeOut = 60
+    SubCase9TimeOut = 600
     SubCase9Desc = "Test Namespace Utilization (NUSE)" 
     def SubCase9(self): 
         ret_code=0
@@ -998,20 +999,20 @@ class SMI_IdentifyCommand(NVME):
         self.Print("")
         self.Print("-- write command -------------------------------")    
         NUSE = self.IdNs.NUSE.int
-        self.Print("Current NUSE: %s"%hex(NUSE), "p")        
+        self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")        
         
-        testSizeInLBA = 128
+        testSizeInLBA = randint(0x0, 0xFF) * 8  # testSizeInLBA 4K align
         ActualSize = testSizeInLBA*LBADSinByte
         self.Print("Try to write %s LBA(%s bytes), start from 0x0, pattern = 0xCE"%(testSizeInLBA, ActualSize))        
-        self.fio_write(offset = 0, size = ActualSize, pattern = 0xCE)
-        if self.fio_isequal(offset = 0, size = ActualSize, pattern = 0xCE):
+        self.fio_write(offset = 0, size = ActualSize, pattern = 0xCE,  fio_bs = "4k")
+        if self.fio_isequal(offset = 0, size = ActualSize, pattern = 0xCE, fio_bs = "4k"):
             self.Print("Done")
         else:
             self.Print("Fail to write data, quit!", "f")
             return 1
         
         NUSE_c = self.IdNs.NUSE.int
-        self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+        self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
 
         # if write can not change NUSE, and not ThinProvisioning, the quit case
         if(NUSE == NUSE_c):
@@ -1053,13 +1054,13 @@ class SMI_IdentifyCommand(NVME):
                 self.Print("Done")
 
             NUSE = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
-            testSizeInLBA = 64
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")  
+            testSizeInLBA = randint(0x0, 0xFF) * 8
             self.Print("Issue write uncorrectable command with start LBA = 0, BlockCnt = %s"%(testSizeInLBA))
             self.write_unc(SLB = 0, BlockCnt = testSizeInLBA-1)
             
             NUSE_c = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
             self.Print("")
             DiffNUSE = NUSE_c - NUSE
             self.Print("Difference value of NUSE: %s"%(DiffNUSE))
@@ -1084,8 +1085,8 @@ class SMI_IdentifyCommand(NVME):
             self.fio_write(0, "100M", 0x5A, 1) 
 
             NUSE = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
-            testSizeInLBA = 128
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")  
+            testSizeInLBA = randint(0x0, 0xFF) * 8
             self.Print("Issue deallocate command with start LBA = 0, BlockCnt = %s"%(testSizeInLBA))
             CMD = "nvme dsm %s -s 0 -b %s -d"%(self.dev, testSizeInLBA)
             mStr, Status = self.shell_cmd_with_sc(CMD)
@@ -1099,7 +1100,7 @@ class SMI_IdentifyCommand(NVME):
                 
             
             NUSE_c = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
             self.Print("")
             DiffNUSE = NUSE - NUSE_c
             self.Print("Difference value of NUSE: %s"%(DiffNUSE))
@@ -1122,8 +1123,8 @@ class SMI_IdentifyCommand(NVME):
             self.fio_write(0, "100M", 0x5A, 1) 
 
             NUSE = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
-            testSizeInLBA = 64
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")  
+            testSizeInLBA = randint(0x0, 0xFF) * 8
             self.Print("Issue write zero command with start LBA = 0, BlockCnt = %s"%(testSizeInLBA))
             CMD = "nvme write-zeroes %s -s 0 -c %s"%(self.dev, testSizeInLBA)
             mStr, Status = self.shell_cmd_with_sc(CMD)
@@ -1137,7 +1138,7 @@ class SMI_IdentifyCommand(NVME):
                 
             
             NUSE_c = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
             self.Print("")
             DiffNUSE = NUSE - NUSE_c
             self.Print("Difference value of NUSE: %s"%(DiffNUSE))
@@ -1161,7 +1162,7 @@ class SMI_IdentifyCommand(NVME):
             self.fio_write(0, "100M", 0x5A, 1) 
 
             NUSE = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE), "p")  
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")  
             self.Print("Issue Sanitize BlockErase command")
             CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, SANACT)  
             mStr, Status = self.shell_cmd_with_sc(CMD)
@@ -1180,7 +1181,7 @@ class SMI_IdentifyCommand(NVME):
 
             self.Print("Sanitize operation was finished")   
             NUSE_c = self.IdNs.NUSE.int
-            self.Print("Current NUSE: %s"%hex(NUSE_c), "p")
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
             self.Print("")
             self.Print("Check if NUSE = 0 or not")
             if(NUSE_c == 0):

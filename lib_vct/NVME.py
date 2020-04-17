@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from _ctypes import sizeof
 
 # Import python built-ins
 '''
@@ -67,7 +68,11 @@ class NVME(object, NVMECom):
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
             sys.exit(1)
         # self.dev_port = /dev/nvme0
-        self.dev_port=self.dev[0:self.dev.find("nvme")+5]
+        #self.dev_port=self.dev[0:self.dev.find("nvme")+5]
+        self.dev_port=self.GetDevPort(self.dev)
+        if (self.dev_port==""):
+            self.Print("Cant find device controller (ex: /dev/nvme0)", "f")  
+            sys.exit(1)        
         # self.dev_ns = 1
         self.dev_ns=self.dev[-1:]
         
@@ -203,10 +208,10 @@ class NVME(object, NVMECom):
     
     def GetNSID(self):
         return int(self.GetStrFromREsearchByShellCMD(shellCMD = "nvme list-ns %s"%self.device, searchPattern = ".*:(.*)") ,16 )
-        
-    def GetPciePort(self, dev):
+    
+    def GetSysClass(self, dev):
     # dev = /dev/nvme0n1
-    # e.x. return 0000:01:00.0
+    # return '/sys/class/nvme/nvme1'
         #return self.shell_cmd(" udevadm info %s  |grep P: |cut -d '/' -f 5" %(dev))
         mStr="/dev/nvme(\d+)n(\d+)"
         if re.search(mStr, dev):
@@ -215,27 +220,51 @@ class NVME(object, NVMECom):
             # ex. /sys/class/nvme/nvme1/nvme0c1n5 or /sys/class/nvme/nvme1/nvme0n5
             # get /sys/class/nvme/nvme1/ 
             CMD = "find /sys/class/nvme/*/* -name 'nvme%s*n%s'  |cut -d '/' -f 1,2,3,4,5"%(devID, nsID)
-            rt = self.shell_cmd(CMD)    
+            rt = self.shell_cmd(CMD)  
             if rt == "":
-                self.Print("Cant find pcie port, %s"%CMD, "f")  
-                sys.exit(1)  
-            rt = rt + "/device/uevent"    
-            CMD = "cat %s"%(rt)     
-            # read file 'uevent'           
-            rt = self.shell_cmd(CMD)    
-            if rt == "":
-                self.Print("Cant find file, %s"%rt, "f")  
-                sys.exit(1)  
-                
-            #mStr="PCI_SLOT_NAME=([\:\d\.]+)" # dot and : and number only
-            mStr="PCI_SLOT_NAME=(\S+)"
-            if re.search(mStr, rt):
-                PciePort=re.search(mStr, rt).group(1)     
-            else:
-                self.Print("Cant find 'PCI_SLOT_NAME' in file, %s"%rt, "f")  
-                sys.exit(1)            
-                
-            return PciePort
+                self.Print("Cant find pcie port(ex: /dev/nvme0), %s"%CMD, "f")              
+            return rt
+        else:
+            return ""
+        
+    def GetDevPort(self, dev):
+    # dev = /dev/nvme0n1
+    # e.x. return /dev/nvme0, but it may return different port if there are more then 1 nvme devices        
+        rt = self.GetSysClass(dev)
+        mStr="/sys/class/nvme/nvme(\d+)"
+        if re.search(mStr, rt):
+            portID=re.search(mStr, rt).group(1)
+            devPort = "/dev/nvme%s"%portID
+        else:
+            devPort = ""
+        return devPort
+
+    
+            
+    def GetPciePort(self, dev):
+    # dev = /dev/nvme0n1
+    # e.x. return 0000:01:00.0
+        rt = self.GetSysClass(dev)
+        if rt == "":
+            self.Print("Can't GetSysClass", "f")
+            sys.exit(1)  
+        rt = rt + "/device/uevent"    
+        CMD = "cat %s"%(rt)     
+        # read file 'uevent'           
+        rt = self.shell_cmd(CMD)    
+        if rt == "":
+            self.Print("Cant find file, %s"%rt, "f")  
+            sys.exit(1)  
+            
+        #mStr="PCI_SLOT_NAME=([\:\d\.]+)" # dot and : and number only
+        mStr="PCI_SLOT_NAME=(\S+)"
+        if re.search(mStr, rt):
+            PciePort=re.search(mStr, rt).group(1)     
+        else:
+            self.Print("Cant find 'PCI_SLOT_NAME' in file, %s"%rt, "f")  
+            sys.exit(1)            
+            
+        return PciePort    
             
 
                 
@@ -667,15 +696,21 @@ class NVME(object, NVMECom):
             return "0"
     
     def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1, fio_bs="64k"):
-        devPort=self.dev_port if devPort==None else devPort
-        DEV=devPort+"n%s"%nsid 
+        if devPort==None:
+            # replease nsid
+            DEV = self.dev[0:self.dev.find("nvme")+5] + "n%s"%nsid 
+        else:
+            DEV=devPort+"n%s"%nsid 
         return self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, DEV, offset, size, pattern))
     
     def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1, printMsg=False):
     #-- return boolean
-        devPort=self.dev_port if devPort==None else devPort
-        DEV=devPort+"n%s"%nsid 
+        if devPort==None:
+            # replease nsid
+            DEV = self.dev[0:self.dev.find("nvme")+5] + "n%s"%nsid 
+        else:
+            DEV=devPort+"n%s"%nsid 
         msg =  self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\|fio: got pattern\| io_u error' " %(fio_direct, fio_bs, DEV, offset, size, pattern))
 

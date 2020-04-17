@@ -172,11 +172,11 @@ class SMI_Telemetry(NVME):
         for DataBlock in range(12, 513, 50):
             self.Print ("Send Get Log Page command for %s byte data of Data Blocks "%DataBlock)
             
-            mStr = self.shell_cmd("nvme get-log %s --log-id=0x7 --log-len=%s 2>&1"%(self.dev, DataBlock))
+            mStr, SC = self.shell_cmd_with_sc("nvme get-log %s --log-id=0x7 --log-len=%s 2>&1"%(self.dev, DataBlock))
             self.Print(mStr)
         
             # if (not a multiple of 512 bytes and get get log fail) or (multiple of 512 bytes and get log success), then pass the test
-            if (re.search("NVMe Status:INVALID_FIELD", mStr) and DataBlock!=512) or (not re.search("NVMe Status:INVALID_FIELD", mStr) and DataBlock==512):
+            if (SC!=0 and DataBlock!=512) or (SC==0 and DataBlock==512):
                 self.Print("PASS", "p")     
             else:
                 self.Print("Fail", "f")
@@ -287,11 +287,11 @@ class SMI_Telemetry(NVME):
         for DataBlock in range(12, 513, 50):
             self.Print ("Send Get Log Page command for %s byte datas of Data Blocks "%DataBlock)
             
-            mStr = self.shell_cmd("nvme get-log %s --log-id=0x8 --log-len=%s 2>&1"%(self.dev, DataBlock))
+            mStr, SC = self.shell_cmd_with_sc("nvme get-log %s --log-id=0x8 --log-len=%s 2>&1"%(self.dev, DataBlock))
             self.Print(mStr)
         
             # if (not a multiple of 512 bytes and get get log fail) or (multiple of 512 bytes and get log success), then pass the test
-            if (re.search("NVMe Status:INVALID_FIELD", mStr) and DataBlock!=512) or (not re.search("NVMe Status:INVALID_FIELD", mStr) and DataBlock==512):
+            if (SC!=0 and DataBlock!=512) or (SC==0 and DataBlock==512):
                 self.Print("PASS", "p")     
             else:
                 self.Print("Fail", "f")

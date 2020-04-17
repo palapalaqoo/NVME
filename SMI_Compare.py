@@ -26,7 +26,7 @@ class SMI_Compare(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Compare.py"
     Author = "Sam Chan"
-    Version = "20190819"
+    Version = "20200417"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -34,10 +34,10 @@ class SMI_Compare(NVME):
     
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    def CMDisSuccess(self, mstr):
-        cmdsuc0=bool(re.search("NVMe command result:00000000", mstr))
-        cmdsuc1=bool(re.search("NVMe Status:COMPARE_FAILED", mstr)) 
-        return cmdsuc0 or cmdsuc1
+    def CMDisSuccess(self, SC):
+        # if command return cstatus code = 0(success) or 0x85(compare fail)
+        cmdsuc=True if (SC==0x85 or SC==0x0) else False
+        return cmdsuc
     
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -51,8 +51,8 @@ class SMI_Compare(NVME):
         self.Print( msg1  )
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1 "%(self.dev, cdw10, cdw11))
-        retCommandSueess=self.CMDisSuccess(mStr)
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1 "%(self.dev, cdw10, cdw11))
+        retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
             return True         
@@ -65,8 +65,8 @@ class SMI_Compare(NVME):
         #start from block 0
         cdw10, cdw11=self.getDW10_DW11(0)
         cdw12=(LR<<31) + (FUA<<30)+ (PRINFO<<26) + NLB
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, cdw10, cdw11, cdw12))
-        retCommandSueess=self.CMDisSuccess(mStr)
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, cdw10, cdw11, cdw12))
+        retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :        
             return True         
         else:
@@ -81,9 +81,9 @@ class SMI_Compare(NVME):
         self.Print( msg0 )
         self.Print( msg1  ) 
         cdw12=NLB        
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
-                            %(NLB+1, self.dev, 512*(NLB+1), 0, 0, cdw12))
-        retCommandSueess=self.CMDisSuccess(mStr)
+        mStr, SC=self.shell_cmd_with_sc("nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s -i temp.bin 2>&1"\
+                            %(self.dev, 512*(NLB+1), 0, 0, cdw12))
+        retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
             return True         
@@ -93,8 +93,8 @@ class SMI_Compare(NVME):
             return False 
         
     def testDW13(self, DSM, ExpectCommandSuccess):      
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw13=%s 2>&1"%(self.dev, DSM))
-        retCommandSueess=self.CMDisSuccess(mStr)
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw13=%s 2>&1"%(self.dev, DSM))
+        retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
         else:
@@ -104,8 +104,8 @@ class SMI_Compare(NVME):
             return False       
     
     def testDW14(self, EILBRT, ExpectCommandSuccess):      
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw14=%s 2>&1"%(self.dev, EILBRT))
-        retCommandSueess=self.CMDisSuccess(mStr)
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw14=%s 2>&1"%(self.dev, EILBRT))
+        retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
         else:
@@ -116,8 +116,8 @@ class SMI_Compare(NVME):
         
     def testDW15(self, ELBATM,ELBAT, ExpectCommandSuccess):      
         CDW15=(ELBATM<<16)+ELBAT
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw15=%s 2>&1"%(self.dev, CDW15))
-        retCommandSueess=self.CMDisSuccess(mStr)
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw15=%s 2>&1"%(self.dev, CDW15))
+        retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
         else:
@@ -144,6 +144,29 @@ class SMI_Compare(NVME):
         self.CMDSupported=True if self.CMDSupported=="1" else False
         self.Print ("Compare command supported") if self.CMDSupported else self.Print ("Compare command not supported")
         
+        if self.CMDSupported:
+            self.Print ("Write 0x5A to first 10M data")
+            self.fio_write(offset = 0, size = "10M", pattern = 0x5A)
+            if self.fio_isequal(offset = 0, size = "10M", pattern = 0x5A):
+                self.Print ("Done", "p")
+                
+                ncap=self.IdNs.NCAP.int
+                self.Print ("NCAP: %s"%ncap)
+                self.Print ("Write 0x5A to last block: %s"%(ncap-1))
+                self.nvme_write_1_block(value = 0x5A, block = ncap-1)
+                
+                # create compare file(temp.bin), size = MDTSinBlock +1(ex, MDTSinBlock=512, create 513block) , data = 0x5A
+                NLB = self.MDTSinBlock
+                CMD = "dd if=/dev/zero bs=512 count=%s 2>&1 |tr \\\\000 \\\\132 > temp.bin"%(NLB+1)
+                mStr, SC=self.shell_cmd_with_sc(CMD)
+                if SC!=0:
+                    self.Print ("Create compare file(temp.bin) fail")
+                    return False
+            else:
+                self.Print ("Verify data fail, quit", "f")
+                return False
+        
+        self.Print ("")
         return True if self.CMDSupported else False
     
     # <sub item scripts>

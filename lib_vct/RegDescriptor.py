@@ -13,7 +13,7 @@ class RegDescriptor(object,NVMECom):
     
     def __init__(self, mcmd=None, mreg='var', bitStart=0, bitStop=65535,regType=RegType.hex, nsSpec=True, NVMEobj=None):
         self.device=NVMEobj.dev
-        self.device_port=NVMEobj.dev[0:NVMEobj.dev.find("nvme")+5]        
+        self.device_port=NVMEobj.dev_port
         self.cmd = mcmd
         self.reg = mreg     
         self.bitstart = bitStart
@@ -36,8 +36,11 @@ class RegDescriptor(object,NVMECom):
             DEV=self.device
         else:
             DEV=self.device_port
+        # if show-regs, using device_port
+        if cmd == "show-regs":
+            DEV=self.device_port
         #DEV=self.device if cmd=="id-ns" else self.device_port
-        mStr="nvme %s %s |grep '%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
+        mStr="nvme %s %s |grep '^%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
         if gettype==0:
             return self.shell_cmd(mStr)[::-1]
         if gettype==1:

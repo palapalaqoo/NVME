@@ -25,7 +25,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20191030"
+    Version = "20200407"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -483,13 +483,35 @@ class SMI_Format(NVME):
     SubCase7KeyWord = "format NVM - Command Dword 10"
     def SubCase7(self): 
         ret_code=0
+        
+        LBAFid = None
+        # initial test item for metadata
+        TestItems=[]      
+        for x in range(15):
+            RP = self.LBAF[x][self.lbafds.RP]
+            LBADS = self.LBAF[x][self.lbafds.LBADS] 
+            MS = self.LBAF[x][self.lbafds.MS] 
+            if MS!=0 and LBADS>=9:                           
+                TestItems.append([x, RP, LBADS, MS])      
+                  
+        self.Print ("Number of LBA formats (self.NLBAF): %s"%self.NLBAF)
+        self.Print ("If LBA format support metadata, list the LBAFs")         
+        if not TestItems:
+            self.Print ("All the LBA format does't support metadata, quit this test case!")
+            return 0     
+        else:
+            for Item in TestItems:
+                self.Print("LBAF %s, RP: %s, LBADS: %s, MS: %s"%(Item[0], Item[1], Item[2], Item[3]))  
+                if LBAFid==None:    # use first lbaf that is support metadata
+                        LBAFid = Item[0]
+        
         self.Print ("")
-        self.Print ("Send format command with MSET = 0")
+        self.Print ("Send format command with MSET = 0, LBAF: %s"%LBAFid)
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0, 0);
         ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         self.Print ("")
-        self.Print ("Send format command with MSET = 1")
+        self.Print ("Send format command with MSET = 1, LBAF: %s"%LBAFid)
         self.Print ("Check return code, expected returned status code: Success")
         mStr=self.Format(1, 0, 0, 0, 0, 1);
         ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
