@@ -216,6 +216,13 @@ class NVMECom():
         mStr = self.shell_cmd(cmd, sleep_time)        
         SC = int(mStr.split()[-1])# last line is status code
         value = mStr.rsplit("\n",1)[0]# after remove the last line, is return value
+        # if command fail and is nvme cli command
+        if SC!=0:
+            mStr="NVMe\s+Status.+\((\w+)\)" # ex. NVMe Status:INVALID_NS(b) NVMe\s+Status.+\((\w+)\)
+            if re.search(mStr, value, re.IGNORECASE):
+                SC = re.search(mStr, value, re.IGNORECASE).group(1)  
+                SC = int(SC, 16)
+        
         return value, SC
         
 

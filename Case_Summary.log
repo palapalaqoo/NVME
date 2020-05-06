@@ -1,5 +1,12 @@
-CASE 1 : Test Command Dword 10 and Command Dword 11 for Starting LBA (SLBA) : Pass
-CASE 2 : Test Command Dword 12 for LR, FUA, PRINFO : Pass
-CASE 3 : Test Command Dword 12 for NLB : Pass
-CASE 4 : Test Command Dword 14 : Pass
-CASE 5 : Test Command Dword 15 : Pass
+CASE 1 : Test critical warnings : Skip
+CASE 2 : Test data_units_read with read command : Skip
+CASE 3 : Test data_units_read with compare command : Skip
+CASE 4 : Test data_units_written with write command : Skip
+CASE 5 : Test data_units_written with Write Uncorrectable command : Skip
+CASE 6 : Test host_read_commands and host_write_commands : Skip
+CASE 7 : Test controller busy time : Skip
+CASE 8 : Test media error and error log : Skip
+CASE 9 : Test power_cycle : Skip
+CASE 10 : Test Unsafe_Shutdowns for POR : Skip
+CASE 11 : Test Unsafe_Shutdowns for SPOR : Skip
+CASE 12 : Test get SMART / Health log on a per namespace basis : Pass

@@ -141,7 +141,12 @@ class mtest1(NVME):
     
     def SubCase1(self):
 
-
+        aa, SC= self.shell_cmd_with_sc("ls aaa")
+        
+        
+        
+        
+        aa= self.MaxNLBofCDW12()
         aa = self.GetPciePort("/dev/nvme1n1")
 
         aa=self.shell_cmd("which python2.7 >/dev/null 2>&1 ; echo $?")

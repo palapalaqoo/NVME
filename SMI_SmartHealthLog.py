@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20200226"
+    Version = "20200506"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -133,6 +133,8 @@ class SMI_SmartHealthLog(NVME):
         self.WriteUncSupported=True if self.WriteUncSupported=="1" else False
         self.Print ("Write Uncorrectable command supported", "p") if self.WriteUncSupported else self.Print ("Write Uncorrectable command not supported", "f")        
         self.Print ("")
+        
+        self.MaxBlockCnt= self.MaxNLBofCDW12()
     # <sub item scripts>
     SubCase1TimeOut = 60
     SubCase1Desc = "Test critical warnings"        
@@ -223,13 +225,30 @@ class SMI_SmartHealthLog(NVME):
     def SubCase2(self): 
         ret_code=0        
         
+        self.Print("MaxBlockCnt: %s"%self.MaxBlockCnt)
+        if self.MaxBlockCnt>=511:
+            cmdBlockCnt = 499
+            cmdRange = 2000
+        elif self.MaxBlockCnt>=255:
+            cmdBlockCnt = 249
+            cmdRange = 4000
+        else:
+            cmdBlockCnt = 124
+            cmdRange = 8000        
+        
         data_units_read0=self.GetLog.SMART.DataUnitsRead
         self.Print("Issue get log command, data_units_read: %s"%data_units_read0)
                 
-        self.Print("Issue read command for 1000*512*1000 bytes")
-        CMD="nvme read %s -s 0 -z 256000 -c 499  2>&1 >/dev/null "%self.dev
-        for i in range(2000):            
-            self.shell_cmd(CMD)
+        self.Print("Issue read command for 1000*512*1000 bytes(%s nvme commands with block count = %s)"%(cmdRange, cmdBlockCnt))
+        CMD="nvme read %s -s 0 -z %s -c %s  2>&1 >/dev/null "%(self.dev, (cmdBlockCnt+1)*512, cmdBlockCnt)
+        for i in range(cmdRange):            
+            mStr, SC = self.shell_cmd_with_sc(CMD)
+            if SC!=0:
+                self.Print("CMD Fail at %s read command"%i, "f")
+                self.Print("CMD : %s"%CMD, "f")
+                self.Print("Return code: %s"%SC, "f")
+                return 1
+                
 
 
         data_units_read1=self.GetLog.SMART.DataUnitsRead
@@ -251,18 +270,28 @@ class SMI_SmartHealthLog(NVME):
     def SubCase3(self): 
         ret_code=0        
         
+        self.Print("MaxBlockCnt: %s"%self.MaxBlockCnt)
+        if self.MaxBlockCnt>=511:
+            cmdBlockCnt = 499
+            cmdRange = 2000
+        elif self.MaxBlockCnt>=255:
+            cmdBlockCnt = 249
+            cmdRange = 4000
+        else: #if self.MaxBlockCnt>=127:
+            cmdBlockCnt = 124
+            cmdRange = 8000   
+                    
         if not self.CompareSupported:
             self.Print("Compare command not support, skip","w")
             ret_code=255
         else:
             data_units_read0=self.GetLog.SMART.DataUnitsRead
             self.Print("Issue get log command, data_units_read: %s"%data_units_read0)
-                    
-            self.Print("Issue compare command for 1000*512*1000 bytes")
-            CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 256000 -c 499 2>&1 > /dev/null"%self.dev
-            for i in range(2000):            
-                self.shell_cmd(CMD)
-    
+            
+            self.Print("Issue compare command for 1000*512*1000 bytes(%s nvme commands with block count = %s)"%(cmdRange, cmdBlockCnt))
+            CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z %s -c %s 2>&1 > /dev/null"%(self.dev, (cmdBlockCnt+1)*512, cmdBlockCnt)
+            for i in range(cmdRange):            
+                self.shell_cmd(CMD)    
     
             data_units_read1=self.GetLog.SMART.DataUnitsRead
             self.Print("Issue get log command, data_units_read: %s"%data_units_read1)
@@ -346,7 +375,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Issue get log command, host_read_commands: %s"%host_read_commands0)
                 
         self.Print("Issue read command ")
-        CMD="nvme read %s -s 0 -z 256000 -c 499  2>&1 >/dev/null "%self.dev         
+        CMD="nvme read %s -s 0 -z 512 -c 0  2>&1 >/dev/null "%self.dev         
         self.shell_cmd(CMD)
             
         host_read_commands1=self.GetLog.SMART.HostReadCommands
@@ -366,7 +395,7 @@ class SMI_SmartHealthLog(NVME):
             self.Print("Issue get log command, host_read_commands: %s"%host_read_commands0)
                     
             self.Print("Issue compare command ")
-            CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 256000 -c 499 2>&1 > /dev/null"%self.dev      
+            CMD="dd if=/dev/zero bs=512 count=1 2>&1 > /dev/null | nvme compare %s  -s 0 -z 512 -c 0 2>&1 > /dev/null"%self.dev      
             self.shell_cmd(CMD)
                 
             host_read_commands1=self.GetLog.SMART.HostReadCommands
@@ -510,8 +539,86 @@ class SMI_SmartHealthLog(NVME):
         else:
             return 1      
 
-
+    SubCase12TimeOut = 60
+    SubCase12Desc = "Test get SMART / Health log on a per namespace basis"
+    def SubCase12(self):  
+        ret_code = 0       
+        self.Print("")        
+        self.Print("Issue get SMART / Health log with nsid=0")
+        CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 0 2>&1"%self.dev
+        mStr, SC = self.shell_cmd_with_sc(CMD)
+        self.Print("Get command status code: %s"%SC)
+        self.Print("Check if status code=0, expect command success")
+        if SC==0:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            self.Print(mStr, "f")  
+            ret_code = 1
      
+        self.Print("")        
+        self.Print("Issue get SMART / Health log with nsid=0xFFFFFFFF")
+        CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 0xFFFFFFFF 2>&1"%self.dev
+        mStr, SC = self.shell_cmd_with_sc(CMD)
+        self.Print("Get command status code: %s"%SC)
+        self.Print("Check if status code=0, expect command success")
+        if SC==0:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")  
+            self.Print(mStr, "f")  
+            ret_code = 1            
+            
+        self.Print("")      
+        LPA_Bit0 = self.IdCtrl.LPA.bit(0)
+        isPerNSbasis = True if LPA_Bit0 =="1" else False        
+        self.Print("SMART / Health log on a per namespace basis: %s"%("Yes" if isPerNSbasis else "No"), "p")
+                    
+        self.Print("")        
+        self.Print("Issue get SMART / Health log with nsid=1")
+        CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 1 2>&1"%self.dev
+        mStr, SC = self.shell_cmd_with_sc(CMD)
+        self.Print("Get command status code: %s"%SC)
+        if isPerNSbasis:
+            self.Print("Check if status code=0x0, expect command success")
+            if SC==0:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                self.Print(mStr, "f")  
+                ret_code = 1                     
+        else:
+            self.Print("Check if status code=0x2 (INVALID_FIELD), expect command fail")
+            if SC==2:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")   
+                self.Print(mStr, "f")  
+                ret_code = 1                                     
+     
+        self.Print("")        
+        self.Print("Issue get SMART / Health log with nsid=0xFFFFFFFE")
+        CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 0xFFFFFFFE 2>&1"%self.dev
+        mStr, SC = self.shell_cmd_with_sc(CMD)
+        self.Print("Get command status code: %s"%SC)
+        if isPerNSbasis:
+            self.Print("Check if status code=0xB(INVALID_NS), expect command fail")
+            if SC==0xB:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                self.Print(mStr, "f")  
+                ret_code = 1                     
+        else:
+            self.Print("Check if status code=2 (INVALID_FIELD), expect command fail")
+            if SC==2:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")    
+                self.Print(mStr, "f")  
+                ret_code = 1                
+        
+        return ret_code
     # </sub item scripts>
     
     
