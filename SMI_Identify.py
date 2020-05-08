@@ -21,13 +21,14 @@ import shutil
 from random import randint
 # Import VCT modules
 from lib_vct.NVME import NVME
+from _ctypes import sizeof
 
 
 class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20200402"
+    Version = "20200507"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -783,72 +784,151 @@ class SMI_IdentifyCommand(NVME):
         # nsid from 0
             CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
             # returnd data structure
-            self.Print( "Issue identify command with CNS=0x3 and CDW1.NSID=%s"%nsid )
+            self.Print( "Issue identify command with CNS=0x3 and CDW1.NSID=%s for 4096 byte"%nsid )
             rTDS=self.shell_cmd(CMD)
             # format data structure to list 
             DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
             if DS==None:
                 self.Print( "Fail to get data structure, quit !","f")
+                self.Print( "CMD: %s"%CMD, "f")
                 subRt = False
+            elif len(DS) != 4096:
+                self.Print( "return data structure is not 4096 byte, curresnt byte: %s, quit !"%(sizeof(DS)) ,"f")
+                self.Print( "CMD: %s"%CMD, "f")
+                subRt = False                
             else:
                 # self.Print( "Success to get data structure")  
                 # according to Figure 116: Identify - Namespace Identification Descriptor, check the descriptor
-                NIDT=int(self.convert(lists=DS, stopByte=0, startByte=0, mtype=self.TypeInt), 16)
-                NIDL=int(self.convert(lists=DS, stopByte=1, startByte=1, mtype=self.TypeInt), 16)
-                NID=int(self.convert(lists=DS, stopByte=(NIDL+3), startByte=4, mtype=self.TypeInt, endian="big-endian"), 16)
                 self.Print( "Check Namespace Identification Descriptor")
-                self.Print( "")
-                
-                NIDTDefinition="Reserved"
-                if NIDT==1:
-                    NIDTDefinition="IEEE Extended Unique Identifier"
-                if NIDT==2:
-                    NIDTDefinition="Namespace Globally Unique Identifier"
-                if NIDT==3:
-                    NIDTDefinition="Namespace UUID"                
-                        
-                self.Print( "NIDT: %s ( %s )"%(NIDT, NIDTDefinition))
-                self.Print( "NIDL: %s"%NIDL)
-                self.Print( "NID: %s"%hex(NID))
-                
-                
-                if NIDT==0x1:
-                    EUI64 = self.IdNs.EUI64.int
+                self.Print( "")  
+                Num = 0       
+                Offset = 0    
+                LastNIDLis0 = 0  
+                NIDT_List = []
+                while True:
                     self.Print( "")
-                    self.Print( "EUI64 from Identify Namespace structure: %s"%hex(EUI64))
-                    self.Print( "Check if NID = EUI64 from Identify Namespace structure")
-                    self.Print("Pass", "p") if (NID==EUI64) else self.Print("Fail", "f")
-                    subRt = subRt if (NID==EUI64) else False
-                                                           
-                    self.Print( "Check if the EUI64 field of the Identify Namespace structure is supported")
-                    self.Print("Pass", "p") if (EUI64!=0) else self.Print("Fail", "f")
-                    subRt = subRt if (EUI64!=0) else False
-                                        
-                    self.Print( "Check if NIDL= 8")
-                    self.Print("Pass", "p") if (NIDL==0x8) else self.Print("Fail", "f")
-                    subRt = subRt if (NIDL==0x8) else False       
+                    self.Print( "------------------------------------------------", "b")
+                    self.Print( "Parse %s th entry of Descriptor list, start address: 0x%X"%(Num, Offset))
+                    # get NIDT, NIDL, NID
+                    NIDT_start =  Offset + 0
+                    NIDT_size = 1   # 1byte
+                    NIDT_stop = NIDT_start + NIDT_size -1
                     
-                if NIDT==0x2:
-                    NGUID = self.IdNs.NGUID.int
-                    self.Print( "")
-                    self.Print( "NGUID from Identify Namespace structure: %s"%hex(NGUID))
-                    self.Print( "Check if NID = NGUID from Identify Namespace structure")
-                    self.Print("Pass", "p") if (NID==NGUID) else self.Print("Fail", "f")
-                    subRt = subRt if (NID==NGUID) else False
-                                                           
-                    self.Print( "Check if the NGUID field of the Identify Namespace structure is supported")
-                    self.Print("Pass", "p") if (NGUID!=0) else self.Print("Fail", "f")
-                    subRt = subRt if (NGUID!=0) else False
-                                        
-                    self.Print( "Check if NIDL= 0x10")
-                    self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
-                    subRt = subRt if (NIDL==0x10) else False                                 
+                    NIDL_start =  Offset + 1
+                    NIDL_size = 1   # 1byte
+                    NIDL_stop = NIDL_start + NIDL_size -1
 
-                if NIDT==0x3:                                        
-                    self.Print( "Check if NIDL= 0x10")
-                    self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
-                    subRt = subRt if (NIDL==0x10) else False                           
-                                           
+                    NIDT=int(self.convert(lists=DS, stopByte=NIDT_stop, startByte=NIDT_start, mtype=self.TypeInt), 16)
+                    NIDL=int(self.convert(lists=DS, stopByte=NIDL_stop, startByte=NIDL_start, mtype=self.TypeInt), 16)
+                    
+                    NID_start =  Offset + 4
+                    NID_size = NIDL   # 1byte
+                    NID_stop = NID_start + NID_size -1
+                    NID=int(self.convert(lists=DS, stopByte=NID_stop, startByte=NID_start, mtype=self.TypeInt, endian="big-endian"), 16)
+
+                    if  NIDL==0:
+                        LastNIDLis0 = NIDL_stop                        
+                        self.Print( "the NIDL of this descriptor is 0 at address 0x%X, it indicates the end of the Namespace Identifier Descriptor list."%LastNIDLis0)
+                        self.Print( "stop parse descriptor.")
+                        self.Print( "%s th entry of Descriptor list is not availabe descriptor"%(Num))
+                        self.Print( "End of the list start address from 0x%X"%Offset)
+                        break;
+
+                    NIDT_List.append(NIDT)
+                    Offset = NID_stop+1 # for next loop
+                
+                    NIDTDefinition="Reserved"
+                    if NIDT==1:
+                        NIDTDefinition="IEEE Extended Unique Identifier"
+                    if NIDT==2:
+                        NIDTDefinition="Namespace Globally Unique Identifier"
+                    if NIDT==3:
+                        NIDTDefinition="Namespace UUID"                
+                    
+
+                        
+                    self.Print( "NIDT: %s ( %s )"%(NIDT, NIDTDefinition))
+                    self.Print( "NIDL: %s"%NIDL)
+                    self.Print( "NID: %s"%hex(NID))
+                
+                    
+                    if NIDT==0x1:
+                        EUI64 = self.IdNs.EUI64.int
+                        self.Print( "")
+                        self.Print( "EUI64 from Identify Namespace structure: %s"%hex(EUI64))
+                        self.Print( "Check if NID = EUI64 from Identify Namespace structure")
+                        self.Print("Pass", "p") if (NID==EUI64) else self.Print("Fail", "f")
+                        subRt = subRt if (NID==EUI64) else False
+                                                               
+                        self.Print( "Check if the EUI64 field of the Identify Namespace structure is supported")
+                        self.Print("Pass", "p") if (EUI64!=0) else self.Print("Fail", "f")
+                        subRt = subRt if (EUI64!=0) else False
+                                            
+                        self.Print( "Check if NIDL= 8")
+                        self.Print("Pass", "p") if (NIDL==0x8) else self.Print("Fail", "f")
+                        subRt = subRt if (NIDL==0x8) else False       
+                        
+                    if NIDT==0x2:
+                        NGUID = self.IdNs.NGUID.int
+                        self.Print( "")
+                        self.Print( "NGUID from Identify Namespace structure: %s"%hex(NGUID))
+                        self.Print( "Check if NID = NGUID from Identify Namespace structure")
+                        self.Print("Pass", "p") if (NID==NGUID) else self.Print("Fail", "f")
+                        subRt = subRt if (NID==NGUID) else False
+                                                               
+                        self.Print( "Check if the NGUID field of the Identify Namespace structure is supported")
+                        self.Print("Pass", "p") if (NGUID!=0) else self.Print("Fail", "f")
+                        subRt = subRt if (NGUID!=0) else False
+                                            
+                        self.Print( "Check if NIDL= 0x10")
+                        self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
+                        subRt = subRt if (NIDL==0x10) else False                                 
+    
+                    if NIDT==0x3:                                        
+                        self.Print( "Check if NIDL= 0x10")
+                        self.Print("Pass", "p") if (NIDL==0x10) else self.Print("Fail", "f")
+                        subRt = subRt if (NIDL==0x10) else False   
+                         
+                    Num = Num +1    
+                # end of parser discriptor   
+                
+                self.Print("")
+                self.Print( "------------------------------------------------", "b")
+                self.Print( "From the end of the list address = 0x%X"%(Offset))
+                self.Print( "Check if All remaining bytes after the namespace identification descriptor structures should be cleared to 0h"   ) 
+                ptr = Offset
+                while True:
+                    byte=int(self.convert(lists=DS, stopByte=ptr, startByte=ptr, mtype=self.TypeInt), 16)
+                    if byte !=0:
+                        self.Print("Fail at address 0x%X"%ptr, "f")     
+                        subRt = False        
+                        break                    
+                    if ptr ==4095:  
+                        self.Print("Pass", "p")      
+                        break;                    
+                    ptr = ptr +1
+                    
+                self.Print("")
+                self.Print( "According to 'A controller shall not return multiple descriptors with the same Namespace Identifier Type (NIDT).'")                
+                self.Print( "List NIDT for all descriptors")
+                self.Print("%s"%NIDT_List)
+                self.Print( "Check if the is no multiple descriptors with the same NIDT")
+                if len(NIDT_List) == len(set(NIDT_List)):
+                    self.Print("Pass", "p")  
+                else:
+                    self.Print("Fail", "f") 
+                    subRt = False   
+
+                self.Print("")
+                self.Print( "According to 'A controller shall return at least one descriptor identifying the namespace.'")                
+                self.Print( "Number of available descriptor: %s"%Num)
+                self.Print( "Check if the Number of available descriptor > = 1")
+                if Num >=1:
+                    self.Print("Pass", "p")  
+                else:
+                    self.Print("Fail", "f") 
+                    subRt = False                           
+
 
             
         if MaxNs!=1:

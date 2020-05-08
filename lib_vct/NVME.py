@@ -801,7 +801,21 @@ class NVME(object, NVMECom):
 
         return self.shell_cmd(CMD)
     
-        
+    def set_feature_with_sc(self, fid, value, SV=0, Data=None, nsid=0): 
+    # using set_feature with echo $? to set value and get Status code
+        cmdExtention = ";echo $?"
+        mStr = self.set_feature(fid, value, SV, Data, nsid, withCMDrtCode=True) 
+        SC = int(mStr.split()[-1])# last line is status code
+        value = mStr.rsplit("\n",1)[0]# remove last line, return value
+ 
+        # if command fail and is nvme cli command
+        if SC!=0:
+            mStr="NVMe\s+Status.+\((\w+)\)" # ex. NVMe Status:INVALID_NS(b) NVMe\s+Status.+\((\w+)\)
+            if re.search(mStr, value, re.IGNORECASE):
+                SC = re.search(mStr, value, re.IGNORECASE).group(1)  
+                SC = int(SC, 16)
+ 
+        return value, SC        
      
     def get_feature(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False, cmdExtention=""): 
     # feature id, cdw11(If applicable)
@@ -829,6 +843,13 @@ class NVME(object, NVMECom):
         mStr = self.get_feature(fid, cdw11, sel, nsid, nsSpec, cmdExtention)
         SC = int(mStr.split()[-1])# last line is status code
         value = mStr.rsplit("\n",1)[0]# remove last line, return value
+ 
+        # if command fail and is nvme cli command
+        if SC!=0:
+            mStr="NVMe\s+Status.+\((\w+)\)" # ex. NVMe Status:INVALID_NS(b) NVMe\s+Status.+\((\w+)\)
+            if re.search(mStr, value, re.IGNORECASE):
+                SC = re.search(mStr, value, re.IGNORECASE).group(1)  
+                SC = int(SC, 16)
  
         return value, SC
 

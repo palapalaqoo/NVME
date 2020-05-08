@@ -547,7 +547,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Issue get SMART / Health log with nsid=0")
         CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 0 2>&1"%self.dev
         mStr, SC = self.shell_cmd_with_sc(CMD)
-        self.Print("Get command status code: %s"%SC)
+        self.Print("Get command status code: 0x%X"%SC)
         self.Print("Check if status code=0, expect command success")
         if SC==0:
             self.Print("Pass", "p")
@@ -560,7 +560,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Issue get SMART / Health log with nsid=0xFFFFFFFF")
         CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 0xFFFFFFFF 2>&1"%self.dev
         mStr, SC = self.shell_cmd_with_sc(CMD)
-        self.Print("Get command status code: %s"%SC)
+        self.Print("Get command status code: 0x%X"%SC)
         self.Print("Check if status code=0, expect command success")
         if SC==0:
             self.Print("Pass", "p")
@@ -578,7 +578,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Issue get SMART / Health log with nsid=1")
         CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 1 2>&1"%self.dev
         mStr, SC = self.shell_cmd_with_sc(CMD)
-        self.Print("Get command status code: %s"%SC)
+        self.Print("Get command status code: 0x%X"%SC)
         if isPerNSbasis:
             self.Print("Check if status code=0x0, expect command success")
             if SC==0:
@@ -600,7 +600,7 @@ class SMI_SmartHealthLog(NVME):
         self.Print("Issue get SMART / Health log with nsid=0xFFFFFFFE")
         CMD = "nvme get-log %s --log-id=2 --log-len=512 -n 0xFFFFFFFE 2>&1"%self.dev
         mStr, SC = self.shell_cmd_with_sc(CMD)
-        self.Print("Get command status code: %s"%SC)
+        self.Print("Get command status code: 0x%X"%SC)
         if isPerNSbasis:
             self.Print("Check if status code=0xB(INVALID_NS), expect command fail")
             if SC==0xB:
