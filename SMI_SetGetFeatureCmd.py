@@ -20,6 +20,7 @@ import re
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import deadline
+from numpy import broadcast
 
 class item:
     description=0
@@ -33,7 +34,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20200508"
+    Version = "20200511"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -536,7 +537,10 @@ class SMI_SetGetFeatureCMD(NVME):
                     self.Print("Fail", "f")
                     self.ret_code=1
                 
-    def TestNsStatusCode(self, mItem, nsid_w, expectStatusCode_w, nsid_r, expectStatusCode_r):
+    def TestSetFeatureStatusCode(self, header, mItem, nsid_w, expectStatusCode_w):
+    # flow:     1) write to default, 
+    #              2) write to another value using nsid_w 
+    #              3) verify by reading feature data
     # nsid_w to be write
     # nsid_r to be read
     # expectStatusCode, Completion Queue Entry, incoude Status Code Type (SCT) and Status Code (SC)
@@ -547,65 +551,237 @@ class SMI_SetGetFeatureCMD(NVME):
         fid=mItem[item.fid]
         # Restore value    
         value = mItem[item.reset_value]        
-        self.Print ("Restore current value by setting feature value to 0x%X"%value)
+        self.Print ("")
+        step = 1
+        self.Print ("%s%s. Restore current value by setting feature value to 0x%X(expected success)"%(header, step, value))
+        step = step+1
         self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
-        original1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
+        # SC_w = last write status, will use it to 'verify current value'
+        original1  ,SC_w= self.GetFeature(fid, sel=0, nsid=1)
         if original1 != value :
-            self.Print("Fail to set feature value = 0x%X, current get feature value = 0x%X "%(value, original1), "f")
-            self.ret_code=1    
+            self.Print("  Fail to set feature value = 0x%X, current get feature value = 0x%X "%(value, original1), "f")
+            self.ret_code=1 
+            return   
+
+        self.Print("  Success to restore feature value to 0x%X "%(original1), "p")
+        
+        self.Print ("")
+
+        # write, value_w= write value, SC_w return SC
+        value_w = mItem[item.valid_value]
+        self.Print ("%s%s. Set feature with nsid =0x%X, value= 0x%X, expected Status Code=0x%X"%(header, step, nsid_w, value_w, expectStatusCode_w))
+        step = step+1
+        SC_w = self.SetFeature(fid=fid, value=value_w, sv=0, nsid=nsid_w)       
+        self.Print ("  Return Status Code: 0x%X"%SC_w)
+        self.Print ("  Check if Status Code = 0x%X"   %(expectStatusCode_w))
+        if SC_w==expectStatusCode_w:
+            self.Print("  PASS", "p")
         else:
-            self.Print("Success to set feature value = 0x%X "%(original1), "p")
+            self.Print("  Fail", "f")
+            self.ret_code=1
             
-            self.Print ("")
-            # write, value_w= write value, SC_w return SC
-            value_w = mItem[item.valid_value]
-            self.Print ("Set feature with nsid =0x%X, value= 0x%X"%(nsid_w, value_w))
-            SC_w = self.SetFeature(fid=fid, value=value_w, sv=0, nsid=nsid_w)
-            self.Print ("Return Status Code: 0x%X"%SC_w)
-            self.Print ("Check if Status Code = 0x%X"   %(expectStatusCode_w))
-            if SC_w==expectStatusCode_w:
-                self.Print("PASS", "p")
+        # verify current value
+        self.Print ("")
+        self.Print ("%s%s. Verify current value, read current value"%(header, step))
+        step = step+1
+        current1  ,SC= self.GetFeature(fid, sel=0)
+        # if read success, then compare value
+        if SC==0:
+            self.Print ("  Return current value: 0x%X"%current1)   
+            if SC_w==0: # if last write success, expect new value
+                self.Print ("  Expected current value: 0x%X (write success)"%value_w)
+                ExpectedValue = value_w
             else:
-                self.Print("Fail", "f")
-                self.ret_code=1 
-                
-            # read
-            self.Print ("")
-            self.Print ("Get feature value with nsid 0x%X"%nsid_r)
-            current1  ,SC_r= self.GetFeature(fid, sel=0, nsid=nsid_r, printInfo=True)
-            self.Print ("Return Status Code: 0x%X"%SC_r)
-            self.Print ("Check if Status Code = 0x%X"   %(expectStatusCode_r))
-            if SC_r==expectStatusCode_r:
-                self.Print("PASS", "p")
-            else:
-                self.Print("Fail", "f")
-                self.ret_code=1 
+                self.Print ("  Expected current value: 0x%X (write fail)"%original1)
+                ExpectedValue = original1
             
-            # verify current value
-            self.Print ("")
-            self.Print ("Verify current value, read current value")
-            current1  ,SC= self.GetFeature(fid, sel=0, nsid=1)
-            # if read success, then compare value
-            if SC==0:
-                self.Print ("Return current value: 0x%X"%current1)   
-                if SC_w==0: # if write success, expect new value
-                    self.Print ("Expected current value: 0x%X (write success)"%value_w)
-                    ExpectedValue = value_w
-                else:
-                    self.Print ("Expected current value: 0x%X (write fail)"%original1)
-                    ExpectedValue = original1
+            self.Print ("  Check if current value = Expected value")
+            if current1==ExpectedValue:
+                self.Print("  PASS", "p")
+            else:
+                self.Print("  Fail", "f")
+                self.ret_code=1     
+        else:
+            self.Print("  Fail, can't read value!", "f")
+            self.ret_code=1     
+
+    def TestGetFeatureStatusCode(self, header, mItem, nsid_r, expectStatusCode_r):
+    # flow:     1) write to default, 
+    #              2) issue read and check status
+    #              3) verify by the data from step 2
+    # nsid_r to be read
+    # expectStatusCode, Completion Queue Entry, incoude Status Code Type (SCT) and Status Code (SC)
+        supported=mItem[item.supported]
+        saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
+        nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
+        changeable=True if mItem[item.capabilities]&0b100 > 0 else False        
+        fid=mItem[item.fid]
+        # Restore value    
+        value = mItem[item.reset_value]        
+        self.Print ("")
+        step = 1
+        self.Print ("%s%s. Restore current value by setting feature value to 0x%X(expected success)"%(header, step, value))
+        step = step+1
+        self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
+        # SC_w = last write status, will use it to 'verify current value'
+        original1  ,SC_w= self.GetFeature(fid, sel=0, nsid=1)
+        if original1 != value :
+            self.Print("  Fail to set feature value = 0x%X, current get feature value = 0x%X "%(value, original1), "f")
+            self.ret_code=1 
+            return   
+
+        self.Print("  Success to restore feature value to 0x%X "%(original1), "p")        
+        self.Print ("")            
+        # read
+        self.Print ("")
+        self.Print ("%s%s. Get feature value with nsid 0x%X, , expected Status Code=0x%X"%(header, step, nsid_r, expectStatusCode_r))
+        step = step+1
+        current1  ,SC_r= self.GetFeature(fid, sel=0, nsid=nsid_r, printInfo=True)
+        self.Print ("  Return Status Code: 0x%X"%SC_r)
+        self.Print ("  Check if Status Code = 0x%X"   %(expectStatusCode_r))
+        if SC_r==expectStatusCode_r:
+            self.Print("  PASS", "p")
+        else:
+            self.Print("  Fail", "f")
+            self.ret_code=1 
+            
+            
+        self.Print ("")
+        self.Print ("%s%s. Verify Get feature Cmd returned current value"%(header, step))
+        step = step+1            
+        # if read success, then compare value
+        if SC_r==0:
+            self.Print ("  Return current value: 0x%X"%current1)   
+            self.Print ("  Expected current value: 0x%X (restored value)"%original1)
+            ExpectedValue = original1
+
+            
+            self.Print ("  Check if current value = Expected value")
+            if current1==ExpectedValue:
+                self.Print("  PASS", "p")
+            else:
+                self.Print("  Fail", "f")
+                self.ret_code=1     
+        else:
+            self.Print("  Get feature Cmd is fail, skip this step")
+        
                 
-                self.Print ("Check if current value = Expected value")
-                if current1==ExpectedValue:
-                    self.Print("PASS", "p")
-                else:
-                    self.Print("Fail", "f")
-                    self.ret_code=1                 
     
                         
+    class nsidType:
+        ActiveNS = 0
+        InActiveNS = 1
+        Broadcast = 2
+        Zero = 3
+        InValidNS = 4
+        UnKnow = 5
+    
+    def GetSpecStatusCode(self, fid, setGetCmd, nsidTypeIn, isNsSpecific, specVer):
+        '''
+        setGetCmd: set/get
+        nsidTypeIn: class nsidType
+        isNsSpecific: True/False
+        specVer: 1.3c/1.3d
+    
+        '''               
+        INVALID_NS=0xB
+        INVALID_FIELD=0x2
+        CMD_SUCCESS=0x0
+        FEATURE_NOT_PER_NS=0x10F
+        rtSC = CMD_SUCCESS
+        # Not NS Specific
+        if not isNsSpecific:
+            # # Not NS Specific->Set
+            if setGetCmd == "set":
+                if nsidTypeIn == self.nsidType.Zero:
+                    rtSC = CMD_SUCCESS                
+                if nsidTypeIn == self.nsidType.ActiveNS:
+                    rtSC = FEATURE_NOT_PER_NS
+                if nsidTypeIn == self.nsidType.InActiveNS:
+                    rtSC = INVALID_FIELD      
+                if nsidTypeIn == self.nsidType.InValidNS:
+                    if specVer =="1.3c":
+                        rtSC = INVALID_NS
+                    else:
+                        rtSC = INVALID_FIELD                                
+                if nsidTypeIn == self.nsidType.Broadcast:
+                    rtSC = CMD_SUCCESS
+            # Not NS Specific->Get        
+            elif  setGetCmd == "get":
+                if nsidTypeIn == self.nsidType.Zero:
+                    rtSC = CMD_SUCCESS                
+                if nsidTypeIn == self.nsidType.ActiveNS:
+                    rtSC = CMD_SUCCESS
+                if nsidTypeIn == self.nsidType.InActiveNS:
+                    rtSC = INVALID_FIELD      
+                if nsidTypeIn == self.nsidType.InValidNS:
+                    if specVer =="1.3c":
+                        rtSC = INVALID_NS
+                    else:
+                        rtSC = INVALID_FIELD                                
+                if nsidTypeIn == self.nsidType.Broadcast:
+                    rtSC = CMD_SUCCESS                
+        # NS Specific
+        if isNsSpecific:
+            # NS Specific->set
+            if setGetCmd == "set":
+                if nsidTypeIn == self.nsidType.Zero:
+                    rtSC = INVALID_NS                
+                if nsidTypeIn == self.nsidType.ActiveNS:
+                    rtSC = CMD_SUCCESS
+                if nsidTypeIn == self.nsidType.InActiveNS:
+                    rtSC = INVALID_FIELD      
+                if nsidTypeIn == self.nsidType.InValidNS:
+                    rtSC = INVALID_NS                              
+                if nsidTypeIn == self.nsidType.Broadcast:
+                    rtSC = CMD_SUCCESS
+            # NS Specific->get        
+            elif  setGetCmd == "get":
+                if nsidTypeIn == self.nsidType.Zero:
+                    rtSC = INVALID_NS                
+                if nsidTypeIn == self.nsidType.ActiveNS:
+                    rtSC = CMD_SUCCESS
+                if nsidTypeIn == self.nsidType.InActiveNS:
+                    rtSC = INVALID_FIELD      
+                if nsidTypeIn == self.nsidType.InValidNS:
+                    rtSC = INVALID_NS                          
+                if nsidTypeIn == self.nsidType.Broadcast:
+                    rtSC = INVALID_NS
+                    
+        # end ..
+        # exeption
+        # if set feature, FID=3, specVer =="1.3c", specVer !="1.3c", return INVALID_FIELD
+        if (fid == 3) and (specVer !="1.3c") and (setGetCmd == "set") :      
+            rtSC = INVALID_FIELD        
+                                 
+        return rtSC
+    
+    def TestFeatureStatusCode(self, header, mItem, nsid, fid, setGetCmd, nsSpec, specVersion):   
+        Type = self.nsidType.UnKnow
+        TypeStr = "unknow"    
+        if nsid==0x0:
+            Type = self.nsidType.Zero
+            TypeStr = ""
+        if nsid==0x1:
+            Type = self.nsidType.ActiveNS
+            TypeStr = "(ActiveNS)"
+        if nsid==0xFFFFFFFE:
+            Type = self.nsidType.InValidNS
+            TypeStr = "(InValidNS)"
+        if nsid==0xFFFFFFFF:
+            Type = self.nsidType.Broadcast     
+            TypeStr = "(Broadcast)"       
+          
             
-            
-            
+        # get expected sc code from NVMe spec by fid, set/get, nsidType, nsSpec, specVersion
+        SC_w = self.GetSpecStatusCode(fid, setGetCmd, Type, nsSpec, specVersion)
+        self.Print ("-(%s)--  test %s feature ID=0x%X with nsid=0x%X%s, feature is %sNS Specific, expected SC = 0x%X"%
+                    (header, setGetCmd, fid, nsid, TypeStr, ""if nsSpec else "Not ", SC_w)) 
+        header = header +"." 
+        if setGetCmd=="set":
+            self.TestSetFeatureStatusCode(header=header, mItem=mItem, nsid_w=nsid, expectStatusCode_w = SC_w)
+        else:
+            self.TestGetFeatureStatusCode(header=header, mItem=mItem, nsid_r=nsid, expectStatusCode_r = SC_w)
     
     def VerifyNSspec(self, mItem):
         supported=mItem[item.supported]
@@ -620,38 +796,81 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print ("Feature is not namespace specific in capabilities filed")
         else:
             self.Print ("Feature is namespace specific in capabilities filed")      
+            
+            
+            
+        headCnt=1    
+        self.Print ("-----------------------------------------------------")
               
         self.Print ("")
-        self.Print ("-(4.1)--  test set/get feature with nsid=2")     
-        if not nsSpec:
-            self.Print ("Expected set feature and get feature command fail with status code = 0x2")
-            self.TestNsStatusCode(mItem=mItem, nsid_w=2, expectStatusCode_w=0x2, nsid_r=2, expectStatusCode_r=0x2 )
-        else:
-            self.Print ("Expected set feature and get feature command fail with status code = 0xB")         
-            self.TestNsStatusCode(mItem=mItem, nsid_w=2, expectStatusCode_w=0xB, nsid_r=2, expectStatusCode_r=0xB )            
-            
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 0
+        setGetCmd = "set"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------") 
+        
         self.Print ("")
-        self.Print ("-(4.2)--  test set feature with nsid=0xFFFFFFFF")                 
-        self.Print ("Expected set feature command success with status code = 0x0")
-        # set with nsid_w=0xFFFFFFFF, expectStatusCode_w=0 and read with nsid=1, expect SC=0
-        self.TestNsStatusCode(mItem=mItem, nsid_w=0xFFFFFFFF, expectStatusCode_w=0, nsid_r=1, expectStatusCode_r=0x0 )
-   
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 0
+        setGetCmd = "get"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------") 
+        
         self.Print ("")
-        self.Print ("-(4.3)--  test get feature with nsid=0xFFFFFFFF")     
-        # It will be success if using nsid_w=0xFFFFFFFF to write feature 
-        if not nsSpec:
-            self.Print ("Expected get feature command success with status code = 0x0")
-            self.TestNsStatusCode(mItem=mItem, nsid_w=0xFFFFFFFF, expectStatusCode_w=0x0, nsid_r=0xFFFFFFFF, expectStatusCode_r=0x0 )
-        else:
-            self.Print ("Expected get feature command fail with status code = 0xB")         
-            self.TestNsStatusCode(mItem=mItem, nsid_w=0xFFFFFFFF, expectStatusCode_w=0x0, nsid_r=0xFFFFFFFF, expectStatusCode_r=0xB )  
-            
-                        
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 1
+        setGetCmd = "set"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------") 
+        
+        self.Print ("")
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 1
+        setGetCmd = "get"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------")   
+        
+        self.Print ("")
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 0xFFFFFFFE
+        setGetCmd = "set"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------")         
+              
+        self.Print ("")
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 0xFFFFFFFE
+        setGetCmd = "get"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------")    
+        
+        self.Print ("")
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 0xFFFFFFFF
+        setGetCmd = "set"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------")            
+        
+        self.Print ("")
+        header = "4.%s"%headCnt; headCnt = headCnt +1
+        nsid = 0xFFFFFFFF
+        setGetCmd = "get"        
+        # do TestFeatureStatusCode
+        self.TestFeatureStatusCode(header, mItem, nsid, fid, setGetCmd, nsSpec, self.specVersion)
+        self.Print ("-----------------------------------------------------") 
+                                        
         self.Print ("")            
         if not nsSpec:
             pass
         else:
-            self.Print ("Implement 2 namespaces to test feature in mulit namespaces")
+            self.Print ("Create 2 namespaces to test feature in mulit namespaces")
             if not self.NsSupported:
                 self.Print ("Controller don't support mulit namespaces!, skip to test for mulit namespaces", "w")
             elif not changeable:
@@ -721,11 +940,11 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.VerifySaveAble(mItem)
     
                 self.Print ("")
-                self.Print ("-(4)--  Test Get Features if capabilities bit 1 = 1, namespace specific" , "b")
+                self.Print ("-(4)--  Test Features with capabilities bit 1, namespace specific" , "b")
                 self.VerifyNSspec(mItem)                
                 
                 self.Print ("")
-                self.Print ("-(5)--  Test Set Features if capabilities bit 2 = 0, Feature Identifier is not changeable", "b")
+                self.Print ("-(5)--  Test Features with capabilities bit 2, Feature Identifier is not changeable", "b")
                 if changeable:
                     self.Print( "Feature Identifier is changeable, quit" )
                 else:
@@ -756,6 +975,7 @@ class SMI_SetGetFeatureCMD(NVME):
         # initial new parser if need, -t -d -s -p was used, dont use it again
         self.SetDynamicArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff, ex. '-x 1'", argType=int)    
         self.SetDynamicArgs(optionName="n", optionNameFull="disableNsTest", helpMsg="disable namespace test, ex. '-n 1'", argType=int)        
+        self.SetDynamicArgs(optionName="v", optionNameFull="version", helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3c, ex. '-v 1.3c'", argType=str)    
         
         # initial parent class
         super(SMI_SetGetFeatureCMD, self).__init__(argv)
@@ -765,7 +985,13 @@ class SMI_SetGetFeatureCMD(NVME):
         self.DisablePwr = True if self.DisablePwr==1 else False        
         self.disableNsTest = self.GetDynamicArgs(1)
         self.disableNsTest = True if self.disableNsTest==1 else False
-          
+        
+        VersionDefine = ["1.3c", "1.3d"]
+        self.specVersion = self.GetDynamicArgs(2)
+        self.specVersion = "1.3c" if self.specVersion==None else self.specVersion   # default = 1.3c
+        if not self.specVersion in VersionDefine:   # if input is not in VersionDefine, e.g keyin wrong version
+            self.specVersion = "1.3c"
+                  
         self.ret_code = 0
         self.Ns=1
         self.TestItems=[]
@@ -780,6 +1006,10 @@ class SMI_SetGetFeatureCMD(NVME):
         if self.disableNsTest:
             self.Print ("User disable namespace test", "f")  
         self.Print ("")    
+        
+        self.Print ("Taget Spec Version: %s"%self.specVersion)
+        
+        self.Print ("") 
         self.Print ("Issue nvme reset controller")
         self.nvme_reset()
         

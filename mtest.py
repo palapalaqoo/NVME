@@ -141,6 +141,8 @@ class mtest1(NVME):
     
     def SubCase1(self):
 
+        aa =self.IdCtrl.NN.int
+
         aa, SC= self.shell_cmd_with_sc("ls aaa")
         
         

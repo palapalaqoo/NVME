@@ -772,7 +772,7 @@ class NVME(object, NVMECom):
             return ret 
         return ret
 
-    def set_feature(self, fid, value, SV=0, Data=None, nsid=0, withCMDrtCode=False): 
+    def set_feature(self, fid, value, SV=0, Data=None, nsid=-1, withCMDrtCode=False): 
     # feature id, value
     # Data example = '\\255\\255\\255\\000' or '\\xff\\xff'
     # if sv=1 and have data in
@@ -788,7 +788,7 @@ class NVME(object, NVMECom):
         if SV!=0:
             CMD = CMD + "-s "         
         
-        if nsid!=0:
+        if nsid!=-1:
             CMD = CMD +"-n %s "%nsid
             
         if Data!=None:
@@ -817,7 +817,7 @@ class NVME(object, NVMECom):
  
         return value, SC        
      
-    def get_feature(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False, cmdExtention=""): 
+    def get_feature(self, fid, cdw11=0, sel=0, nsid=-1, nsSpec=False, cmdExtention=""): 
     # feature id, cdw11(If applicable)
         CMD=""
         
@@ -827,7 +827,7 @@ class NVME(object, NVMECom):
             CMD = CMD + " nvme get-feature %s -f %s --cdw11=%s -s %s "%(self.dev, fid, cdw11, sel)
         
         
-        if nsSpec and nsid!=0:
+        if nsSpec and nsid!=-1:
             CMD = CMD +"-n %s "%nsid
         
         CMD = CMD +"2>&1 "
