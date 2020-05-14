@@ -137,7 +137,8 @@ class mtest1(NVME):
         return out        
         
         
-        
+    def PreTest(self):
+        return 255    
     
     def SubCase1(self):
 

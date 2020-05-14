@@ -3,7 +3,7 @@
 
         #=======================================================================
         # abstract  function
-        #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        #     SubCase1() to SubCase64()                            :Override it for sub case 1 to sub case64
         # abstract  variables
         #     SubCase1Desc to SubCase32Desc                 :Override it for sub case 1 description to sub case32 description
         #     SubCase1Keyword to SubCase32Keyword    :Override it for sub case 1 keyword to sub case32 keyword
@@ -34,7 +34,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20200511"
+    Version = "20200514"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -700,10 +700,13 @@ class SMI_SetGetFeatureCMD(NVME):
                 if nsidTypeIn == self.nsidType.InActiveNS:
                     rtSC = INVALID_FIELD      
                 if nsidTypeIn == self.nsidType.InValidNS:
+                    rtSC = INVALID_FIELD
+                    '''
                     if specVer =="1.3c":
                         rtSC = INVALID_NS
                     else:
-                        rtSC = INVALID_FIELD                                
+                        rtSC = INVALID_FIELD     
+                    '''                           
                 if nsidTypeIn == self.nsidType.Broadcast:
                     rtSC = CMD_SUCCESS
             # Not NS Specific->Get        
@@ -715,10 +718,13 @@ class SMI_SetGetFeatureCMD(NVME):
                 if nsidTypeIn == self.nsidType.InActiveNS:
                     rtSC = INVALID_FIELD      
                 if nsidTypeIn == self.nsidType.InValidNS:
+                    rtSC = INVALID_FIELD
+                    '''
                     if specVer =="1.3c":
                         rtSC = INVALID_NS
                     else:
-                        rtSC = INVALID_FIELD                                
+                        rtSC = INVALID_FIELD  
+                    '''                              
                 if nsidTypeIn == self.nsidType.Broadcast:
                     rtSC = CMD_SUCCESS                
         # NS Specific
@@ -750,8 +756,8 @@ class SMI_SetGetFeatureCMD(NVME):
                     
         # end ..
         # exeption
-        # if set feature, FID=3, specVer =="1.3c", specVer !="1.3c", return INVALID_FIELD
-        if (fid == 3) and (specVer !="1.3c") and (setGetCmd == "set") :      
+        # if set feature, FID=3, specVer =="1.3c", specVer !="1.3c", nsid=0xFFFFFFFF return INVALID_FIELD
+        if (fid == 3) and (specVer !="1.3c") and (setGetCmd == "set") and (nsidTypeIn == self.nsidType.Broadcast) :      
             rtSC = INVALID_FIELD        
                                  
         return rtSC
@@ -803,7 +809,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------")
               
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 0
         setGetCmd = "set"        
         # do TestFeatureStatusCode
@@ -811,7 +817,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------") 
         
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 0
         setGetCmd = "get"        
         # do TestFeatureStatusCode
@@ -819,7 +825,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------") 
         
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 1
         setGetCmd = "set"        
         # do TestFeatureStatusCode
@@ -827,7 +833,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------") 
         
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 1
         setGetCmd = "get"        
         # do TestFeatureStatusCode
@@ -835,7 +841,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------")   
         
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 0xFFFFFFFE
         setGetCmd = "set"        
         # do TestFeatureStatusCode
@@ -843,7 +849,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------")         
               
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 0xFFFFFFFE
         setGetCmd = "get"        
         # do TestFeatureStatusCode
@@ -851,7 +857,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------")    
         
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 0xFFFFFFFF
         setGetCmd = "set"        
         # do TestFeatureStatusCode
@@ -859,7 +865,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.Print ("-----------------------------------------------------")            
         
         self.Print ("")
-        header = "4.%s"%headCnt; headCnt = headCnt +1
+        header = "%s"%headCnt; headCnt = headCnt +1
         nsid = 0xFFFFFFFF
         setGetCmd = "get"        
         # do TestFeatureStatusCode
@@ -884,6 +890,34 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print ("Remove all created namespaces")
             self.ResetNS()    
     
+    def VerifyStatusCode(self, fid):
+        for mItem in self.TestItems:
+            if int(mItem[item.fid])!=int(fid):
+                continue
+            
+            # if fid match
+            self.Print ( mItem[item.description]   )
+            self.Print ("Feature ID: %s"%mItem[item.fid]   )
+            supported=mItem[item.supported]
+            
+            self.Print ("" )            
+            self.Print ("Supported", "p") if supported else self.Print("Not supported", "w")
+            if supported:
+                saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
+                nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
+                changeable=True if mItem[item.capabilities]&0b100 > 0 else False                
+                self.Print ("Feature saveable: %s"%("Yes" if saveable else "No"))
+                self.Print ("Feature namespace specific: %s"%("Yes" if nsSpec else "No"))
+                self.Print ("Feature changeable: %s"%("Yes" if changeable else "No"))
+            self.Print ("")
+            if not supported:
+                pass                            
+            else:                                      
+                self.Print ("")
+                self.Print ("Test Features capabilities bit 1, namespace specific" , "b")
+                self.VerifyNSspec(mItem)          
+    
+    
     def VerifyFID(self, fid):
         
         for mItem in self.TestItems:
@@ -907,11 +941,8 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print ("")            
             
             if not supported:
-                self.VerifyNotSupport(mItem)
-                              
-            else:
-
-                
+                self.VerifyNotSupport(mItem)                              
+            else:                
                 self.Print ("-(1)-- Test Get Features with Select=0, Current --"    , "b")
                 self.Print ("        and test Features capabilities bit 2, Feature Identifier is changeable or not")
                 self.Print ("        "+ "Feature is changeable, all the fallowing test should change the value" if changeable else "Feature is no changeable, all the fallowing test should not change the value")
@@ -938,13 +969,9 @@ class SMI_SetGetFeatureCMD(NVME):
                 
                 self.Print ("-(3)--  Test Get Features with Select=2, Saved --" , "b")
                 self.VerifySaveAble(mItem)
-    
+                                  
                 self.Print ("")
-                self.Print ("-(4)--  Test Features with capabilities bit 1, namespace specific" , "b")
-                self.VerifyNSspec(mItem)                
-                
-                self.Print ("")
-                self.Print ("-(5)--  Test Features with capabilities bit 2, Feature Identifier is not changeable", "b")
+                self.Print ("-(4)--  Test Features with capabilities bit 2, Feature Identifier is not changeable", "b")
                 if changeable:
                     self.Print( "Feature Identifier is changeable, quit" )
                 else:
@@ -960,7 +987,7 @@ class SMI_SetGetFeatureCMD(NVME):
                         self.ret_code=1                                    
 
                 self.Print ("") 
-                self.Print ("-(6)--  Restore values", "b")     
+                self.Print ("-(5)--  Restore values", "b")     
                 
                 value=mItem[item.reset_value]
                 self.Print ("restore to previous 'current value': %s"%hex(value))
@@ -975,7 +1002,7 @@ class SMI_SetGetFeatureCMD(NVME):
         # initial new parser if need, -t -d -s -p was used, dont use it again
         self.SetDynamicArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff, ex. '-x 1'", argType=int)    
         self.SetDynamicArgs(optionName="n", optionNameFull="disableNsTest", helpMsg="disable namespace test, ex. '-n 1'", argType=int)        
-        self.SetDynamicArgs(optionName="v", optionNameFull="version", helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3c, ex. '-v 1.3c'", argType=str)    
+        self.SetDynamicArgs(optionName="v", optionNameFull="version", helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3d, ex. '-v 1.3c'", argType=str)    
         
         # initial parent class
         super(SMI_SetGetFeatureCMD, self).__init__(argv)
@@ -988,7 +1015,7 @@ class SMI_SetGetFeatureCMD(NVME):
         
         VersionDefine = ["1.3c", "1.3d"]
         self.specVersion = self.GetDynamicArgs(2)
-        self.specVersion = "1.3c" if self.specVersion==None else self.specVersion   # default = 1.3c
+        self.specVersion = "1.3d" if self.specVersion==None else self.specVersion   # default = 1.3d
         if not self.specVersion in VersionDefine:   # if input is not in VersionDefine, e.g keyin wrong version
             self.specVersion = "1.3c"
                   
@@ -1152,7 +1179,141 @@ class SMI_SetGetFeatureCMD(NVME):
     def SubCase18(self):
         self.ret_code=0
         self.VerifyFID(0x83)
+        return self.ret_code     
+    
+    SubCase19TimeOut = 600
+    SubCase19Desc = "Ulink3.0 StatusCode -> Arbitration"        
+    def SubCase19(self):
+        self.ret_code=0
+        self.VerifyStatusCode(1)
+        return self.ret_code
+
+    SubCase20TimeOut = 600
+    SubCase20Desc = "Ulink3.0 StatusCode -> Power Management"        
+    def SubCase20(self):
+        self.ret_code=0
+        self.VerifyStatusCode(2)
+        return self.ret_code
+
+    SubCase21TimeOut = 600
+    SubCase21Desc = "Ulink3.0 StatusCode -> LBA Range Type"        
+    def SubCase21(self):
+        self.ret_code=0
+        self.VerifyStatusCode(3)
+        return self.ret_code
+
+    SubCase22TimeOut = 600
+    SubCase22Desc = "Ulink3.0 StatusCode -> Temperature Threshold"        
+    def SubCase22(self):
+        self.ret_code=0
+        self.VerifyStatusCode(4)
+        return self.ret_code
+    
+    SubCase23TimeOut = 600
+    SubCase23Desc = "Ulink3.0 StatusCode -> Error Recovery"       
+    def SubCase23(self):
+        self.ret_code=0
+        self.VerifyStatusCode(5)
+        return self.ret_code
+    
+    SubCase24TimeOut = 600
+    SubCase24Desc ="Ulink3.0 StatusCode -> Volatile Write Cache"    
+    def SubCase24(self):
+        self.ret_code=0
+        self.VerifyStatusCode(6)
+        return self.ret_code
+    
+    SubCase25TimeOut = 600
+    SubCase25Desc = "Ulink3.0 StatusCode -> Number of Queues"       
+    def SubCase25(self):
+        self.ret_code=0
+        self.VerifyStatusCode(7)
+        return self.ret_code
+    
+    SubCase26TimeOut = 600
+    SubCase26Desc = "Ulink3.0 StatusCode -> Interrupt Coalescing"      
+    def SubCase26(self):
+        self.ret_code=0
+        self.VerifyStatusCode(8)
+        return self.ret_code
+    
+    SubCase27TimeOut = 600
+    SubCase27Desc = "Ulink3.0 StatusCode -> Interrupt Vector Configuration(Testing secend Interrupt Vector where cdw11=0x1)"      
+    def SubCase27(self):
+        self.ret_code=0
+        self.VerifyStatusCode(9)
+        return self.ret_code
+    
+    SubCase28TimeOut = 600
+    SubCase28Desc = "Ulink3.0 StatusCode -> Write Atomicity Normal"       
+    def SubCase28(self):
+        self.ret_code=0
+        self.VerifyStatusCode(10)
+        return self.ret_code
+    
+    SubCase29TimeOut = 600
+    SubCase29Desc = "Ulink3.0 StatusCode -> Asynchronous Event Configuration"       
+    def SubCase29(self):
+        self.ret_code=0
+        self.VerifyStatusCode(11)
+        return self.ret_code
+    
+    SubCase30TimeOut = 600
+    SubCase30Desc = "Ulink3.0 StatusCode -> Autonomous Power State Transition"      
+    def SubCase30(self):
+        self.ret_code=0
+        self.VerifyStatusCode(12)
+        return self.ret_code
+    
+    SubCase31TimeOut = 600
+    SubCase31Desc = "Ulink3.0 StatusCode -> Host Memory Buffer"
+    def SubCase31(self):
+        self.ret_code=0
+        self.VerifyStatusCode(13)
+        return self.ret_code    
+    
+    SubCase32TimeOut = 600
+    SubCase32Desc = "Ulink3.0 StatusCode -> Host Controlled Thermal Management"
+    def SubCase32(self):
+        self.ret_code=0
+        self.VerifyStatusCode(0x10)
+        return self.ret_code  
+    
+    SubCase33TimeOut = 600
+    SubCase33Desc = "Ulink3.0 StatusCode -> Software Progress Marker"
+    def SubCase33(self):
+        self.ret_code=0
+        self.VerifyStatusCode(0x80)
+        return self.ret_code  
+    
+    SubCase34TimeOut = 600
+    SubCase34Desc = "Ulink3.0 StatusCode -> Host Identifier"
+    def SubCase34(self):
+        self.ret_code=0
+        self.VerifyStatusCode(0x81)
         return self.ret_code      
+    
+    SubCase35TimeOut = 600
+    SubCase35Desc = "Ulink3.0 StatusCode -> Reservation Notification Mask"
+    def SubCase35(self):
+        self.ret_code=0
+        self.VerifyStatusCode(0x82)
+        return self.ret_code      
+    
+    SubCase36TimeOut = 600
+    SubCase36Desc = "Ulink3.0 StatusCode -> Reservation Persistance"
+    def SubCase36(self):
+        self.ret_code=0
+        self.VerifyStatusCode(0x83)
+        return self.ret_code    
+    
+    
+    
+    
+    
+    
+    
+     
     # </sub item scripts>
     
     

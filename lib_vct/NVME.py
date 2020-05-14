@@ -29,7 +29,7 @@ import re
 import time
 from shutil import copyfile
 import subprocess
-
+import types
 
 def foo1():
     pass
@@ -125,7 +125,7 @@ class NVME(object, NVMECom):
         # abstract  function
         #     PreTest()                                                           :Override it for pretest, ex. check if controll support features, etc.
         #                                                                                :return true or false
-        #     SubCase1() to SubCase32()                            :Override it for sub case 1 to sub case32
+        #     SubCase1() to SubCase64()                            :Override it for sub case 1 to sub case32
         #                                                                                :return 0=pass, 1=fals, 255=skip/notSupport
         #     PostTest()                                                         :Override it for post test, ex. check controll status, etc.
         #                                                                                :return true or false        
@@ -142,11 +142,11 @@ class NVME(object, NVMECom):
         # PostTest()
         exec("NVME.PostTest=self._function")        
         
-        # generate dynamic function for SubCase1() to SubCase32() for sun class to override
+        # generate dynamic function for SubCase1() to SubCase64() for sun class to override
         # e.g. 
         # |    def SubCase1(self):
         # |       pass
-        self.SubCaseMaxNum=32        
+        self.SubCaseMaxNum=64        
         for x in range(1, self.SubCaseMaxNum+1): 
             exec("NVME.SubCase%s=self._function"%x)
 
@@ -348,27 +348,33 @@ class NVME(object, NVMECom):
         if self.mScriptDoc: return 0 
            
         
-        # if override Pretest(), then run it, or PreTestIsPass= true
+        # if override Pretest(), then run it, or PreTestRtCode= 0
         if self.IsMethodOverride( "PreTest"):
             # enable RecordCmdToLogFile to recode command
             self.RecordCmdToLogFile=True             
             self.Logger("<PreTest> ----------------------------", mfile="cmd") 
                 
             PreTest = self.GetAbstractFunctionOrVariable(0, "pretest")
-            PreTestIsPass = PreTest()
+            PreTestRtCode = PreTest()
+            # if return true/false, transfer to int
+            if isinstance(PreTestRtCode, types.BooleanType):                      
+                if PreTestRtCode ==True:
+                    PreTestRtCode = 0
+                else:
+                    PreTestRtCode = 1                
             
             # disable RecordCmdToLogFile to recode command
             self.RecordCmdToLogFile=True             
             self.Logger("</PreTest> ----------------------------", mfile="cmd")       
             self.Logger("", mfile="cmd")            
         else:
-            PreTestIsPass = True
+            PreTestRtCode = 0
         
-        if PreTestIsPass:
-            # if PreTestIsPass = true
+        if PreTestRtCode==0:
+            # if PreTestRtCode = true
             # do subcase and posttest and get the self.rtCode
             
-            # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase32>
+            # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase64>
             # if ResumeSubCase!=None, mean the scrip is running after reboot, then skip from case1 to ResumeSubCase-1
             StartSubCaseNum = 1 if self.ResumeSubCase==None else self.ResumeSubCase
             for SubCaseNum in range(StartSubCaseNum, self.SubCaseMaxNum+1):
@@ -428,7 +434,7 @@ class NVME(object, NVMECom):
                             
     
                              
-                        # disable RecordCmdToLogFile to recode command
+                        # disable RecordCmdToLogFile to record command
                         self.RecordCmdToLogFile=True             
                         self.Logger("</Case %s> ----------------------------"%SubCaseNum, mfile="cmd")
                         self.Logger("", mfile="cmd")                             
@@ -443,7 +449,7 @@ class NVME(object, NVMECom):
                     self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
             # </for function from SubCase1 to SubCaseX   >     
     
-            # if override Posttest(), then run it, or PreTestIsPass= true
+            # if override Posttest(), then run it, or PreTestRtCode= true
             if self.IsMethodOverride( "PostTest"):
                 # enable RecordCmdToLogFile to recode command
                 self.RecordCmdToLogFile=True             
@@ -461,8 +467,21 @@ class NVME(object, NVMECom):
             
             # get rtCode from SubCase_rtCode
             self.rtCode = self.GetrtCodeFrom_SubCase_rtCode()
-        else: # PreTestIsPass = false
-            self.rtCode = 1
+        else: # PreTestRtCode != 1, e.g. PreTest fail, set all SubCase to PreTestRtCode
+            self.rtCode = PreTestRtCode
+            # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase64>
+            # if ResumeSubCase!=None, mean the scrip is running after reboot, then skip from case1 to ResumeSubCase-1
+            StartSubCaseNum = 1 if self.ResumeSubCase==None else self.ResumeSubCase
+            for SubCaseNum in range(StartSubCaseNum, self.SubCaseMaxNum+1):
+                if self.IsMethodOverride("SubCase%s"%SubCaseNum):  
+                    Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description") 
+                    # if find subitem, e.g. user assign it to run
+                    if SubCaseNum in self.UserSubItems:
+                        self.WriteSubCaseResultToLog(self.rtCode , SubCaseNum, Description)   
+                    else:                 
+                        # left subcases return skip(255)
+                        self.WriteSubCaseResultToLog(255 , SubCaseNum, Description)            
+            
         
         sleep(1)
         # reset controller to initial status

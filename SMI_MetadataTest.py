@@ -15,7 +15,7 @@ from __builtin__ import False
 class SMI_MetadataTest(NVME):
     ScriptName = "SMI_MetadataTest.py"
     Author = "Sam Chan"
-    Version = "20190410"
+    Version = "20200514"
 
 
     
@@ -546,7 +546,7 @@ class SMI_MetadataTest(NVME):
         self.Print ("If LBA format support metadata, list the LBAFs")     
         if not self.TestItems:
             self.Print ("All the LBA format does't support metadata, quit all the test case!")
-            return False
+            return 255
         else:
             for Item in self.TestItems:
                 self.Print("LBAF %s, RP: %s, LBADS: %s, MS: %s"%(Item[0], Item[1], Item[2], Item[3])) 
