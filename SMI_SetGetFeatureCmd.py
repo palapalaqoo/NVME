@@ -160,7 +160,7 @@ class SMI_SetGetFeatureCMD(NVME):
         else:
             valid_value = 3    
         valid_value=1 if reset_value==0 else 0
-        self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])  
+        self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])         
     
         description = "Host Controlled Thermal Management"
         fid = 0x10
@@ -1048,7 +1048,7 @@ class SMI_SetGetFeatureCMD(NVME):
             self.initial()        
             self.Print("Test item 'Timestamp' is in script SMI_FeatureTimestamp ", "w")
             self.Print("Test item 'Keep Alive Timer' has not implemented ", "w")
-            self.Print("Test item 'Number of Queues' has not implemented ", "w")
+
             return True
         else:
             self.Print("Not Supported", "f")     

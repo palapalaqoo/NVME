@@ -25,7 +25,7 @@ class SMI_FeatureTimeStamp(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_FeatureTimeStamp.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20200518"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -105,11 +105,11 @@ class SMI_FeatureTimeStamp(NVME):
         self.Print ("Check if controll support Timestamp or not")
         if self.ONCS_bit6=="1":
             self.Print("Supported", "p")
-            return True
+            return 0
         else:
             self.Print("Not supported", "p")
             self.Print ("quit all the test items!")
-            return False 
+            return 255 
             
             
     # <sub item scripts>

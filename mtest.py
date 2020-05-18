@@ -36,9 +36,11 @@ class mtest1(NVME):
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
+        self.SetDynamicArgs(optionName="s1", optionNameFull="loops", helpMsg="number of loops, default = 1", argType=int)
         # initial parent class
         super(mtest1, self).__init__(argv)
-        self.paramiko = self.ImportModuleWithAutoYumInstall("paramiko", None)      
+        self.loops = self.GetDynamicArgs(0) 
+
         
     def VM_shell_cmd(self, IP, CMD):
         if self.paramiko==None:
@@ -138,13 +140,13 @@ class mtest1(NVME):
         
         
     def PreTest(self):
-        return 255    
+        return 0    
     
     def SubCase1(self):
 
         aa =self.IdCtrl.NN.int
 
-        aa, SC= self.shell_cmd_with_sc("ls aaa")
+        aa, SC= self.shell_cmd_with_sc("nvme read /dev/nvme0n1 -s 0x1A339 -z 0x21200 -c 0x108 2>&1 ")
         
         
         

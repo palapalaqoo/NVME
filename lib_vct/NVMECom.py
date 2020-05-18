@@ -192,9 +192,39 @@ class NVMECom():
         self.LastCmd="None"
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
         self.timer=timer_()
-              
+        self.timeEventTerminate = False
+    
+    def threadTimeEvent(self, seconds, eventFunc = None, printProgressBar = False):
+        self.timer.start()
+        while True:
+            # time up
+            if int(float(self.timer.time)) > seconds:                  
+                break 
+            # if timeEventTerminate
+            if self.timeEventTerminate:
+                self.timeEventTerminate = False
+                break
+                
+            # if printProgressBar
+            if printProgressBar:
+                self.PrintProgressBar(int(float(self.timer.time)), seconds, prefix = 'Time:', length = 20)                
+            sleep(1) 
         
-
+        print    
+        if eventFunc != None:
+            eventFunc()
+            
+              
+    def timeEvent(self, seconds, eventFunc = None, printProgressBar = False):  
+    # seconds: timer in seconds
+    # eventFunc: when time is up, run eventFunc()
+    # printProgressBar: if True, show timer ProgressBar every 1 second
+    # can Terminate thread using 'self.timeEventTerminate = True'
+        t = threading.Thread(target = self.threadTimeEvent, args=(seconds, eventFunc, printProgressBar,))
+        #t.daemon = True # The entire Python program exits when no alive non-daemon threads are left.
+        t.start()
+        return t 
+            
     @property
     def Second(self):
         return int(time.time())       
@@ -727,8 +757,10 @@ class NVMECom():
         sys.stdout.write(u"\u001b[u") # restores the cursor to the last saved position
         sys.stdout.isProgress=False     
         # Print New Line on Complete
+        '''
         if iteration == total: 
             print ""
+        '''
 
     def KMGT(self, size):
     # ex. KMGT(1024), return "1K"
