@@ -195,6 +195,10 @@ class NVMECom():
         self.timeEventTerminate = False
     
     def threadTimeEvent(self, seconds, eventFunc = None, printProgressBar = False):
+    # seconds: timer in seconds
+    # eventFunc: when time is up, run eventFunc()
+    # printProgressBar: if True, show timer ProgressBar every 1 second
+    # can Terminate thread using 'self.timeEventTerminate = True'
         self.timer.start()
         while True:
             # time up
@@ -220,6 +224,7 @@ class NVMECom():
     # eventFunc: when time is up, run eventFunc()
     # printProgressBar: if True, show timer ProgressBar every 1 second
     # can Terminate thread using 'self.timeEventTerminate = True'
+        self.timeEventTerminate = False
         t = threading.Thread(target = self.threadTimeEvent, args=(seconds, eventFunc, printProgressBar,))
         #t.daemon = True # The entire Python program exits when no alive non-daemon threads are left.
         t.start()
@@ -1115,7 +1120,7 @@ class NVMECom():
         def BW_KMGtoM(self, value, unit):
         # format KMG to M, e.g. format giga to maga
             if unit=="K":    #KiB/s
-                value=float(value/1024)
+                value=float(value)/1024
             if unit=="M":    #MiB/s
                 value=float(value)                 
             if unit=="G":    #GiB/s

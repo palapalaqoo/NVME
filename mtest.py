@@ -11,6 +11,7 @@
         #=======================================================================     
         
 # Import python built-ins
+from random import randint
 import platform
 import sys
 import time
@@ -30,7 +31,10 @@ class mtest1(NVME):
     Version = "20191030"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
-
+    def getDW10_DW11(self, slba):
+        dw10=slba&0xFFFFFFFF
+        dw11=slba>>32
+        return dw10, dw11 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -144,22 +148,11 @@ class mtest1(NVME):
     
     def SubCase1(self):
 
-        aa =self.IdCtrl.NN.int
+        value =  randint(1, 0xFF)
+        
+        porTimer = float(value) / 1000
 
-        aa, SC= self.shell_cmd_with_sc("nvme read /dev/nvme0n1 -s 0x1A339 -z 0x21200 -c 0x108 2>&1 ")
-        
-        
-        
-        
-        aa= self.MaxNLBofCDW12()
-        aa = self.GetPciePort("/dev/nvme1n1")
 
-        aa=self.shell_cmd("which python2.7 >/dev/null 2>&1 ; echo $?")
-        print aa
-        aa=self.shell_cmd("which python >/dev/null 2>&1 ; echo $?")
-        print aa        
-        aa=self.shell_cmd("which python2.7.5 >/dev/null 2>&1 ; echo $?")
-        print aa        
         
         return 0
         self.Print("Wait")
