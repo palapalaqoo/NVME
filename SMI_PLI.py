@@ -22,11 +22,16 @@ class SMI_PLI(NVME):
         return dw10, dw11    
     
     def IdleForXmin(self):
-        self.Print("Idle For %s seconds"%self.min)
-        for i in self.paraSecond:
+        self.Print("Idle For %s seconds"%self.paraSecond)
+        cnt = 0
+        while True:
             sleep(1)
-            self.PrintProgressBar(i, self.paraSecond, prefix = 'Time:', length = 20) 
-        self.Print("Done")      
+            cnt = cnt +1
+            self.PrintProgressBar(cnt, self.paraSecond, prefix = 'Time:', length = 20)             
+            if cnt >=self.paraSecond:
+                break
+        self.Print("Done")  
+        return True    
     
     def TimeUpFunc(self):
         self.timeIsUp=True
@@ -161,6 +166,7 @@ class SMI_PLI(NVME):
             mStr, SC=self.shell_cmd_with_sc(CMD)
             # if fail
             if (SC!=0):
+                sleep(1) # sleep 1 s to prevent /dev/nvme0n1 is exist after spor
                 if self.dev_alive:
                     self.Print("FIO write Fail, devices is still alive, fail the test", "f")
                     t.join()
@@ -314,6 +320,47 @@ class SMI_PLI(NVME):
             self.Print("Fail!", "f")
             return False
         
+    def RunFlow(self):
+        result = True
+        for loop in range(1, self.loops+1):
+            self.Print("-----------------------------------------------------", "b")
+            if (loop % 3)==0:
+                self.Print("Loop: %s,  IdleForXmin"%loop, "p")
+                self.SetPrintOffset(4)
+                result = self.IdleForXmin()
+                self.SetPrintOffset(0)
+            elif  (loop % 3)==1:
+                self.Print("Loop: %s,  RandReadXminMixOfSectorSizes"%loop, "p")        
+                self.SetPrintOffset(4)      
+                result = self.RandReadXminMixOfSectorSizes()
+                self.SetPrintOffset(0)
+            else:
+                self.Print("Loop: %s,  SeqWriteXmin256SectorTransfer"%loop, "p")  
+                self.SetPrintOffset(4)
+                result = self.SeqWriteXmin256SectorTransfer()
+                self.SetPrintOffset(0)
+
+            if result ==False:
+                return False
+            
+            # if Loop/3 is even
+            if (loop / 3) % 2 ==0: 
+                self.Print("Loop: %s,  WritePLI"%loop, "p")  
+                self.SetPrintOffset(4)                
+                result = self.WritePLI()
+                self.SetPrintOffset(0)
+            # else Loop/3 is not even
+            else:
+                self.Print("Loop: %s,  ReadPLI"%loop, "p")
+                self.SetPrintOffset(4)
+                result = self.ReadPLI()
+                self.SetPrintOffset(0)
+                
+            if result ==False:
+                return False
+        
+        return True                
+    
     
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops, default = 1", argType=int)
@@ -359,7 +406,6 @@ class SMI_PLI(NVME):
         self.Print ("Time for idle/randRead/seqWrite: %s seconds"%self.paraSecond)
         self.Print ("Write/Read LPI sector: %s "%self.paraLPISector)        
         self.Print ("Write/Read LPI size: %s (0x%X LBA)"%(self.paraLPISize, self.paraLPISizeInBLK))          
-        self.Print ("Write/Read LPI size: %s (0x%X LBA)"%(self.paraLPISize, self.paraLPISizeInBLK))
         self.Print ("Power Off Timer from %s ms to %s ms"%(self.paraPorOffTimer0, self.paraPorOffTimer1))         
         
         # device infor
@@ -377,14 +423,13 @@ class SMI_PLI(NVME):
         return 0            
 
     # <define sub item scripts>
-    SubCase1TimeOut = 60
+    SubCase1TimeOut = 600000
     SubCase1Desc = "Intel PLI test"   
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0
         try:
-            #self.RandReadXminMixOfSectorSizes()
-            self.ReadPLI()
+            self.RunFlow()
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit test case")  

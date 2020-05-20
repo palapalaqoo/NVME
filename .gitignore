@@ -1,0 +1,17 @@
+/.metadata/
+/SMI_SetUpResources/
+/SMI_SetUpResourcesZips/
+/SRIOV_Resources/
+/Log/
+/CSV/
+
+*.state
+*.project
+*.pydevproject
+*.rpm
+*.gz
+*.log
+*.pyc
+*.csv
+*.bin
+

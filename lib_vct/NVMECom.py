@@ -48,6 +48,9 @@ class NVMECom():
     LogName_ConsoleOut="log"
     ScriptParserArgs=[]  
     LastProgress=None
+    # for self.Print()
+    PrintOffset = ""     
+    
     def SubItemNum(self):
         self.SubItemNumValue+=1
         return self.SubItemNumValue
@@ -143,7 +146,8 @@ class NVMECom():
             self.log = open(self.mLogFile, "a")
             # handle progress bar
             self.isProgress = False
-            self.ProgressMsg=None            
+            self.ProgressMsg=None
+           
         
         def write(self, message):
             self.terminal.write(message)
@@ -489,10 +493,16 @@ class NVMECom():
         return mStr     
         
     
+    def SetPrintOffset(self, offset):        
+        self.PrintOffset = ""
+        for i in range(offset):
+            self.PrintOffset = self.PrintOffset + " "
+    
     def Print(self, msg, Ctype="d"):
-        # split by '/n' and print rows one by one
+        # split by '/n' and add PrintOffset then, print rows one by one
         MsgList = msg.split("\n")        
         for mMsg in MsgList:
+            mMsg = self.PrintOffset + mMsg
             self.Print1Row(mMsg, Ctype)
     
     def Print1Row(self, msg, Ctype="d"):
@@ -750,7 +760,7 @@ class NVMECom():
             columns = self.shell_cmd("tput cols")
         except:
             columns = 40
-        mStr = self.PrefixString()+mstr
+        mStr = self.PrefixString()+self.PrintOffset+mstr
         mStr = mStr[:int(columns)-1]
         
         sys.stdout.isProgress=True
