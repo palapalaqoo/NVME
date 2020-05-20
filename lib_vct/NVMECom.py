@@ -1005,7 +1005,9 @@ class NVMECom():
         Msg=[]
         def __init__(self,obj):
             self.OBJ=obj
-            self.Msg = []     
+            self.Msg = []   
+            self.killProcess  = False
+            self.mNVME = obj
 
         def RunFIOcmdWithConsoleOutAndPyplot(self, CMDlist, maxPlot = 100, printInfo=False):
         # maxPlot: number of plots that will be drawn
@@ -1136,7 +1138,60 @@ class NVMECom():
             if unit=="G":    #GiB/s
                 value=float(value*1024)  
             return value
+
+        def RunOneFIOcmdWithProgressStatus(self, command):
+            # 
+            MaxETA = 0
+            if command.find("rw=read")!=-1:
+                type = "read"
+            elif command.find("rw=write")!=-1:
+                type = "write"
+            else:
+                return False
             
+            
+            # issue command and parser console out
+            for line in self.RunFIOgetRealTimeConsoleOut(command):                
+                # report for runtime bw
+                # ex, Jobs: 1 (f=1): [W(1)][60.0%][r=0KiB/s,w=48.8MiB/s][r=0,w=99.9k IOPS][eta 00m:02s]
+                mStr = "^Jobs: .*\[(.+)%\]\[r=([0-9.]*)([A-Z])iB/s.*w=([0-9.]*)([A-Z])iB/s.*\[eta (.*)\]"
+                findRunTimeBW=bool(re.search(mStr, line))
+                if findRunTimeBW:
+                    percent = float(re.search(mStr, line).group(1))
+                    Rvalue = float(re.search(mStr, line).group(2))
+                    Runit =  re.search(mStr, line).group(3)
+                    Wvalue = float(re.search(mStr, line).group(4))
+                    Wunit =  re.search(mStr, line).group(5)                    
+                    # read bw format to Mega
+                    readBW = self.BW_KMGtoM(Rvalue, Runit)
+                    # write bw format to Mega
+                    writeBW = self.BW_KMGtoM(Wvalue, Wunit)
+                    # ETA
+                    eta =  re.search(mStr, line).group(6)
+                    
+                    
+                    
+                    #update progress bar
+                    if type=="read":
+                        PREFIX = "Read BW: %s Mb, eta: %s"%(readBW, eta)
+                    else:
+                        PREFIX = "Write BW: %s Mb, eta: %s"%(writeBW, eta)
+                        
+                    percent=int(percent)
+                    
+                    self.mNVME.PrintProgressBar(percent, 100, suffix = PREFIX, length = 20) 
+                    
+                # find write Average BW?
+                mStr = "WRITE: bw=([0-9.]*)([A-Z])iB/s"
+                findFinalAverageBWwrite=bool(re.search(mStr, line))             
+                # find read Average BW?
+                mStr = "READ: bw=([0-9.]*)([A-Z])iB/s"
+                findFinalAverageBWread=bool(re.search(mStr, line))                                 
+                # if find read or write, then save to Msg       
+                if findFinalAverageBWread or findFinalAverageBWwrite:   
+                    self.mNVME.PrintProgressBar(100, 100, suffix = PREFIX, length = 20)
+                     
+            return True        
             
         def RunOneFIOcmdWithConsoleOutThread(self, idThread, command, printInfo=False):
             # timer
@@ -1214,6 +1269,11 @@ class NVMECom():
             commandWith_etaIsalways = command + " --eta=always"
             process = subprocess.Popen(commandWith_etaIsalways, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
             while True:
+                if self.killProcess == True:
+                    process.kill()
+                    self.killProcess = False
+                    return
+                
                 line = process.stdout.readline().rstrip()
                 if not line:
                     break

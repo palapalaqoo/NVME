@@ -13,8 +13,8 @@ from lib_vct.NVME import NVME
 
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
-    Author = ""
-    Version = ""
+    Author = "Sam"
+    Version = "20200520"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -322,6 +322,13 @@ class SMI_PLI(NVME):
         
     def RunFlow(self):
         result = True
+        if self.paraPrecondition=="yes":
+            self.Print("Do Precondition, write 0x0 to entire disk!")
+            if not self.fio_precondition(pattern = 0, showProgress= True):
+                self.Print("Fail to do precondition!", "f")
+                return False
+            self.Print("Done")        
+        
         for loop in range(1, self.loops+1):
             self.Print("-----------------------------------------------------", "b")
             if (loop % 3)==0:
@@ -363,19 +370,19 @@ class SMI_PLI(NVME):
     
     
     def __init__(self, argv):
-        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops, default = 1", argType=int)
+        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops, default = 10", argType=int)
         self.SetDynamicArgs(optionName="s0", optionNameFull="secondParameter0", helpMsg="seconds for idle/randRead/seqWrite, default = '300' (5 minutes)", argType=int)
         self.SetDynamicArgs(optionName="sector", optionNameFull="WriteRead_LPI_sector", helpMsg="Write/Read LPI sector, default = '256'", argType=int)
         self.SetDynamicArgs(optionName="size", optionNameFull="WriteRead_LPI_size", helpMsg="Write/Read LPI size, default = '800M'", argType=str)
         self.SetDynamicArgs(optionName="t0", optionNameFull="PorOffTimer0", helpMsg="Power Off Timer minium in millisecond, default = 2000", argType=int)
         self.SetDynamicArgs(optionName="t1", optionNameFull="PorOffTimer1", helpMsg="Power Off Timer maxium in millisecond, default = 4000", argType=int)
-        
+        self.SetDynamicArgs(optionName="precon", optionNameFull="Precondition", helpMsg="do precondition, usage, -precon yes, default = no", argType=str)
         
         # initial parent class
         super(SMI_PLI, self).__init__(argv)
         
         self.loops = self.GetDynamicArgs(0) 
-        self.loops=1 if self.loops==None else self.loops  
+        self.loops=10 if self.loops==None else self.loops  
               
         self.paraSecond = self.GetDynamicArgs(1) 
         self.paraSecond=300 if self.paraSecond==None else self.paraSecond
@@ -391,7 +398,11 @@ class SMI_PLI(NVME):
         self.paraPorOffTimer0=2000 if self.paraPorOffTimer0==None else self.paraPorOffTimer0       
         
         self.paraPorOffTimer1 = self.GetDynamicArgs(5) 
-        self.paraPorOffTimer1=4000 if self.paraPorOffTimer1==None else self.paraPorOffTimer1                                  
+        self.paraPorOffTimer1=4000 if self.paraPorOffTimer1==None else self.paraPorOffTimer1   
+           
+        self.paraPrecondition = self.GetDynamicArgs(6) 
+        self.paraPrecondition="no" if self.paraPrecondition==None else self.paraPrecondition
+        self.paraPrecondition="no" if self.paraPrecondition!="yes" else self.paraPrecondition 
         
         self.NCAP=self.IdNs.NCAP.int  
         self.MaxNLB = self.MaxNLBofCDW12()   
@@ -406,9 +417,10 @@ class SMI_PLI(NVME):
         self.Print ("Time for idle/randRead/seqWrite: %s seconds"%self.paraSecond)
         self.Print ("Write/Read LPI sector: %s "%self.paraLPISector)        
         self.Print ("Write/Read LPI size: %s (0x%X LBA)"%(self.paraLPISize, self.paraLPISizeInBLK))          
-        self.Print ("Power Off Timer from %s ms to %s ms"%(self.paraPorOffTimer0, self.paraPorOffTimer1))         
+        self.Print ("Power Off Timer from %s ms to %s ms"%(self.paraPorOffTimer0, self.paraPorOffTimer1))
+        self.Print ("Do Precondition: %s"%(self.paraPrecondition))         
         
-        # device infor
+        # device infor 
         self.Print ("NCAP: 0x%X"%self.NCAP)     
         self.Print("Max of sector sizes: %s x %s bytes"%(self.MaxNLB, self.OneBlockSize))
         
@@ -429,7 +441,7 @@ class SMI_PLI(NVME):
     def SubCase1(self):
         ret_code=0
         try:
-            self.RunFlow()
+            ret_code=0 if self.RunFlow() else 1
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit test case")  

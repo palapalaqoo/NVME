@@ -147,32 +147,11 @@ class mtest1(NVME):
         return 0    
     
     def SubCase1(self):
-
-        value =  randint(1, 0xFF)
-        
-        porTimer = float(value) / 1000
-
-
-        
-        return 0
-        self.Print("Wait")
-        self.Print("Wait")
-        self.Print("Wait")
-        self.Print("Wait")
-        self.Print("Wait")
-        aa=self.por_reset()
-        bb=self.spor_reset()
-        
-
-        sleepT=5
-        for i in range(sleepT+1):
-        # PrintProgressBar
-            self.PrintProgressBar(i, sleepT, prefix = 'Time:', length = 20)  
-            sleep(1)
+        self.fio_precondition(pattern = 0xc7, showProgress= True)
 
         self.Print("")
         self.Print("Wait")
-        self.FlushConsoleMsg()                      
+                   
         
         
         

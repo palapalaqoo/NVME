@@ -714,6 +714,27 @@ class NVME(object, NVMECom):
         else:
             return "0"
     
+    def fio_precondition(self, pattern, fio_direct=1, fio_bs="64k", showProgress=False):
+        CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=0 --name=mdata \
+        --do_verify=0 --verify=pattern --verify_pattern=%s --randrepeat=0" %(fio_direct, fio_bs, self.dev, pattern)
+        if not showProgress:
+            mStr, SC = self.shell_cmd_with_sc(CMD)
+            if SC!=0:
+                return False
+            else:
+                return True
+            
+        else:
+            FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)  
+            try:
+                FIOcmdWithPyPlot.RunOneFIOcmdWithProgressStatus(CMD)
+            except :  # any issue, kill process for FIO
+                FIOcmdWithPyPlot.killProcess = True         
+                return False          
+                
+            return True
+
+    
     def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1, fio_bs="64k"):
         if devPort==None:
             # replease nsid
