@@ -735,14 +735,31 @@ class NVME(object, NVMECom):
             return True
 
     
-    def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1, fio_bs="64k"):
+    def fio_write(self, offset, size, pattern, nsid=1, devPort=None, fio_direct=1, fio_bs="64k", showProgress=False):
         if devPort==None:
             # replease nsid
             DEV = self.dev[0:self.dev.find("nvme")+5] + "n%s"%nsid 
         else:
             DEV=devPort+"n%s"%nsid 
-        return self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
-        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, DEV, offset, size, pattern))
+            
+        CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
+        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, DEV, offset, size, pattern)
+        
+        if not showProgress:
+            mStr, SC = self.shell_cmd_with_sc(CMD)
+            if SC!=0:
+                return False
+            else:
+                return True            
+        else:
+            FIOcmdWithPyPlot = self.FIOcmdWithPyPlot_(self)  
+            try:
+                FIOcmdWithPyPlot.RunOneFIOcmdWithProgressStatus(CMD)
+            except :  # any issue, kill process for FIO
+                FIOcmdWithPyPlot.killProcess = True         
+                return False         
+            return True            
+            
     
     def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1, printMsg=False):
     #-- return boolean

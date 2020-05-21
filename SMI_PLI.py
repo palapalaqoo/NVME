@@ -391,7 +391,7 @@ class SMI_PLI(NVME):
         self.paraLPISector=256 if self.paraLPISector==None else self.paraLPISector        
         
         self.paraLPISize = self.GetDynamicArgs(3) 
-        self.paraLPISize=256 if self.paraLPISize==None else self.paraLPISize 
+        self.paraLPISize="800M" if self.paraLPISize==None else self.paraLPISize 
         self.paraLPISizeInBLK = self.KMGT_reverse(self.paraLPISize)    
         
         self.paraPorOffTimer0 = self.GetDynamicArgs(4) 
@@ -440,6 +440,9 @@ class SMI_PLI(NVME):
     SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0
+        self.Print("")
+        self.Print("Note: Press Ctrl-C to skip the test!", "p")
+        self.Print("")
         try:
             ret_code=0 if self.RunFlow() else 1
         except KeyboardInterrupt:

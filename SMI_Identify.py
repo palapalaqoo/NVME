@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20200507"
+    Version = "20200521"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1075,6 +1075,10 @@ class SMI_IdentifyCommand(NVME):
         LBADS = LBAF[0][2]
         LBADSinByte = pow(2,LBADS)
         self.Print("Current LBADS: %s byte"%LBADSinByte)
+        
+        self.Print("Try to write data to first 10G, pattern = 0xAD")
+        self.fio_write(offset=0 , size= "10G", pattern = 0xAC, showProgress=True)
+        self.Print("Done")
         
         self.Print("")
         self.Print("-- write command -------------------------------")    

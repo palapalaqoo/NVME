@@ -757,7 +757,9 @@ class NVMECom():
         '''
         # remove string  > console width
         try: # if using eclipse to debug, then set col to 40
+            self.RecordCmdToLogFile = False # no need to record command
             columns = self.shell_cmd("tput cols")
+            self.RecordCmdToLogFile = True
         except:
             columns = 40
         mStr = self.PrefixString()+self.PrintOffset+mstr
@@ -1267,6 +1269,9 @@ class NVMECom():
             #---------------------------------------------------------------------------------------
             # must set --eta=always
             commandWith_etaIsalways = command + " --eta=always"
+            #print to command log
+            if self.mNVME.RecordCmdToLogFile:
+                self.mNVME.Logger(command, mfile="cmd")              
             process = subprocess.Popen(commandWith_etaIsalways, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
             while True:
                 if self.killProcess == True:
