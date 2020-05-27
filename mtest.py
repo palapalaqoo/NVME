@@ -147,9 +147,12 @@ class mtest1(NVME):
         return 0    
     
     def SubCase1(self):
-        self.fio_precondition(pattern = 0xc7, showProgress= True)
-
-        self.Print("")
+        for i in range(5):
+            self.PrintProgressBar(i, 4, showPercent=True)
+            sleep(0.5)
+        
+        self.PrintProgressBar(4, 4, showPercent=True)
+        self.Print("4444")
         self.Print("Wait")
                    
         

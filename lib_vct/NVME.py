@@ -410,15 +410,17 @@ class NVME(object, NVMECom):
                         # sub case execption
                         try:
                             Code = SubCaseFuncWithTimeOut()    
-                            
+                            self.SetPrintOffset(0) # clear offset in advanced
                         # timeout execption     
-                        except TimedOutExc as e:              
+                        except TimedOutExc as e:    
+                            self.SetPrintOffset(0)        
                             self.Print ("")
                             self.Print( "Timeout!(%s seconds), quit Case %s test!"%(e, SubCaseNum), "f" )
                             self.Print( "Fail", "f" )
                             Code = 1               
                         # other execption
                         except Exception, error:
+                            self.SetPrintOffset(0)
                             self.Print( "An exception was thrown and stop sub case, please check command log(%s)"%self.LogName_CmdDetail, "f" )
                             self.Print( "Exception message as below", "f" )
                             self.Print ("")

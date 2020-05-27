@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20200521"
+    Version = "20200527"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1049,7 +1049,7 @@ class SMI_IdentifyCommand(NVME):
             self.Print("Quit this test case")        
         return ret_code      
  
-    SubCase9TimeOut = 600
+    SubCase9TimeOut = 3000
     SubCase9Desc = "Test Namespace Utilization (NUSE)" 
     def SubCase9(self): 
         ret_code=0
@@ -1061,8 +1061,12 @@ class SMI_IdentifyCommand(NVME):
             self.Print("ThinProvisioning supported", "p")
                     
         self.Print("")
-        self.Print("Try to format device with LBAF0")
-        consoleOut, Status = self.shell_cmd_with_sc("nvme format %s -n 1 -l 0 -s 0 -i 0"%self.dev)
+        self.Print("1) Check if NUSE is changeable or not")
+        self.SetPrintOffset(4)
+        self.Print("Try to format device with LBAF0, SES=1")
+        CMD = "nvme format %s -n 1 -l 0 -s 1 -i 0"%self.dev
+        self.Print("Issue format cmd: %s "%CMD)        
+        consoleOut, Status = self.shell_cmd_with_sc(CMD)
         if (Status!=0):
             self.Print("fail to format device, quit!", "f")
             return 1
@@ -1070,21 +1074,110 @@ class SMI_IdentifyCommand(NVME):
             self.Print("Done")
             
         # return LBAF[[0, MS, LBADS, RP], [1, MS, LBADS, RP].. ,[15, MS, LBADS, RP]] , all value is interger
+        self.Print("")
         self.Print("Try to get current LBA Data Size (LBADS)")
         LBAF = self.GetAllLbaf()
         LBADS = LBAF[0][2]
         LBADSinByte = pow(2,LBADS)
         self.Print("Current LBADS: %s byte"%LBADSinByte)
         
-        self.Print("Try to write data to first 10G, pattern = 0xAD")
-        self.fio_write(offset=0 , size= "10G", pattern = 0xAC, showProgress=True)
-        self.Print("Done")
         
         self.Print("")
-        self.Print("-- write command -------------------------------")    
+        self.Print("fio write 10G data")    
         NUSE = self.IdNs.NUSE.int
         self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")        
         
+        self.Print("")
+        testSizeInLBA = 10*1024*1024*1024/LBADSinByte    # 10G/LBADSinByte
+        self.Print("Try to write data to first 10G(LBA = 0x%X), pattern = 0xAD"%testSizeInLBA)
+        self.fio_write(offset=0 , size= "10G", pattern = 0xAC, showProgress=True)
+        sleep(0.5)
+        self.Print("Done")        
+        
+        self.Print("")
+        NUSE_c = self.IdNs.NUSE.int
+        self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
+
+        # if write can not change NUSE, and not ThinProvisioning, the quit case
+        if(NUSE == NUSE_c):
+            if not ThinProvisioningSupported:
+                self.Print("NUSE was not changed after command", "p")
+                self.Print("Because ThinProvisioning not supported, according to Spec.. ")
+                self.Print("- A controller may report NUSE equal to NCAP at all times")
+                self.Print("- if the product is not targeted for thin provisioning environments.")
+                self.Print("")
+                self.Print(" Check if NUSE equal to NCAP or not")
+                NCAP = self.IdNs.NCAP.int
+                if NCAP==NUSE_c:
+                    self.Print("Pass!, and skip test case", "p")
+                    return 0
+                else:
+                    self.Print("Fail!, NCAP=0x%X, and skip test case"%NCAP, "f") 
+                    return 1                   
+                
+                
+                
+            else:
+                self.Print("NUSE was not changed after command, fail", "f")
+                ret_code = 1    
+        else:
+            self.Print("NUSE is changeable", "p")
+              
+        self.Print("")
+        DiffNUSE = NUSE_c - NUSE
+        self.Print("Difference value of NUSE: %s"%(DiffNUSE))
+        self.Print("Check if Difference value of NUSE = %s or not"%testSizeInLBA)
+        if(DiffNUSE == testSizeInLBA):
+            self.Print("Pass!", "p")
+        else:
+            self.Print("Fail!", "f")
+            ret_code = 1        
+
+
+        self.Print("")
+        self.SetPrintOffset(0)
+        self.Print("2) Test format command with LBAF0, SES=0")
+        self.SetPrintOffset(4)
+        CMD = "nvme format %s -n 1 -l 0 -s 0 -i 0"%self.dev
+        self.Print("Issue format cmd: %s "%CMD)
+        consoleOut, Status = self.shell_cmd_with_sc(CMD)
+        if (Status!=0):
+            self.Print("fail to format device, quit!", "f")
+            return 1
+        else:
+            self.Print("Done")
+            
+        self.Print("")
+        self.Print("Check if NUSE is keeping changing after format command for every 0.5s, expect not change and NUSE=0")
+        result=True
+        for i in range(10):
+            NUSE = self.IdNs.NUSE.int
+            self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")  
+            if NUSE!=0:
+                result=False
+            sleep(0.5)
+        if result:
+            self.Print("Pass!", "p")
+        else:
+            self.Print("Fail!", "f")
+            ret_code = 1
+            
+        self.Print("")
+        self.Print("Wait for NUSE=0")
+        while True:
+            NUSE = self.IdNs.NUSE.int
+            if NUSE==0:
+                break
+            sleep(0.5)
+        self.Print("Done")    
+            
+        self.Print("")
+        self.SetPrintOffset(0)
+        self.Print("3) write command")    
+        self.SetPrintOffset(4)
+        NUSE = self.IdNs.NUSE.int
+        self.Print("Current NUSE: %s (%s)"%(hex(NUSE), NUSE), "p")        
+
         testSizeInLBA = randint(0x0, 0xFF) * 8  # testSizeInLBA 4K align
         ActualSize = testSizeInLBA*LBADSinByte
         self.Print("Try to write %s LBA(%s bytes), start from 0x0, pattern = 0xCE"%(testSizeInLBA, ActualSize))        
@@ -1096,21 +1189,8 @@ class SMI_IdentifyCommand(NVME):
             return 1
         
         NUSE_c = self.IdNs.NUSE.int
-        self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")
-
-        # if write can not change NUSE, and not ThinProvisioning, the quit case
-        if(NUSE == NUSE_c):
-            if not ThinProvisioningSupported:
-                self.Print("NUSE was not changed after command")
-                self.Print("Because ThinProvisioning not supported, according to Spec.. , skip test case")
-                self.Print("- A controller may report NUSE equal to NCAP at all times")
-                self.Print("- if the product is not targeted for thin provisioning environments.")
-                return 0
-            else:
-                self.Print("NUSE was not changed after command, fail", "f")
-                ret_code = 1    
-      
-        
+        self.Print("Current NUSE: %s (%s)"%(hex(NUSE_c), NUSE_c), "p")  
+              
         self.Print("")
         DiffNUSE = NUSE_c - NUSE
         self.Print("Difference value of NUSE: %s"%(DiffNUSE))
@@ -1119,10 +1199,12 @@ class SMI_IdentifyCommand(NVME):
             self.Print("Pass!", "p")
         else:
             self.Print("Fail!", "f")
-            ret_code = 1        
+            ret_code = 1 
 
         self.Print("")
-        self.Print("-- write uncorrectable command ------------")
+        self.SetPrintOffset(0)
+        self.Print("4) write uncorrectable command")    
+        self.SetPrintOffset(4)        
         WriteUncSupported = True if self.IdCtrl.ONCS.bit(1)=="1" else False
         if not WriteUncSupported:    
             self.Print("Write Uncorrectable not supported", "w")
@@ -1156,9 +1238,10 @@ class SMI_IdentifyCommand(NVME):
                 ret_code = 1
 
 
-            
         self.Print("")
-        self.Print("-- Deallocate command ------------")
+        self.SetPrintOffset(0)
+        self.Print("5) Deallocate command")    
+        self.SetPrintOffset(4)              
         DSMSupported = True if self.IdCtrl.ONCS.bit(2)=="1" else False
         if not DSMSupported:    
             self.Print("DSM(deallocate) not supported(deallocate)", "w")  
@@ -1195,8 +1278,11 @@ class SMI_IdentifyCommand(NVME):
                 self.Print("Fail!", "f")
                 ret_code = 1
 
+
         self.Print("")
-        self.Print("-- Write zeros command ------------")
+        self.SetPrintOffset(0)
+        self.Print("6) Write zeros command")    
+        self.SetPrintOffset(4)
         WZeroSupported = True if self.IdCtrl.ONCS.bit(3)=="1" else False
         if not WZeroSupported:    
             self.Print("Write zeros not supported(deallocate)", "w")  
@@ -1232,9 +1318,11 @@ class SMI_IdentifyCommand(NVME):
             else:
                 self.Print("Fail!", "f")
                 ret_code = 1            
-            
+
         self.Print("")
-        self.Print("-- Sanitize(BlockErase) command ------------")
+        self.SetPrintOffset(0)
+        self.Print("7) Sanitize(BlockErase) command")   
+        self.SetPrintOffset(4)             
         BlockEraseSupport = True if (self.IdCtrl.SANICAP.bit(1) == "1") else False
         SANACT=2
         if not BlockEraseSupport:    
@@ -1277,7 +1365,7 @@ class SMI_IdentifyCommand(NVME):
             
             
               
-          
+        self.SetPrintOffset(0)          
         return ret_code  
     
     # </sub item scripts>    

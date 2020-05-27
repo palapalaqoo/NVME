@@ -774,10 +774,10 @@ class NVMECom():
         sys.stdout.write(u"\u001b[u") # restores the cursor to the last saved position
         sys.stdout.isProgress=False     
         # Print New Line on Complete
-        '''
+
         if iteration == total: 
-            print ""
-        '''
+            print "\r"
+
 
     def KMGT(self, size):
     # ex. KMGT(1024), return "1K"
@@ -1151,7 +1151,7 @@ class NVMECom():
             else:
                 return False
             
-            
+            percent = 0
             # issue command and parser console out
             for line in self.RunFIOgetRealTimeConsoleOut(command):                
                 # report for runtime bw
@@ -1189,9 +1189,10 @@ class NVMECom():
                 # find read Average BW?
                 mStr = "READ: bw=([0-9.]*)([A-Z])iB/s"
                 findFinalAverageBWread=bool(re.search(mStr, line))                                 
-                # if find read or write, then save to Msg       
-                if findFinalAverageBWread or findFinalAverageBWwrite:   
+                # if find read or write, then save to Msg and set percent=100       
+                if (findFinalAverageBWread or findFinalAverageBWwrite) and (percent!=100):   
                     self.mNVME.PrintProgressBar(100, 100, suffix = PREFIX, length = 20)
+                    percent=100
                      
             return True        
             
