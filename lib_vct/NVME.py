@@ -744,7 +744,7 @@ class NVME(object, NVMECom):
         else:
             DEV=devPort+"n%s"%nsid 
             
-        CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
+        CMD = "fio --direct=%s --iodepth=128 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, DEV, offset, size, pattern)
         
         if not showProgress:
@@ -770,7 +770,7 @@ class NVME(object, NVMECom):
             DEV = self.dev[0:self.dev.find("nvme")+5] + "n%s"%nsid 
         else:
             DEV=devPort+"n%s"%nsid 
-        msg =  self.shell_cmd("fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
+        msg =  self.shell_cmd("fio --direct=%s --iodepth=128 --ioengine=libaio --bs=%s --rw=read --filename=%s --offset=%s --size=%s --name=mdata \
         --do_verify=1 --verify=pattern --verify_pattern=%s 2>&1 >/dev/null | grep 'verify failed at file\|bad pattern block offset\|fio: got pattern\| io_u error' " %(fio_direct, fio_bs, DEV, offset, size, pattern))
 
         
@@ -1056,19 +1056,19 @@ class NVME(object, NVMECom):
             return 1        
 
         
-    def por_reset(self):
-        return self.do_por_reset("por")           
+    def por_reset(self, sleep_time=0.5):
+        return self.do_por_reset("por", sleep_time)           
     
-    def spor_reset(self):
-        return self.do_por_reset("spor") 
+    def spor_reset(self, sleep_time=0.5):
+        return self.do_por_reset("spor", sleep_time) 
 
-    def do_por_reset(self, mode):
+    def do_por_reset(self, mode, sleep_time=0.5):
     # mode = por/spor
         self.status="reset"        
         #power off, and check if device was removed by OS(10 time)
         cnt=0
         while self.ctrl_alive:            
-            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s off 2>&1 > /dev/null" %(self.dev_port, mode), 0.5) 
+            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s off 2>&1 > /dev/null" %(self.dev_port, mode), sleep_time) 
             cnt=cnt+1
             if cnt >=10:
                 self.Print("can't power device off", "f")
@@ -1083,7 +1083,7 @@ class NVME(object, NVMECom):
         #power on, and check if device was removed by OS(10 time)            
         cnt=0
         while not self.ctrl_alive:
-            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s on 2>&1 > /dev/null" %(self.dev_port, mode), 0.5) 
+            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s on 2>&1 > /dev/null" %(self.dev_port, mode), sleep_time) 
             cnt=cnt+1
             if cnt >=10:
                 self.Print("can't power device on", "f")

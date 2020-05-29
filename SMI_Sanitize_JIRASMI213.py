@@ -11,42 +11,35 @@ from lib_vct.NVME import NVME
 class SMI_Sanitize_JIRASMI213(NVME):
     ScriptName = "SMI_Sanitize_JIRASMI213.py"
     Author = "Sam"
-    Version = "20200212"
+    Version = "20200528"
 
-    def WaitSanitizeOperationFinish(self, timeout=600, printInfo=False):
+    def WaitSanitizeOperationFinish(self, timeout=600):
     # WaitSanitizeOperationFinish, if finish, then return true, else false(  after timeout )         
-        if printInfo:
-            self.Print ("")
-            self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = %s)"%timeout)
                         
         per = self.GetLog.SanitizeStatus.SPROG
-        finish=True
         if per != 65535:
             # self.Print("The most recent sanitize operation is currently in progress, waiting the operation finish(Time out = 120s)", "w")
-            WaitCnt=0
-            while per != 65535:
+            self.timer.start()
+            while True:
                 #print ("Sanitize Progress: %s"%per)
                 per = self.GetLog.SanitizeStatus.SPROG
-                WaitCnt = WaitCnt +1
-                if WaitCnt ==timeout:
-                    #self.Print("Time out!", "f")  
-                    finish=False
-                    break
-                sleep(1)
-            #self.Print ("Recent sanitize operation was completed")
-   
-        if printInfo:
-            if finish:
-                self.Print("Done", "p")
-            else:
-                self.Print("Error, Time out!", "f")  
-        return finish       
+                self.PrintProgressBar(per, 65535, "SPROG: %s"%per)
+                if per==65535:
+                    return True
+
+                if int(float(self.timer.time)) >=timeout: 
+                    return False                    
+
+        return True       
         
-    def TestFlow(self, TestSize):
-        self.Print("1. prewrite(sequential write, blocksize=8*512B, pattern=0x57, fua=0) 10% of full disk as background data")
-        self.fio_write(offset=0, size=TestSize, pattern=0x57, fio_bs="4k")
+    def TestFlow(self, TestSize, Scale):
+        self.SetPrintOffset(4)
+        value = randint(0x1, 0xFF)              
+        self.Print("1. prewrite(fio sequential write, fio_bs=64k, pattern=0x%X) 10%% of full disk as background data"%value)
+        self.fio_write(offset=0, size=TestSize, pattern=value, fio_bs="64k", showProgress=True)
+        self.Print("") 
         self.Print("2. comparecheck background data to confirm data are successfully written")
-        if self.fio_isequal(offset=0, size=TestSize, pattern=0x57, fio_bs="4k"):
+        if self.fio_isequal(offset=0, size=TestSize, pattern=value, fio_bs="64k"):
             self.Print("Data compare pass!", "p")
         else:
             self.Print("Data compare fail!, quit", "f")
@@ -57,7 +50,8 @@ class SMI_Sanitize_JIRASMI213(NVME):
         CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
         self.Print ("3. issue Sanitize block erase cmd: %s"%CMD) 
         self.shell_cmd(CMD)   
-        self.Print("4. check if sanitize is in progress(SPROG change), timeout 60s")
+        self.Print("") 
+        self.Print("4. check if sanitize is in progress(SPROG change), if SPROG has not changed in 60s, fail the test")
         WaitCnt = 0
         per=0
         while True:
@@ -74,13 +68,18 @@ class SMI_Sanitize_JIRASMI213(NVME):
     
 
         self.Print("") 
-        Stime = randint(1, 5000)
-        Stime=float(Stime)/1000
-        self.Print("Sleep %.6f seconds"%(Stime) )
-        sleep(Stime)
-        self.Print("5. issue asyc power off and on") 
-        
-        if not self.spor_reset():
+
+        self.Print("5. issue asyc power off and on when SPROG > %s"%(Scale))         
+        while True:
+            per = self.GetLog.SanitizeStatus.SPROG
+            self.PrintProgressBar(per, 65535, "SPROG: %s"%per)     
+            if per>Scale:
+                break;    
+                               
+        self.Print("") 
+        self.Print("powering off ..") 
+        self.Print("")   
+        if not self.spor_reset(sleep_time=0):
             self.Print("6. power on fail, can not find device: %s, quit!"%self.dev, "f")  
             return False
         self.Print("6. power on now")  
@@ -90,6 +89,7 @@ class SMI_Sanitize_JIRASMI213(NVME):
         if not self.WaitSanitizeOperationFinish(600):
             self.Print("Time out!, exit all test ", "f")  
             return False 
+        self.Print("Sanitize command was completed")
         
         self.Print("")        
         self.Print("8. comparecheck background data (pattern 0)")    
@@ -99,17 +99,35 @@ class SMI_Sanitize_JIRASMI213(NVME):
             self.Print("Data compare fail!, quit", "f")
             return False  
         
+        self.SetPrintOffset(0)
         return True
                  
         
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1", argType=int) 
+        self.SetDynamicArgs(optionName="z", optionNameFull="prewriteSize", helpMsg="test Size, default=0.1 means 10%% prewriteSize,"\
+                            " ex, prewrite 20%% capacity of SSD, -z 0.2", argType=str) 
+  
+        self.SetDynamicArgs(optionName="scale", optionNameFull="sprogScale", helpMsg="sprog Scale, default=0 "\
+                            "every loop will have several cycles to verify the function with specific spor timer.   \n"\
+                            "script will do spor as SPROG> sprogScale and SPROG> sprogScale*2 and so on. \n"\
+                            "ex, python SMI_Sanitize_JIRASMI213.py /dev/nvme0n1 -scale 1000, will do spor as SPROG>1000 at first cycle \n"\
+                            "and will do spor as SPROG>2000 at second cycle until last cycle to do spor as SPROG>65000, then finish the loop \n"\
+                            "it also means it will do int(65536/1000) = 65 cycle test for 1 loop \n"\
+                            "if sprogScale not set, spor timer will be random in 1 to 65534 to do spor ", argType=int) 
+ 
         
         # initial parent class
         super(SMI_Sanitize_JIRASMI213, self).__init__(argv)
         
         self.loops = self.GetDynamicArgs(0)  
-        self.loops=1 if self.loops==None else self.loops        
+        self.loops=1 if self.loops==None else self.loops   
+        
+        self.prewriteSize = self.GetDynamicArgs(1)  
+        self.prewriteSize=0.1 if self.prewriteSize==None else float(self.prewriteSize)   
+        
+        self.sprogScale = self.GetDynamicArgs(2)  
+        self.sprogScale=0 if self.sprogScale==None else self.sprogScale               
         
         self.CryptoEraseSupport = True if (self.IdCtrl.SANICAP.bit(0) == "1") else False
         self.BlockEraseSupport = True if (self.IdCtrl.SANICAP.bit(1) == "1") else False
@@ -131,19 +149,39 @@ class SMI_Sanitize_JIRASMI213(NVME):
     def SubCase1(self):
 
         TNOB = self.GetTotalNumberOfBlock()
-        TestNLB = ((TNOB/10)/8)*8
+        TestNLB = int((TNOB*self.prewriteSize)/8)*8
         TestSize=TestNLB*512
         self.Print("Total number of blocks: %s"%TNOB)
-        self.Print("Test size of blocks: %s(10%% of total blocks)"%TestNLB)
-        self.Print("Test size: %s(Test size of blocks*512)"%TestSize)
+        self.Print("Test size of blocks: %s(%s%% of total blocks)"%(TestNLB, int(self.prewriteSize*100)))
+        self.Print("Test size: %s bytes(Test size of blocks*512)"%TestSize)
         self.Print("Test loop: %s"%self.loops)
         
         
         for loop in range(self.loops):
             self.Print("")
-            self.Print("loop: %s"%loop)
-            if not self.TestFlow(TestSize):
-                return 1
+
+                
+            if self.sprogScale==0:
+                Scale = randint(1, 65534)  
+                self.Print("loop: %s, do spor at SPROG: %s"%(loop, Scale), "b")
+                if not self.TestFlow(TestSize, Scale):
+                    return 1   
+                self.Print("")             
+            else:                
+                cycle=0
+                Scale = self.sprogScale
+                while True: 
+                    self.Print("loop: %s, cycle: %s, do spor at SPROG: %s"%(loop, cycle, Scale), "b")
+                    if not self.TestFlow(TestSize, Scale):
+                        return 1  
+                    
+                    self.Print("")
+                    cycle = cycle+1
+                    Scale = Scale + self.sprogScale   
+                    if Scale>65534:
+                        break               
+            
+
          
         
         return 0

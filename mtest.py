@@ -147,12 +147,27 @@ class mtest1(NVME):
         return 0    
     
     def SubCase1(self):
-        for i in range(5):
-            self.PrintProgressBar(i, 4, showPercent=True)
-            sleep(0.5)
+
+        self.timer.start()
+
+        timeout=5
+        cc= self.timer.time
+        bb = int(float(self.timer.time))
+        if int(self.timer.time) >=timeout: 
+                return 1    
+
+
+
+
+
+
+
+
+
         
         self.PrintProgressBar(4, 4, showPercent=True)
-        self.Print("4444")
+        self.Print("4444"\
+        "4544444444")
         self.Print("Wait")
                    
         
