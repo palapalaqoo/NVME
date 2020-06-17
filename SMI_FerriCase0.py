@@ -17,8 +17,8 @@ from lib_vct.NVME import NVME
 
 class SMI_FerriCase0(NVME):
     ScriptName = "SMI_FerriCase0.py"
-    Author = ""
-    Version = ""
+    Author = "Sam"
+    Version = "20200616"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1)
@@ -77,11 +77,12 @@ class SMI_FerriCase0(NVME):
         # init data
         dataPattern=randint(1, 0xFF)            
         if isSeqWrite:
-            self.Print("Start sequence writing data with value %s for first 1G"%dataPattern)
+            self.Print("Start sequence writing data with value 0x%X for first 1G"%dataPattern)
         else:
-            self.Print("Start random writing data with value %s for first 1G"%dataPattern)   
+            self.Print("Start random writing data with value 0x%X for first 1G"%dataPattern)   
                         
-        dataPattern_last=0        
+        dataPattern_last=0   
+        writeSuccessCnt = 0     
         while True: 
             if self.Running==False:
                 WriteFail_LBA= SLBA
@@ -103,9 +104,9 @@ class SMI_FerriCase0(NVME):
                     dataPattern=randint(1, 0xFF)
                     if dataPattern!=dataPattern_last: break
                 if isSeqWrite:
-                    self.Print("Start sequence writing data with value %s for first 1G"%dataPattern)
+                    self.Print("Start sequence writing data with value 0x%X for first 1G"%dataPattern)
                 else:
-                    self.Print("Start random writing data with value %s for first 1G"%dataPattern)                    
+                    self.Print("Start random writing data with value 0x%X for first 1G"%dataPattern)                    
                 continue
                             
             SLBA=SLBA*NLB
@@ -116,21 +117,16 @@ class SMI_FerriCase0(NVME):
             # write    
             if not self.NVMEwrite(value=dataPattern, slba=SLBA, SectorCnt=NLB):
                 WriteFail_LBA = SLBA
-                self.Print("")
-                self.Print("Write fail at start LBA = %s"%WriteFail_LBA)
+                self.Print("Fail at %s th write command with sector = %s"%(writeSuccessCnt+1, NLB), "f")    
+                if self.dfModule:
+                    self.Print("Ferri DF module, expect DUT will flush those data.")
+                    self.WriteImg(SLBA, NLB, dataPattern)                    
                 break;
             else:
                 # sueecess writing, save to img
-                offset = SLBA*512
-                size = NLB
-                value=dataPattern
-                data = (((''.join(["%02x"%(value)]))*512)*size).decode("hex")
-                with open("%s"%(self.ImageFileFullPath), "r+b") as f:
-                    f.seek(offset)  
-                    f.write(data)                    
-                    f.close()  
-                
+                self.WriteImg(SLBA, NLB, dataPattern)
 
+            writeSuccessCnt = writeSuccessCnt +1
             self.per = float(cnt)/float(SizeInBlock)            
         # end of while            
         t.join(10)
@@ -157,15 +153,29 @@ class SMI_FerriCase0(NVME):
         oct_val=oct(value)[-3:]
         size = 512*(NLB+1)
         CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
-                             "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s >/dev/null 2>&1 ; echo $?"\
+                             "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
                             %(NLB+1, size , oct_val, self.dev, size, cdw10, cdw11, cdw12)
         self.RecordCmdToLogFile=False
-        mStr=self.shell_cmd(CMD)
+        mStr, SC =self.shell_cmd_with_sc(CMD)
         self.RecordCmdToLogFile=True
-        if mStr=="0":
+        if SC==0:
             return True         
         else:
+            self.Print("")
+            self.Print("Write fail at start LBA = %s"%slba, "f")            
+            self.Print("Return status: %s"%mStr, "f")
             return False     
+
+    def WriteImg(self, SLBA, NLB, dataPattern):
+        # sueecess writing, save to img
+        offset = SLBA*512
+        size = NLB
+        value=dataPattern
+        data = (((''.join(["%02x"%(value)]))*512)*size).decode("hex")
+        with open("%s"%(self.ImageFileFullPath), "r+b") as f:
+            f.seek(offset)  
+            f.write(data)                    
+            f.close()         
     
     def CompareThread(self, SectorCnt, SizeInBlock, WriteFail_Index, dataPattern, dataPattern_last):
         while True:
@@ -457,6 +467,10 @@ class SMI_FerriCase0(NVME):
                             helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int)        
         self.SetDynamicArgs(optionName="k", optionNameFull="keepImageFile", \
                             helpMsg="keep image file(./mnt/img.bin), e.x. -k 1, default=0(will not keep file)", argType=int)    
+        self.SetDynamicArgs(optionName="df", optionNameFull="dfModule", \
+                            helpMsg="DUT is Ferri DF module, if set to 1, expect DUT will flush data into SSD when write command fail as spor occurred,"\
+                            " e.x. -df 1, default=0(not DF module)", argType=int)           
+        
                         
         # initial parent class
         super(SMI_FerriCase0, self).__init__(argv)
@@ -479,7 +493,21 @@ class SMI_FerriCase0(NVME):
         self.keepImageFile=0 if self.keepImageFile==None else self.keepImageFile
         self.keepImageFile=False if self.keepImageFile==0 else True
         
+        self.dfModule=self.GetDynamicArgs(5)
+        self.dfModule=0 if self.dfModule==None else self.dfModule
+        self.dfModule=False if self.dfModule==0 else True
         
+        
+        self.Print("")
+        self.Print("-- Parameters --------------")
+        
+        self.Print("loops: %s"%self.loops)
+        self.Print("maximumFailureSize: %s"%self.maximumFailureSize)
+        self.Print("sectorSize: %s"%self.sectorSize)
+        self.Print("writeType: %s"%self.writeType)
+        self.Print("keepImageFile: %s"%self.keepImageFile)
+        self.Print("dfModule: %s"%("True" if self.dfModule else "False"))
+                
         self.InitDirs()
         
         # super fast ram for mapping device

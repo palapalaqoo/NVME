@@ -514,11 +514,11 @@ class SMI_Sanitize(NVME):
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     def __init__(self, argv):
-        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="case 12, test Loop, default=1", argType=int) 
-        self.SetDynamicArgs(optionName="z", optionNameFull="prewriteSize", helpMsg="case 12, test Size, default=0.1 means 10%% prewriteSize,"\
+        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="for case 12, test Loop, default=1", argType=int) 
+        self.SetDynamicArgs(optionName="z", optionNameFull="prewriteSize", helpMsg="for case 12, test Size, default=0.1 means 10%% prewriteSize,"\
                             " ex, prewrite 20%% capacity of SSD, -z 0.2", argType=str) 
   
-        self.SetDynamicArgs(optionName="scale", optionNameFull="sprogScale", helpMsg="case 12, sprog Scale, default=0 "\
+        self.SetDynamicArgs(optionName="scale", optionNameFull="sprogScale", helpMsg="for case 12, sprog Scale, default=0 "\
                             "every loop will have several cycles to verify the function with specific spor timer.   \n"\
                             "script will do spor as SPROG> sprogScale and SPROG> sprogScale*2 and so on. \n"\
                             "ex, python SMI_Sanitize_JIRASMI213.py /dev/nvme0n1 -scale 1000, will do spor as SPROG>1000 at first cycle \n"\
@@ -934,7 +934,7 @@ class SMI_Sanitize(NVME):
         return ret_code
 
     SubCase12TimeOut = (4000)
-    SubCase12Desc = "Test flow YMTC JIRA SMI-213"  
+    SubCase12Desc = "Test sanitize with spor(JIRA VCTDEPT-213)"  
     def SubCase12(self):
         self.Print("")
         ret_code=self.TestJiraSmi213()     

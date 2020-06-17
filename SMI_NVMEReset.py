@@ -27,7 +27,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20200102"
+    Version = "20200605"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -94,7 +94,18 @@ class SMI_NVMeReset(NVME):
     
     
     def GetRDY(self):
-        return self.CR.CSTS.bit(0)
+        #return self.CR.CSTS.bit(0) 
+        CC= self.MemoryRegisterBaseAddress+0x1C
+        CChex=hex(CC)
+        CSTS = self.shell_cmd("devmem2 %s"%CChex)
+        mStr=":\s0x(\w+)"   # Value at address 0xa110001c: 0x00000001
+        if re.search(mStr, CSTS):
+            CSTS=int(re.search(mStr, CSTS).group(1),16)
+        else:
+            CSTS=int(0)
+
+        RDY = CSTS & 0x1
+        return RDY           
     
     def initTestItems(self):
         # self.TestItems=[[description, function, supported],[description, function,supported],..]
@@ -336,7 +347,7 @@ class SMI_NVMeReset(NVME):
         RDY = self.GetRDY()
         
         self.Print ("Check if CSTS.RDY is set to 1 before reset:")
-        if RDY=="1":
+        if RDY==1:
             self.Print("Pass", "p")
         else:
             self.Print("Fail, exit sub case!", "f")

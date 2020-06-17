@@ -24,6 +24,7 @@ class RegDescriptor(object,NVMECom):
         # if MNTMT = 12, and regtype = hex, then NVME.IdCtrl.MNTMT.int = 0xC, wrong value
         self.regtype=regType
         self.nsspec=nsSpec
+        self._NVME = NVMEobj
     
     def get_reg(self, cmd, reg, gettype=0, nsSpec=True):
     #-- cmd = nvme command, show-regs, id-ctrl, id-ns
@@ -60,7 +61,8 @@ class RegDescriptor(object,NVMECom):
     def int(self):
         mstr=self.get_reg(cmd=self.cmd, reg=self.reg, gettype=1, nsSpec=self.nsspec)
         if mstr=="":
-            self.Print("Error read  %s %s"%(self.cmd, self.reg), "f")        
+            self._NVME.Print("Error read  %s %s"%(self.cmd, self.reg), "f")  
+            return 0      
         if self.regtype==RegType.hex:         
             mstrint=int(mstr, 16)
         elif self.regtype==RegType.decimal:

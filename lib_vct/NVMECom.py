@@ -793,8 +793,9 @@ class NVMECom():
             SizeF="%sK"%(Size/(1024))            
         return SizeF
     
-    def KMGT_reverse(self, size):
-    # ex. KMGT_reverse(1k), return int 2
+    def KMGT_reverse(self, size, sectorSize=512):
+    # convert string to number of blocks
+    # ex. KMGT_reverse(4k), return 8 if sectorSize=512, return 1 if sectorSize=4096,
     #  KMGT_reverse(2), return int 0
         size= size.upper()
         
@@ -815,11 +816,11 @@ class NVMECom():
     
         value=float(value)
         # ex. 0-> 0, 1-> 1, 2-> 1 ....  512-> 1, 513 -> 2
-        if (value*unit)%512!=0:
-            value=int(value*unit/512)
+        if (value*unit)%sectorSize!=0:
+            value=int(value*unit/sectorSize)
             value=value+1
         else:
-            value=int(value*unit/512)
+            value=int(value*unit/sectorSize)
             
         return value    
     

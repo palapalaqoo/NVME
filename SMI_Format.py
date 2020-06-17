@@ -277,7 +277,7 @@ class SMI_Format(NVME):
         
     # =======================================================================================    
     # override pretest  
-    def PreTeset(self):        
+    def PreTest(self):        
         self.Print ("")
         self.Print ("-- NVME format command test" )
         self.Print ("-----------------------------------------------------------------------------------"            )

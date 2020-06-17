@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200520"
+    Version = "20200617"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -49,7 +49,9 @@ class SMI_PLI(NVME):
             # set LBA for 4k align
             SLBA = (SLBA/8)*8
             CMD ="nvme read %s -s 0x%X -z 0x%X -c 0x%X 2>&1"%(self.dev, SLBA, self.OneBlockSize*(NLB+1), NLB)
-            mStr, SC=self.shell_cmd_with_sc(CMD)  
+            self.RecordCmdToLogFile = False
+            mStr, SC=self.shell_cmd_with_sc(CMD) 
+            self.RecordCmdToLogFile = True 
             # if read fail
             if (SC!=0):
                 self.Print("Random read Fail, CMD: %s"%CMD, "f")
@@ -67,26 +69,39 @@ class SMI_PLI(NVME):
             
     def SeqWriteXmin256SectorTransfer(self):
         value =  randint(1, 0xFF)
+        #self.MDTSinBlock=self.MDTSinByte/self.GetBlockSize()
+        MaxNLB = self.MDTSinBlock
         self.Print("Sequential write %s seconds (256 Sector Transfer), value = 0x%X"%(self.paraSecond, value) )
+        if MaxNLB<256:
+            self.Print("Because MDTS in identify = %s bytes(%s block), so we can't transer 256 sector in 1 command"%(self.MDTSinByte, MaxNLB), "w")
+            self.Print("so will transer %s sector in 1 command instead"%MaxNLB, "w")
+        else:
+            MaxNLB = 256
+            
         self.timeIsUp = False
         # thread, if time is up, run TimeUpFunc
         t =self.timeEvent(seconds = self.paraSecond, eventFunc = self.TimeUpFunc, printProgressBar = True)
         # set Last LBA 
-        LastLBA = self.NCAP - 256 -1
+        LastLBA = self.NCAP - MaxNLB -1
         oct_val=oct(value)[-3:]
         SLBA = 0
+        # write total byte
+        writeBytes = self.OneBlockSize*MaxNLB
         while True:
             cdw10, cdw11=self.getDW10_DW11(SLBA)
-            # count=256, -l 131072 for 256 sector
-            CMD="dd if=/dev/zero bs=512 count=256 2>&1   |stdbuf -o 131072 tr \\\\000 \\\\%s 2>/dev/null "\
-            "|nvme io-passthru %s -o 0x1 -n 1 -l 131072 -w --cdw10=%s --cdw11=%s --cdw12=255 2>&1"%(oct_val, self.dev, cdw10, cdw11)            
+            # count=256, -l 131072 for 256 sector            
+            CMD="dd if=/dev/zero bs=%s count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null "\
+            "|nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
+            %(self.OneBlockSize, MaxNLB, writeBytes, oct_val, self.dev, writeBytes, cdw10, cdw11, MaxNLB-1)            
             # cal start lba for next loop
-            SLBA = SLBA + 256
+            SLBA = SLBA + MaxNLB
             if SLBA>LastLBA:
                 pass
             SLBA = 0 if SLBA>LastLBA else SLBA
             
-            mStr, SC=self.shell_cmd_with_sc(CMD)  
+            self.RecordCmdToLogFile = False
+            mStr, SC=self.shell_cmd_with_sc(CMD)
+            self.RecordCmdToLogFile = True  
             # if write fail
             if (SC!=0):
                 self.Print("Sequential write Fail, CMD: %s"%CMD, "f")
@@ -111,11 +126,11 @@ class SMI_PLI(NVME):
         self.timeIsUp=True
         
     def WritePLI(self):    
-        BS = 512 * self.paraLPISector
+        BS = self.paraLPISector * self.OneBlockSize
         VALUE =  randint(1, 0xFF)        
         SIZE = self.paraLPISize
-        OFFSET =  randint(0, self.NCAP - self.paraLPISizeInBLK) # total LBA - paraLPISizeInBLK(ex, 1024k = 2048 lba) 
-        OFFSET = OFFSET*512
+        OFFSET =  randint(0, self.NCAP - self.paraLPISizeInBLK) # total LBA - paraLPISizeInBLK(ex, 1024k = 2048 lba for sector = 512) 
+        OFFSET = OFFSET*self.OneBlockSize
         
         # 1 -------------------------
         self.Print("Write PLI. Step 1: Seq write (QD1)%sB with sector = %s, Start LBA = 0x%X, value = 0x%X"%(SIZE, self.paraLPISector, OFFSET, VALUE))
@@ -163,7 +178,9 @@ class SMI_PLI(NVME):
         t.start()        
         
         while True:
+            self.RecordCmdToLogFile = False
             mStr, SC=self.shell_cmd_with_sc(CMD)
+            self.RecordCmdToLogFile = True
             # if fail
             if (SC!=0):
                 sleep(1) # sleep 1 s to prevent /dev/nvme0n1 is exist after spor
@@ -215,12 +232,12 @@ class SMI_PLI(NVME):
             return False
 
     def ReadPLI(self):    
-        BS = 512 * self.paraLPISector
+        BS = self.paraLPISector * self.OneBlockSize
         VALUE =  randint(1, 0xFF)        
         SIZE = "8M"
         SizeInBLK = self.KMGT_reverse(SIZE)
-        OFFSET =  randint(0, self.NCAP - SizeInBLK) # total LBA - paraLPISizeInBLK(ex, 1024k = 2048 lba) 
-        OFFSET = OFFSET*512
+        OFFSET =  randint(0, self.NCAP - SizeInBLK) # total LBA - paraLPISizeInBLK(ex, 1024k = 2048 lba for sector = 512) 
+        OFFSET = OFFSET*self.OneBlockSize
         
         # 1 -------------------------
         self.Print("Read PLI. Step 1: Seq write (QD1)%sB with sector = %s, Start LBA = 0x%X, value = 0x%X"%(SIZE, self.paraLPISector, OFFSET, VALUE))
@@ -270,7 +287,9 @@ class SMI_PLI(NVME):
         CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=%s --rw=read --numjobs=1 --size=%s --offset=%s "\
         "--filename=%s --name=mdata --do_verify=0 2>&1"%(BS, SIZE, OFFSET, self.dev)        
         while True:
+            self.RecordCmdToLogFile = False
             mStr, SC=self.shell_cmd_with_sc(CMD)
+            self.RecordCmdToLogFile = True
             # if fail
             if (SC!=0):
                 if self.dev_alive:
@@ -391,8 +410,7 @@ class SMI_PLI(NVME):
         self.paraLPISector=256 if self.paraLPISector==None else self.paraLPISector        
         
         self.paraLPISize = self.GetDynamicArgs(3) 
-        self.paraLPISize="800M" if self.paraLPISize==None else self.paraLPISize 
-        self.paraLPISizeInBLK = self.KMGT_reverse(self.paraLPISize)    
+        self.paraLPISize="800M" if self.paraLPISize==None else self.paraLPISize   
         
         self.paraPorOffTimer0 = self.GetDynamicArgs(4) 
         self.paraPorOffTimer0=2000 if self.paraPorOffTimer0==None else self.paraPorOffTimer0       
@@ -407,31 +425,46 @@ class SMI_PLI(NVME):
         self.NCAP=self.IdNs.NCAP.int  
         self.MaxNLB = self.MaxNLBofCDW12()   
         self.OneBlockSize = self.GetBlockSize()
+        self.paraLPISizeInBLK = self.KMGT_reverse(self.paraLPISize, self.OneBlockSize)# get number of blocks
         
         self.timeIsUp = False
         
 
     # define pretest, if not return 0 , skip all subcases
-    def PreTest(self):       
+    def PreTest(self): 
+        self.Print("-- parameters ----")      
         self.Print("Total test loop: %s "%self.loops)
         self.Print ("Time for idle/randRead/seqWrite: %s seconds"%self.paraSecond)
-        self.Print ("Write/Read LPI sector: %s "%self.paraLPISector)        
+        self.Print ("Write/Read LPI number of sector: %s "%self.paraLPISector)        
         self.Print ("Write/Read LPI size: %s (0x%X LBA)"%(self.paraLPISize, self.paraLPISizeInBLK))          
         self.Print ("Power Off Timer from %s ms to %s ms"%(self.paraPorOffTimer0, self.paraPorOffTimer1))
-        self.Print ("Do Precondition: %s"%(self.paraPrecondition))         
-        
+        self.Print ("Do Precondition: %s"%(self.paraPrecondition))
+
         # device infor 
-        self.Print ("NCAP: 0x%X"%self.NCAP)     
-        self.Print("Max of sector sizes: %s x %s bytes"%(self.MaxNLB, self.OneBlockSize))
-        
+        self.Print("")
+        self.Print("-- DUT infomations ----")
+        self.Print ("NCAP: 0x%X"%self.NCAP)
+        self.Print("DUT sector sizes: %s bytes"%(self.OneBlockSize))
+        self.Print ("Maximum Data Transfer Size (MDTS): 0x%X bytes"%self.MDTSinByte)
+        self.Print("DUT read/write command Maximum Sector(MTDS/DUT sector sizes): %s"%(self.MDTSinBlock))   
+           
+                
         
         if self.paraLPISizeInBLK>self.NCAP:
-            self.Print("Fail, input parameter '-size %s' exceed disk capacity(0x%X > 0x%X), exit"%(self.paraLPISize, self.paraLPISizeInBLK, self.NCAP), "f")        
+            self.Print("Fail, input parameter '-size %s' exceed disk capacity(0x%X > 0x%X), exit"%(self.paraLPISize, self.paraLPISizeInBLK, self.NCAP), "f") 
+            self.Print("For more infomation, run 'python SMI_PLI.py'", "f")
             return 1
         
         if self.paraPorOffTimer0>=self.paraPorOffTimer1:
-            self.Print("Fail, input parameter  Power Off Timer incorrect, %s, %s , exit"%(self.paraPorOffTimer0, self.paraPorOffTimer1), "f")        
-            return 1                 
+            self.Print("Fail, input parameter  Power Off Timer incorrect, %s, %s , exit"%(self.paraPorOffTimer0, self.paraPorOffTimer1), "f")    
+            self.Print("For more infomation, run 'python SMI_PLI.py'", "f")    
+            return 1   
+        
+        if self.paraLPISector>self.MDTSinBlock:
+            self.Print("Fail, input parameter  Write/Read LPI sector(-sector) incorrect(value = %s), can't exceed DUT Maximum Data Transfer Size(%s) , exit"%(self.paraLPISector, self.MDTSinBlock), "f")   
+            self.Print("For more infomation, run 'python SMI_PLI.py'", "f")
+            return 1  
+                    
         return 0            
 
     # <define sub item scripts>

@@ -75,15 +75,20 @@ class NVME(object, NVMECom):
             sys.exit(1)        
         # self.dev_ns = 1
         self.dev_ns=self.dev[-1:]
-        
-        
+                
         # final return code
         self.rtCode=0
         self.SubCase_rtCode=[]
         # Start Local Time
         self.StartLocalTime=time.time()
         self.SubCasePoint=0
-        
+
+        # POR module
+        self.porPath = "/usr/local/sbin/PWOnOff"
+        if self.isfileExist(self.porPath):
+            self.Print("%s installed: yes"%self.porPath, "p")
+        else:
+            self.Print("%s installed: no"%self.porPath, "f")        
               
         # the start 1G start block, middle and last, 
         self.start_SB=0
@@ -189,7 +194,7 @@ class NVME(object, NVMECom):
         self.last_SB=ncap-(1024*1024*2)
         
         self.MDTSinByte=int(math.pow(2, 12+self.CR.CAP.MPSMIN.int) * math.pow(2, self.IdCtrl.MDTS.int))
-        self.MDTSinBlock=self.MDTSinByte/512
+        self.MDTSinBlock=self.MDTSinByte/self.GetBlockSize()
         
         # get System Bus (PCI Express) Registers, int format
         self.PMCAP, self.MSICAP, self.PXCAP, self.MSIXCAP, self.AERCAP, self.SR_IOVCAP=self.GetPCIERegBase()
@@ -1068,7 +1073,7 @@ class NVME(object, NVMECom):
         #power off, and check if device was removed by OS(10 time)
         cnt=0
         while self.ctrl_alive:            
-            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s off 2>&1 > /dev/null" %(self.dev_port, mode), sleep_time) 
+            self.shell_cmd("%s %s %s off 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode), sleep_time) 
             cnt=cnt+1
             if cnt >=10:
                 self.Print("can't power device off", "f")
@@ -1083,7 +1088,7 @@ class NVME(object, NVMECom):
         #power on, and check if device was removed by OS(10 time)            
         cnt=0
         while not self.ctrl_alive:
-            self.shell_cmd("/usr/local/sbin/PWOnOff %s %s on 2>&1 > /dev/null" %(self.dev_port, mode), sleep_time) 
+            self.shell_cmd("%s %s %s on 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode), sleep_time) 
             cnt=cnt+1
             if cnt >=10:
                 self.Print("can't power device on", "f")
@@ -1380,7 +1385,7 @@ class NVME(object, NVMECom):
         return sizePerBlock
     
     def GetTotalNumberOfBlock(self):
-        return self.IdNs.NUSE.int
+        return self.IdNs.NCAP.int
         
     def MaxNLBofCDW12(self):   
         # ret maximum value of Number of Logical Blocks (NLB) in current format 

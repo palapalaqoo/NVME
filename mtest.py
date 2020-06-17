@@ -147,14 +147,22 @@ class mtest1(NVME):
         return 0    
     
     def SubCase1(self):
+        aa = self.MDTSinBlock
 
-        self.timer.start()
 
+        CC= self.MemoryRegisterBaseAddress+0x1C
+        CChex=hex(CC)
+        CSTS = self.shell_cmd("devmem2 %s"%CChex)
+        mStr=":\s0x(\w+)"   # Value at address 0xa110001c: 0x00000001
+        if re.search(mStr, CSTS):
+            CSTS=int(re.search(mStr, CSTS).group(1),16)
+        else:
+            CSTS=int(0)
+
+        RDY = CSTS & 0x1
+        
         timeout=5
-        cc= self.timer.time
-        bb = int(float(self.timer.time))
-        if int(self.timer.time) >=timeout: 
-                return 1    
+
 
 
 
