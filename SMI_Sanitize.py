@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20200529"
+    Version = "20200618"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -500,7 +500,7 @@ class SMI_Sanitize(NVME):
         if self.SANACT==0:
             self.Print("All sanitize operation is not supported, quit the test!","w")
             self.Print (""    )
-            return False
+            return 255
         
         self.Print ("")
         self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")

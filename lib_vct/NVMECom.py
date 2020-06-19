@@ -697,6 +697,18 @@ class NVMECom():
                 
                 byteStr = f.read(1)
         return mList
+
+    def read1ByteFromFile(self, filename, offset):
+        byte = 0
+        success = False
+        with open(filename, "rb") as infile:  # rb = read binary
+            infile.seek(0x5b67FF, 0)           # 0 = start of file, optional in this case
+            byteStr = infile.read(0x1)
+            byte = struct.unpack('b', byteStr)[0]      
+            success = True
+        if not success:
+            self.Print( "read file fail: %s"%filename ) 
+        return byte 
     
     def writeBinaryFileFromList(self, filePath, mList):            
         f = open(filePath, 'w+b')

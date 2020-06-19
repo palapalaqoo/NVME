@@ -145,10 +145,22 @@ class mtest1(NVME):
         
     def PreTest(self):
         return 0    
+    def read_from_hex_offset(self, file, hex_offset):
+        """Fetch a single byte (or character) from file at hexadecimal offset hex_offset"""
+        offset = int(hex_offset, base=16)
+        file.seek(offset)
+        return file.read(1)    
+    
     
     def SubCase1(self):
-        aa = self.MDTSinBlock
+        offset = 758358*512
+        size = 18*512           
+        isDataPattern = self.fio_isequal(offset, size, pattern = 0x0, fio_bs=512)
+        
 
+         
+            
+        self.readBinaryFileToList    
 
         CC= self.MemoryRegisterBaseAddress+0x1C
         CChex=hex(CC)
