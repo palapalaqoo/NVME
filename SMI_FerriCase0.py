@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_FerriCase0(NVME):
     ScriptName = "SMI_FerriCase0.py"
     Author = "Sam"
-    Version = "20200618"
+    Version = "20200622"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1)
@@ -201,9 +201,9 @@ class SMI_FerriCase0(NVME):
                 continue
             
             # index < WriteFail_Index, data =  dataPattern, else data = dataPattern_last       
-            expectedValue = dataPattern if self.RandIndex<=WriteFail_Index else dataPattern_last
-            # expectedValue = dataPattern if self.RandIndex==WriteFail_Index+1 else 0 # if is WriteFail_LBA
-            if not self.diff(SLB=SLBA, NLB=NLB, cmpValue=expectedValue):
+            expectedValueStr = dataPattern if self.RandIndex<=WriteFail_Index else dataPattern_last
+            # expectedValueStr = dataPattern if self.RandIndex==WriteFail_Index+1 else 0 # if is WriteFail_LBA
+            if not self.diff(SLB=SLBA, NLB=NLB, cmpValue=expectedValueStr):
                 self.FailLBAList.append(SLBA)                
                 self.CompareRtCode=False
 
@@ -248,7 +248,7 @@ class SMI_FerriCase0(NVME):
         block_1 = -1
         totalSize = 2097152*512
         CMD = "cmp -l %s %s -n %s"%(self.dev, self.ImageFileFullPath, totalSize)
-        # cmp output: ex,    1894400 0 324,     where 1894400=address, 0=value in self.dev(currentValue), 324=self.ImageFileFullPath(expectedValue)
+        # cmp output: ex,    1894400 0 324,     where 1894400=address, 0=value in self.dev(currentValueStr), 324=self.ImageFileFullPath(expectedValueStr)
         mStr="(\d+)\s+(\d+)\s+(\d+)" 
         #mStr="(\d+)"
 
@@ -256,19 +256,14 @@ class SMI_FerriCase0(NVME):
         failCnt=0
         failList=[]
         failList.append(["block", "expected value", "current value"])
-        WriteCmdFailBlock_isPass = False
         for line in self.yield_shell_cmd(CMD):             
             if re.search(mStr, line):
-                CmdFailExpectedValueList = []
                 offset = int(re.search(mStr, line).group(1) )
                 block = (offset -1)/512 # value from cmp command start form 1
-                currentValue = int(re.search(mStr, line).group(2) ,8 ) # convert OCT to INT
-                expectedValue = int(re.search(mStr, line).group(3), 8 ) # convert OCT to INT
-                if block == WriteFail_LBA and self.dfModule:
-                    CmdFailExpectedValueList.append(expectedValue)
-                    CmdFailExpectedValueList.append(dataPattern)
-                currentValue = "0x%X"%currentValue # convert INT to hex string
-                expectedValue = "0x%X"%expectedValue # convert INT to hex string
+                currentValueInt = int(re.search(mStr, line).group(2) ,8 ) # convert OCT to INT
+                expectedValueInt = int(re.search(mStr, line).group(3), 8 ) # convert OCT to INT
+                currentValueStr = "0x%X"%currentValueInt # convert INT to hex string
+                expectedValueStr = "0x%X"%expectedValueInt # convert INT to hex string
                 
                 if block!=block_1:
                     #self.Print( "compare fail at block: %s"%block)  
@@ -276,10 +271,9 @@ class SMI_FerriCase0(NVME):
                     # if dfModule, the data may be written to ssd even the write command fail
                     # so we just check if the data in WriteFail_LBA is dataPattern or last value
                     # if is last value, cmp command will not show it becouse it is not writen as expected result.
-                    # Check WriteCmdFailBlock_isPass later                       
-                    if block == WriteFail_LBA and self.dfModule:                        
-                        if currentValue in CmdFailExpectedValueList:                  
-                            WriteCmdFailBlock_isPass = True
+                    # Check WriteFail_LBA later                       
+                    if (block >= WriteFail_LBA and block < WriteFail_LBA+SectorCnt) and self.dfModule:                        
+                        pass
                     else:
                         # save to csv
                         valueList.append(block)
@@ -288,25 +282,22 @@ class SMI_FerriCase0(NVME):
                             valueList=[]   
                             
                         # save to list, ["block", "expected value", "current value"]
-                        failList.append([block, expectedValue, currentValue])
+                        failList.append([block, expectedValueStr, currentValueStr])
                                           
                         #
                         failCnt=failCnt+1
                         block_1=block                    
                     
-        # dfModule, check WriteCmdFailBlock_isPass
+        # if dfModule, check WriteFail_LBA
         if self.dfModule:   
-            # write to failList
+            # read 1th byte of fail LBA form image and current SSD
             Image1ByteValue = self.read1ByteFromFile("./mnt/img.bin", WriteFail_LBA*512)
-            Device1ByteValue = self.read1ByteFromFile(self.dev, WriteFail_LBA*512)
+            # Device1ByteValue = self.read1ByteFromFile(self.dev, WriteFail_LBA*512) # using fio to verify value later
             # save to list, ["block", "expected value", "current value"]
             block = WriteFail_LBA
-            expectedValue = "0x%X(write fail, last value) or 0x%X(write success, new value)"%(Image1ByteValue, dataPattern)
-            currentValue = "0x%X"%Device1ByteValue
-            failList.append([block, expectedValue, currentValue]) 
+            expectedValueStr = "0x%X(write fail, last value) or 0x%X(write success, new value)"%(Image1ByteValue, dataPattern)            
             
-            
-            self.Print( "-- dfModule --, check current data at LBA = %s, size = %s sector"%(WriteFail_LBA, SectorCnt), "p")
+            self.Print( "-- dfModule --, check current data at the write command failure LBA = %s, size = %s sector"%(WriteFail_LBA, SectorCnt), "p")
             # using fio to check if data is one of [Image1ByteValue  dataPattern],  if not , fail test
             offset = WriteFail_LBA*512
             size = SectorCnt*512                
@@ -314,20 +305,22 @@ class SMI_FerriCase0(NVME):
             isImagePattern = self.fio_isequal(offset, size, pattern = Image1ByteValue, fio_bs=512)
             
             if isDataPattern:
-                self.Print( "Data from LBA = %s, size = %s sector, value = %s"%(WriteFail_LBA, SectorCnt, dataPattern), "p") 
+                self.Print( "All the data from LBA = %s, size = %s sector, value = %s"%(WriteFail_LBA, SectorCnt, dataPattern), "p") 
+                currentValueStr = "0x%X"%dataPattern
             elif isImagePattern:
-                self.Print( "Data from LBA = %s, size = %s sector, value = %s"%(WriteFail_LBA, SectorCnt, Image1ByteValue), "p") 
+                self.Print( "All the data from LBA = %s, size = %s sector, value = %s"%(WriteFail_LBA, SectorCnt, Image1ByteValue), "p") 
+                currentValueStr = "0x%X"%Image1ByteValue
             else:
-                self.Print( "Data from LBA = %s, size = %s sector, value unknow, please use below command to check"%(WriteFail_LBA, SectorCnt), "f") 
-                self.Print( "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512), "f")
-                
-            if WriteCmdFailBlock_isPass and (not isDataPattern and not isImagePattern):
-                    self.Print( "cmp command result is not correct!", "f")
-
-
-            if not WriteCmdFailBlock_isPass:
+                self.Print( "Fail, data is not %s nor %s"%(Image1ByteValue, dataPattern), "f")
+                currentValueStr = "uknow"
+                self.CompareRtCode=False                
+                self.Print( "Data from LBA = %s, size = %s sector, value unknow, please use below command to verify current data."%(WriteFail_LBA, SectorCnt), "f") 
+                self.Print( "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512), "f")                
                 valueList.append(block)
                 failCnt=failCnt+1
+                
+            failList.append([block, expectedValueStr, currentValueStr])                 
+                
             self.Print( "-- end of dfModule --","p")         
                            
 

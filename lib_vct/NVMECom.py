@@ -702,7 +702,7 @@ class NVMECom():
         byte = 0
         success = False
         with open(filename, "rb") as infile:  # rb = read binary
-            infile.seek(0x5b67FF, 0)           # 0 = start of file, optional in this case
+            infile.seek(offset, 0)           # 0 = start of file, optional in this case, offset in byte
             byteStr = infile.read(0x1)
             byte = struct.unpack('b', byteStr)[0]      
             success = True

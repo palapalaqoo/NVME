@@ -155,8 +155,9 @@ class mtest1(NVME):
     def SubCase1(self):
         offset = 758358*512
         size = 18*512           
-        isDataPattern = self.fio_isequal(offset, size, pattern = 0x0, fio_bs=512)
-        
+
+        Device1ByteValue = self.read1ByteFromFile(self.dev, 1*512)
+        bb = self.read1ByteFromFile(self.dev, 1*512 +1 )
 
          
             
