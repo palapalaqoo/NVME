@@ -145,50 +145,29 @@ class mtest1(NVME):
         
     def PreTest(self):
         return 0    
-    def read_from_hex_offset(self, file, hex_offset):
-        """Fetch a single byte (or character) from file at hexadecimal offset hex_offset"""
-        offset = int(hex_offset, base=16)
-        file.seek(offset)
-        return file.read(1)    
+   
     
-    
+    SubCase1TimeOut = 6
     def SubCase1(self):
-        offset = 758358*512
-        size = 18*512           
-
-        Device1ByteValue = self.read1ByteFromFile(self.dev, 1*512)
-        bb = self.read1ByteFromFile(self.dev, 1*512 +1 )
-
+        print self.GetLinkSpeedCurrent()
+        print self.GetLinkSpeedMax()
+        print self.GetLinkWidthCurrent()
+        print self.GetLinkWidthMax()
+        
+        
+        
+        
+        
+        
+        
+        
+        '''
+        for i in range(10):
+            self.PrintProgressBar(i, 10, prefix="hihi", showPercent=True)
+            sleep(1)
+        '''
          
             
-        self.readBinaryFileToList    
-
-        CC= self.MemoryRegisterBaseAddress+0x1C
-        CChex=hex(CC)
-        CSTS = self.shell_cmd("devmem2 %s"%CChex)
-        mStr=":\s0x(\w+)"   # Value at address 0xa110001c: 0x00000001
-        if re.search(mStr, CSTS):
-            CSTS=int(re.search(mStr, CSTS).group(1),16)
-        else:
-            CSTS=int(0)
-
-        RDY = CSTS & 0x1
-        
-        timeout=5
-
-
-
-
-
-
-
-
-
-
-        
-        self.PrintProgressBar(4, 4, showPercent=True)
-        self.Print("4444"\
-        "4544444444")
         self.Print("Wait")
                    
         

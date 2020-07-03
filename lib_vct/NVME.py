@@ -55,14 +55,14 @@ class NVME(object, NVMECom):
         if argv[0] == sys.argv[0]:
             # created from main script
             self.isSubCaseOBJ=False
-            mArgv = argv[1:]   # ['/dev/nvme0n1', subcase items and other parameters]
+            self.mArgv = argv[1:]   # ['/dev/nvme0n1', subcase items and other parameters]
         else:
             # created in subcase
             self.isSubCaseOBJ=True
-            mArgv = argv # ['/dev/nvme0n1'], only 1 args
+            self.mArgv = argv # ['/dev/nvme0n1'], only 1 args
             
         # ResumeSubCase=None means not reboot run script
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase =  self.ParserArgv(mArgv, self.CreateSubCaseListForParser())
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -83,12 +83,8 @@ class NVME(object, NVMECom):
         self.StartLocalTime=time.time()
         self.SubCasePoint=0
 
-        # POR module
+        # POR module path
         self.porPath = "/usr/local/sbin/PWOnOff"
-        if self.isfileExist(self.porPath):
-            self.Print("%s installed: yes"%self.porPath, "p")
-        else:
-            self.Print("%s installed: no"%self.porPath, "f")        
               
         # the start 1G start block, middle and last, 
         self.start_SB=0
@@ -210,6 +206,12 @@ class NVME(object, NVMECom):
         # save parameters for reset controller to the beginning state
         self.initial_FLBAS=self.IdNs.FLBAS.int  
         self.initial_NSID=self.GetNSID()
+        
+        # get initial values
+        self.initial_LinkSpeedCurr=self.GetLinkSpeedCurrent()
+        self.initial_LinkSpeedMax=self.GetLinkSpeedMax()
+        self.initial_LinkWidthCurr=self.GetLinkWidthCurrent()
+        self.initial_LinkWidthMax=self.GetLinkWidthMax()        
     
     def GetNSID(self):
         return int(self.GetStrFromREsearchByShellCMD(shellCMD = "nvme list-ns %s"%self.device, searchPattern = ".*:(.*)") ,16 )
@@ -334,7 +336,7 @@ class NVME(object, NVMECom):
         return mStr
                 
                           
-    def RunScript(self):                
+    def RunScript(self):                           
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
             for i in range(1, self.SubCaseMaxNum+1):
@@ -360,6 +362,7 @@ class NVME(object, NVMECom):
             self.Logger("<PreTest> ----------------------------", mfile="cmd") 
                 
             PreTest = self.GetAbstractFunctionOrVariable(0, "pretest")
+            self.Print ("-- Pretest --------------------------------------------------------------------", "b")
             PreTestRtCode = PreTest()
             # if return true/false, transfer to int
             if isinstance(PreTestRtCode, types.BooleanType):                      
@@ -397,24 +400,28 @@ class NVME(object, NVMECom):
                         # set SubCasePoint for consol prefix
                         self.SubCasePoint=SubCaseNum
                         # print sub case titles
+                        TimeoutMsg = "timeout: %s s"%Timeout if Timeout!=0 else "timeout: 0(infinite)"
                         self.Print ("")
-                        self.Print ("-- Case %s --------------------------------------------------------------------- timeout %s s --"%(SubCaseNum, Timeout), "b")
+                        self.Print ("-- Case %s --------------------------------------------------------------------- %s --"%(SubCaseNum, TimeoutMsg), "b")
                         self.Print ("-- %s"%Description)
                         self.Print ("-- Keyword: %s"%SpecKeyWord)
     
                         # enable RecordCmdToLogFile to recode command
                         self.RecordCmdToLogFile=True             
-                        self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")                                         
-    
-                        # run script, 3th,4th line equal 1,2 line statements
-                        #    @deadline(Timeout)
-                        #    Code=SubCaseFunc()
-                        SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)    
+                        self.Logger("<Case %s> ----------------------------"%SubCaseNum, mfile="cmd")
                         Code=None
                         
-                        # sub case execption
+                        # run sub case with execption
                         try:
-                            Code = SubCaseFuncWithTimeOut()    
+                            if Timeout!=0:  # have timeout
+                                # run script, 3th,4th line equal 1,2 line statements
+                                #    @deadline(Timeout)
+                                #    Code=SubCaseFunc()
+                                SubCaseFuncWithTimeOut=deadline(Timeout)(SubCaseFunc)                            
+                                Code = SubCaseFuncWithTimeOut()    
+                            else:  # timeout infinite
+                                Code = SubCaseFunc()
+                                
                             self.SetPrintOffset(0) # clear offset in advanced
                         # timeout execption     
                         except TimedOutExc as e:    
@@ -723,7 +730,7 @@ class NVME(object, NVMECom):
     
     def fio_precondition(self, pattern, fio_direct=1, fio_bs="64k", showProgress=False):
         CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=0 --name=mdata \
-        --do_verify=0 --verify=pattern --verify_pattern=%s --randrepeat=0" %(fio_direct, fio_bs, self.dev, pattern)
+        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, self.dev, pattern)
         if not showProgress:
             mStr, SC = self.shell_cmd_with_sc(CMD)
             if SC!=0:
@@ -1093,7 +1100,18 @@ class NVME(object, NVMECom):
             if cnt >=10:
                 self.Print("can't power device on", "f")
                 return False     
-            
+        
+        # verify link
+        value = self.GetLinkSpeedCurrent()
+        if value!=self.initial_LinkSpeedCurr:
+            self.Print("Error!, LinkSpeedCurrent changed, initial value %s, current value %s"%(self.initial_LinkSpeedCurr, value), "f")
+            return False
+                
+        value = self.GetLinkWidthCurrent()
+        if value!=self.initial_LinkWidthCurr:
+            self.Print("Error!, LinkWidthCurrent changed, initial value %s, current value %s"%(self.initial_LinkWidthCurr, value), "f")
+            return False
+                
         self.status="normal"
         return True         
     
@@ -1349,15 +1367,20 @@ class NVME(object, NVMECom):
 
 
     def PrintInfo(self):
+        self.SetPrintOffset(4)
         self.Print ("")
-        self.Print ("    =====================")
-        self.Print ("    *ScriptName : %s"%self.ScriptName)
-        self.Print ("    *Author : %s"%self.Author)
-        self.Print ("    *Version : %s"%self.Version )
-        self.Print ("    ====================="     )
+        self.Print ("========================================="     )  
+        self.Print ("Script info.", "p")
+        self.SetPrintOffset(6)
+        self.Print ("ScriptName : %s"%self.ScriptName)
+        self.Print ("Author : %s"%self.Author)
+        self.Print ("Version : %s"%self.Version )
+        
         
         self.Print ("")
-        self.Print ("  Sub Case list ---------------------------------")
+        self.SetPrintOffset(4)
+        self.Print ("Sub Case list", "p")
+        self.SetPrintOffset(6)
         # print Descriptions
         cnt=1
         for SubCaseNum in range(1, self.SubCaseMaxNum+1):
@@ -1365,10 +1388,31 @@ class NVME(object, NVMECom):
                 
                 # get subcase content
                 Description=self.GetAbstractFunctionOrVariable(SubCaseNum, "description")
-                self.Print ("  %s) %s"%(cnt, Description))
+                self.Print ("(%s) %s"%(cnt, Description))
                 cnt=cnt+1
-        self.Print ("  End Sub Case list -------------------------------"     )
-        self.Print (""    )
+
+        self.Print ("")        
+        self.SetPrintOffset(4)
+        self.Print ("Environment", "p")
+        self.SetPrintOffset(6)
+        # print self.mArgv
+        self.Print("Python command: %s"%self.mArgv)
+        
+        # print por module is installed or not
+        if self.isfileExist(self.porPath):
+            self.Print("%s installed: yes"%self.porPath)
+        else:
+            self.Print("%s installed: no"%self.porPath, "f")
+            
+        self.Print("LinkSpeedMax: %s"%self.initial_LinkSpeedMax)
+        self.Print("LinkSpeedCurrent: %s"%self.initial_LinkSpeedCurr)
+        self.Print("LinkWidthMax: %s"%self.initial_LinkWidthMax)
+        self.Print("LinkWidthCurrent: %s"%self.initial_LinkWidthCurr)
+              
+        self.SetPrintOffset(4)              
+        self.Print ("========================================="     )     
+        self.SetPrintOffset(0)
+        self.Print ("") 
         
     def GetBlockSize(self):
         # get current block size, i.e. 512, 4096(4k) .. etc.
@@ -1473,6 +1517,30 @@ class NVME(object, NVMECom):
         self.shell_cmd("rmmod nvme", 1)
         # ex. modprobe nvme max_host_mem_size_mb=0 to set HMB=0
         self.shell_cmd("modprobe nvme %s"%par, 1)
+        
+    def ReadFile(self, filePath):
+    # using cat to read a file
+        if not self.isfileExist(filePath):
+            self.Print("Can't find file: %s"%filePath, "f")
+            return 0
+        else:
+            return self.shell_cmd("cat %s"%filePath)
+                
+    def GetLinkSpeedCurrent(self):
+        filePath = "/sys/bus/pci/devices/%s/current_link_speed"%self.pcie_port
+        return self.ReadFile(filePath)
+    
+    def GetLinkSpeedMax(self):
+        filePath = "/sys/bus/pci/devices/%s/max_link_speed"%self.pcie_port
+        return self.ReadFile(filePath)
+    
+    def GetLinkWidthCurrent(self):
+        filePath = "/sys/bus/pci/devices/%s/current_link_width"%self.pcie_port
+        return self.ReadFile(filePath)
+    
+    def GetLinkWidthMax(self):
+        filePath = "/sys/bus/pci/devices/%s/max_link_width"%self.pcie_port
+        return self.ReadFile(filePath)            
            
 # ==============================================================    
 class DevWakeUpAllTheTime():

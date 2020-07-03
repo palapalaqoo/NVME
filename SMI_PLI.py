@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200617"
+    Version = "20200701"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -395,7 +395,7 @@ class SMI_PLI(NVME):
         self.SetDynamicArgs(optionName="size", optionNameFull="WriteRead_LPI_size", helpMsg="Write/Read LPI size, default = '800M'", argType=str)
         self.SetDynamicArgs(optionName="t0", optionNameFull="PorOffTimer0", helpMsg="Power Off Timer minium in millisecond, default = 2000", argType=int)
         self.SetDynamicArgs(optionName="t1", optionNameFull="PorOffTimer1", helpMsg="Power Off Timer maxium in millisecond, default = 4000", argType=int)
-        self.SetDynamicArgs(optionName="precon", optionNameFull="Precondition", helpMsg="do precondition, usage, -precon yes, default = no", argType=str)
+        self.SetDynamicArgs(optionName="precon", optionNameFull="Precondition", helpMsg="do precondition, usage, -precon no, default = yes", argType=str)
         
         # initial parent class
         super(SMI_PLI, self).__init__(argv)
@@ -419,8 +419,8 @@ class SMI_PLI(NVME):
         self.paraPorOffTimer1=4000 if self.paraPorOffTimer1==None else self.paraPorOffTimer1   
            
         self.paraPrecondition = self.GetDynamicArgs(6) 
-        self.paraPrecondition="no" if self.paraPrecondition==None else self.paraPrecondition
-        self.paraPrecondition="no" if self.paraPrecondition!="yes" else self.paraPrecondition 
+        self.paraPrecondition="yes" if self.paraPrecondition==None else self.paraPrecondition
+        self.paraPrecondition="yes" if self.paraPrecondition!="no" else self.paraPrecondition 
         
         self.NCAP=self.IdNs.NCAP.int  
         self.MaxNLB = self.MaxNLBofCDW12()   
@@ -451,24 +451,26 @@ class SMI_PLI(NVME):
                 
         
         if self.paraLPISizeInBLK>self.NCAP:
-            self.Print("Fail, input parameter '-size %s' exceed disk capacity(0x%X > 0x%X), exit"%(self.paraLPISize, self.paraLPISizeInBLK, self.NCAP), "f") 
+            self.Print("Fail, parameter '-size %s' exceed disk capacity(0x%X > 0x%X), exit"%(self.paraLPISize, self.paraLPISizeInBLK, self.NCAP), "f") 
             self.Print("For more infomation, run 'python SMI_PLI.py'", "f")
             return 1
         
         if self.paraPorOffTimer0>=self.paraPorOffTimer1:
-            self.Print("Fail, input parameter  Power Off Timer incorrect, %s, %s , exit"%(self.paraPorOffTimer0, self.paraPorOffTimer1), "f")    
+            self.Print("Fail, parameter  Power Off Timer incorrect, %s, %s , exit"%(self.paraPorOffTimer0, self.paraPorOffTimer1), "f")    
             self.Print("For more infomation, run 'python SMI_PLI.py'", "f")    
             return 1   
         
         if self.paraLPISector>self.MDTSinBlock:
-            self.Print("Fail, input parameter  Write/Read LPI sector(-sector) incorrect(value = %s), can't exceed DUT Maximum Data Transfer Size(%s) , exit"%(self.paraLPISector, self.MDTSinBlock), "f")   
+            self.Print("Warnning, parameter  Write/Read LPI number of sector(-sector) incorrect(value = %s), can't exceed DUT Maximum Data Transfer Size(%s) "%(self.paraLPISector, self.MDTSinBlock), "w")   
+            self.Print("so parameter Write/Read LPI number of sector(-sector) will be modified from %s to %s"%(self.paraLPISector, self.MDTSinBlock), "w")
+            self.paraLPISector = self.MDTSinBlock
             self.Print("For more infomation, run 'python SMI_PLI.py'", "f")
-            return 1  
+
                     
         return 0            
 
     # <define sub item scripts>
-    SubCase1TimeOut = 600000
+    SubCase1TimeOut = 0
     SubCase1Desc = "Intel PLI test"   
     SubCase1KeyWord = ""
     def SubCase1(self):

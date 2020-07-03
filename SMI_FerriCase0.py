@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_FerriCase0(NVME):
     ScriptName = "SMI_FerriCase0.py"
     Author = "Sam"
-    Version = "20200622"
+    Version = "20200630"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1)
@@ -311,15 +311,23 @@ class SMI_FerriCase0(NVME):
                 self.Print( "All the data from LBA = %s, size = %s sector, value = %s"%(WriteFail_LBA, SectorCnt, Image1ByteValue), "p") 
                 currentValueStr = "0x%X"%Image1ByteValue
             else:
-                self.Print( "Fail, data is not %s nor %s"%(Image1ByteValue, dataPattern), "f")
-                currentValueStr = "uknow"
-                self.CompareRtCode=False                
-                self.Print( "Data from LBA = %s, size = %s sector, value unknow, please use below command to verify current data."%(WriteFail_LBA, SectorCnt), "f") 
-                self.Print( "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512), "f")                
+                self.Print( "The data is not all equal to %s nor %s"%(Image1ByteValue, dataPattern), "w")
+                currentValueStr = "uknow"                                
+                CMD = "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512)
+                self.Print( "Do shell command to hexdump sectors: %s"%CMD, "w") 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4)
+                self.Print(aa)
+                self.SetPrintOffset(0)  
+                
+                ''' show last fail sectors and will not recorded
                 valueList.append(block)
                 failCnt=failCnt+1
+                self.CompareRtCode=False
+                '''
                 
-            failList.append([block, expectedValueStr, currentValueStr])                 
+            #  show last fail sectors and will not recorded
+            #failList.append([block, expectedValueStr, currentValueStr])                 
                 
             self.Print( "-- end of dfModule --","p")         
                            
@@ -592,18 +600,24 @@ class SMI_FerriCase0(NVME):
         
 
     # define pretest  
-    def PreTest(self):        
+    def PreTest(self): 
+        OneBlockSize = self.GetBlockSize()
+        self.Print("Block size: %s"%OneBlockSize, "p")
+        if OneBlockSize!=512:
+            self.Print("This script support 512 block size only, skip", "w")
+            return 255 
+        
         return True            
 
     # <define sub item scripts>
-    SubCase1TimeOut = 6000000
+    SubCase1TimeOut = 0
     SubCase1Desc = "Loop for SPOR testing"   
     SubCase1KeyWord = ""
     def SubCase1(self):   
         ret_code=0
         self.Print("Start to test SPOR")
-        self.Print("Total test loop: %s"%self.loops, "f")
-        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "f")
+        self.Print("Total test loop: %s"%self.loops, "p")
+        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "p")        
         self.Print("")
         FileOutCnt=0
         try: 
