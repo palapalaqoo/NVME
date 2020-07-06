@@ -22,7 +22,7 @@ import subprocess
 import random
 # Import VCT modules
 from lib_vct.NVME import NVME
-from lib_vct.NVMECom import deadline
+from SMI_FerriCase0 import SMI_FerriCase0
 
 class mtest1(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -147,14 +147,10 @@ class mtest1(NVME):
         return 0    
    
     
-    SubCase1TimeOut = 6
+    SubCase1TimeOut = 600
     def SubCase1(self):
-        print self.GetLinkSpeedCurrent()
-        print self.GetLinkSpeedMax()
-        print self.GetLinkWidthCurrent()
-        print self.GetLinkWidthMax()
-        
-        
+
+        self.spor_reset(0, showMsg=True, PowerOffDuration=2)
         
         
         
@@ -169,6 +165,7 @@ class mtest1(NVME):
          
             
         self.Print("Wait")
+
                    
         
         

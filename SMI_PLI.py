@@ -121,8 +121,10 @@ class SMI_PLI(NVME):
         # convert to seconds 
         porTimer = float(porTimer) / 1000     
         sleep(porTimer)
+        
+        PowerOffTimer = float(self.paraPowerOffDuration) / 1000
         self.Print(msg)
-        self.do_por_reset("spor")
+        self.do_por_reset(mode = "spor", showMsg=True, PowerOffDuration=PowerOffTimer)
         self.timeIsUp=True
         
     def WritePLI(self):    
@@ -396,6 +398,8 @@ class SMI_PLI(NVME):
         self.SetDynamicArgs(optionName="t0", optionNameFull="PorOffTimer0", helpMsg="Power Off Timer minium in millisecond, default = 2000", argType=int)
         self.SetDynamicArgs(optionName="t1", optionNameFull="PorOffTimer1", helpMsg="Power Off Timer maxium in millisecond, default = 4000", argType=int)
         self.SetDynamicArgs(optionName="precon", optionNameFull="Precondition", helpMsg="do precondition, usage, -precon no, default = yes", argType=str)
+        self.SetDynamicArgs(optionName="poroffdur", optionNameFull="PowerOffDuration", helpMsg="Power Off Duration in millisecond, default = 0", argType=str)
+        
         
         # initial parent class
         super(SMI_PLI, self).__init__(argv)
@@ -421,6 +425,9 @@ class SMI_PLI(NVME):
         self.paraPrecondition = self.GetDynamicArgs(6) 
         self.paraPrecondition="yes" if self.paraPrecondition==None else self.paraPrecondition
         self.paraPrecondition="yes" if self.paraPrecondition!="no" else self.paraPrecondition 
+        
+        self.paraPowerOffDuration = self.GetDynamicArgs(7) 
+        self.paraPowerOffDuration=0 if self.paraPowerOffDuration==None else self.paraPowerOffDuration           
         
         self.NCAP=self.IdNs.NCAP.int  
         self.MaxNLB = self.MaxNLBofCDW12()   
@@ -483,7 +490,12 @@ class SMI_PLI(NVME):
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit test case")  
-            self.timeEventTerminate = True          
+            self.timeEventTerminate = True
+            if not self.ctrl_alive:
+                self.Print("Current DUT is por off, try to power on")
+                if self.do_por_reset(mode = "spor", showMsg=True):
+                    self.Print("Done", "p") 
+                        
         return ret_code
 
     # </define sub item scripts>

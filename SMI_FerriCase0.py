@@ -21,8 +21,17 @@ class SMI_FerriCase0(NVME):
     Version = "20200630"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
-        # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1)
+        # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
         # if isSeqWrite, then return list [0, 1, 2, ...] else return random
+        # use GetNextSample() to get next rand values
+        # use ResetRandIndex() to set to the first rand values
+        
+        # ex, area = 2, contant=5, RandAreaList may = [0,1], RandContantList may =  [3, 1, 4, 0, 2] , 
+        # first rand is 1*5 + 2,  e.g. self.RandAreaList[areaInd] * self.LenContantList + self.RandContantList[contantInd]
+        # second = 1*5 + 0, 3th =1*5+4 .. until last = 0*5 + 3
+        # unmask following syntax to test    
+        #seed = 1; area = 2; contant = 5; isSeqWrite = False 
+        
         while True:
             if isSeqWrite:
                 self.RandAreaList = range(area)
@@ -84,6 +93,7 @@ class SMI_FerriCase0(NVME):
                         
         dataPattern_last=0   
         writeSuccessCnt = 0     
+        self.ResetRandIndex()
         while True: 
             if self.Running==False:
                 WriteFail_LBA= SLBA
@@ -159,9 +169,9 @@ class SMI_FerriCase0(NVME):
         CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
                              "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
                             %(NLB+1, size , oct_val, self.dev, size, cdw10, cdw11, cdw12)
-        self.RecordCmdToLogFile=False
+        if not self.mTestModeOn: self.RecordCmdToLogFile=False # if normal test, no need to record write command to save log size
         mStr, SC =self.shell_cmd_with_sc(CMD)
-        self.RecordCmdToLogFile=True
+        if not self.mTestModeOn: self.RecordCmdToLogFile=True
         if SC==0:
             return True         
         else:
@@ -439,7 +449,7 @@ class SMI_FerriCase0(NVME):
         # 65536*32=1G=4096*512
         
         if isSeqWrite:
-            self.CreateRandSample(seed=seed, area=1, contant=2097152, isSeqWrite=isSeqWrite)    # one area, start forom 0
+            self.CreateRandSample(seed=seed, area=1, contant=2097152, isSeqWrite=isSeqWrite)    # one area, start from 0
         else:
             self.CreateRandSample(seed=seed, area=65536, contant=32, isSeqWrite=isSeqWrite) 
         

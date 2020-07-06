@@ -49,7 +49,8 @@ class NVMECom():
     ScriptParserArgs=[]  
     LastProgress=None
     # for self.Print()
-    PrintOffset = ""     
+    CurrentOffsetSize= 0    # offset size int 
+    PrintOffset = ""     # using self.CurrentOffsetSize to generate spaces, ex. self.CurrentOffsetSize=2, PrintOffset='  '
     
     def SubItemNum(self):
         self.SubItemNumValue+=1
@@ -495,6 +496,7 @@ class NVMECom():
     
     def SetPrintOffset(self, offset):        
         self.PrintOffset = ""
+        self.CurrentOffsetSize = offset
         for i in range(offset):
             self.PrintOffset = self.PrintOffset + " "
     

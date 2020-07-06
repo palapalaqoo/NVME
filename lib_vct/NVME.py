@@ -1068,52 +1068,75 @@ class NVME(object, NVMECom):
             return 1        
 
         
-    def por_reset(self, sleep_time=0.5):
-        return self.do_por_reset("por", sleep_time)           
+    def por_reset(self, sleep_time=0.5, showMsg=False, PowerOffDuration = 0):
+        return self.do_por_reset("por", sleep_time, showMsg, PowerOffDuration)           
     
-    def spor_reset(self, sleep_time=0.5):
-        return self.do_por_reset("spor", sleep_time) 
+    def spor_reset(self, sleep_time=0.5, showMsg=False, PowerOffDuration = 0):
+        return self.do_por_reset("spor", sleep_time, showMsg, PowerOffDuration) 
 
-    def do_por_reset(self, mode, sleep_time=0.5):
+    def do_por_reset(self, mode, sleep_time=0.1, showMsg=False, PowerOffDuration = 0):
     # mode = por/spor
-        self.status="reset"        
+        self.status="reset"
+        success = True
+        if showMsg: self.SetPrintOffset(self.CurrentOffsetSize + 4) # make console print align to plus 4 spaces
         #power off, and check if device was removed by OS(10 time)
         cnt=0
+        if showMsg: self.Print("Start to power off device..")
         while self.ctrl_alive:            
             self.shell_cmd("%s %s %s off 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode), sleep_time) 
             cnt=cnt+1
             if cnt >=10:
                 self.Print("can't power device off", "f")
-                return False 
-
-        # if system file exist, then remove them,ex. /dev/nvme0n1 and /dev/nvme0
-        if self.isfileExist(self.dev):
-            self.shell_cmd("rm %s -f"%self.dev)
-        if self.isfileExist(self.dev_port):
-            self.shell_cmd("rm %s -f"%self.dev_port)
+                success = False 
+                break
+                
+        if success:
+            if showMsg: self.Print("Device is off now")
+            # if system file exist, then remove them,ex. /dev/nvme0n1 and /dev/nvme0
+            if self.isfileExist(self.dev):
+                self.shell_cmd("rm %s -f"%self.dev)
+            if self.isfileExist(self.dev_port):
+                self.shell_cmd("rm %s -f"%self.dev_port)
             
-        #power on, and check if device was removed by OS(10 time)            
-        cnt=0
-        while not self.ctrl_alive:
-            self.shell_cmd("%s %s %s on 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode), sleep_time) 
-            cnt=cnt+1
-            if cnt >=10:
-                self.Print("can't power device on", "f")
-                return False     
-        
-        # verify link
-        value = self.GetLinkSpeedCurrent()
-        if value!=self.initial_LinkSpeedCurr:
-            self.Print("Error!, LinkSpeedCurrent changed, initial value %s, current value %s"%(self.initial_LinkSpeedCurr, value), "f")
-            return False
+            if showMsg: self.Print("Sleep for %s second(PowerOffDuration)"%PowerOffDuration)   
+            sleep(PowerOffDuration)
+            
+            #power on, and check if device was removed by OS(10 time)        
+            if showMsg: self.Print("Start to power on device..")    
+            cnt=0
+            while not self.ctrl_alive:
+                self.shell_cmd("%s %s %s on 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode)) 
+                cnt=cnt+1
+                if cnt >=10:
+                    self.Print("can't power device on", "f")
+                    success =  False     
+                    
+        if success:
+            if showMsg: self.Print("Device is on now")        
+            # verify link
+            if showMsg: self.Print("Verify link speed..")
+            value = self.GetLinkSpeedCurrent()
+            if value!=self.initial_LinkSpeedCurr:
+                self.Print("Error!, LinkSpeedCurrent changed, initial value %s, current value %s"%(self.initial_LinkSpeedCurr, value), "f")
+                success = False
                 
-        value = self.GetLinkWidthCurrent()
-        if value!=self.initial_LinkWidthCurr:
-            self.Print("Error!, LinkWidthCurrent changed, initial value %s, current value %s"%(self.initial_LinkWidthCurr, value), "f")
-            return False
-                
+            value = self.GetLinkWidthCurrent()
+            if value!=self.initial_LinkWidthCurr:
+                self.Print("Error!, LinkWidthCurrent changed, initial value %s, current value %s"%(self.initial_LinkWidthCurr, value), "f")
+                success = False
+       
+            if success: 
+                if showMsg: self.Print("Link speed pass")
+            else:
+                if showMsg: self.Print("Link speed fail")
+            
+        if showMsg: self.SetPrintOffset(self.CurrentOffsetSize) # make console print align to plus 0 spaces(last align)     
         self.status="normal"
-        return True         
+        
+        if success:
+            return True     
+        else:
+            return False       
     
     # for fixing 'tr: write error: Broken pipe'
     def default_sigpipe(self):
