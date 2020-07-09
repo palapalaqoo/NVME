@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_FerriCase0(NVME):
     ScriptName = "SMI_FerriCase0.py"
     Author = "Sam"
-    Version = "20200630"
+    Version = "20200708"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 

@@ -150,6 +150,9 @@ class mtest1(NVME):
     SubCase1TimeOut = 600
     def SubCase1(self):
 
+        self.timer.start()
+        timeUsage1 = int(float(self.timer.time))
+        aa = int(3.193137)
         self.spor_reset(0, showMsg=True, PowerOffDuration=2)
         
         

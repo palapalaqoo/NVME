@@ -400,7 +400,7 @@ class SMI_Sanitize(NVME):
         per=0
         while True:
             per = self.GetLog.SanitizeStatus.SPROG
-            if per!=0 and per!=65536:
+            if per!=0 and per!=65535:
                 break;
             else:
                 WaitCnt = WaitCnt+1
@@ -552,7 +552,7 @@ class SMI_Sanitize(NVME):
             self.SANACT=0
        
         
-    # <sub item scripts>
+    # <sub item scripts>  
     SubCase1TimeOut = 1000
     SubCase1Desc = "Test Command Completion Queue"      
     def SubCase1(self):
@@ -940,6 +940,103 @@ class SMI_Sanitize(NVME):
         ret_code=self.TestJiraSmi213()     
         self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
         return ret_code
+
+    SubCase13TimeOut = 1000
+    SubCase13Desc = "Test if CPU go sleep when sanitize is in progress"      
+    def SubCase13(self):
+        self.Print ("When sanitize is in progress, the controller shall not go sleep.")    
+        self.Print ("")
+        self.Print ("1. Get sanitize operation time usage as device CPU awake all the time(TimeUsageAwake)", "b")
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
+        self.Print ("Issue sanitize command: %s"%CMD)      
+        mStr, SC=self.shell_cmd_with_sc(CMD) 
+        if SC!=0:
+            self.Print ("Command fail, return sataus code: %s"%SC, "f")
+            return 1
+        else:
+            self.Print ("Command success with sataus code = 0", "p")
+            self.timer.start()
+            self.Print ("Wait for SPROG >=1 ..")
+            while True:
+                per = self.GetLog.SanitizeStatus.SPROG
+                if per>=1:
+                    break
+            self.Print ("Current SPROG=%s now."%per)
+            self.Print ("Issue get log page command every 5 ms for sanitize log(SPROG) to make CPU awake all the time untill sanitize finish")
+            per_last=0
+            while per != 65535: #print ("Sanitize Progress: %s"%per)
+                per = self.GetLog.SanitizeStatus.SPROG
+                sleep(0.005) #self.Print ("Recent sanitize operation was completed")
+                if per!=per_last:
+                    self.PrintProgressBar(per, 65535, "", "SPROG: %s"%per)
+                    per_last=per
+
+            TimeUsageAwake = int(float(self.timer.time))
+            self.Print ("Sanitize finish")
+            self.Print ("Sanitize time usage for CPU awake all the time(TimeUsageAwake): %s seconds"%TimeUsageAwake)      
+            if TimeUsageAwake<10:
+                    self.Print ("TimeUsageAwake < 10, no need to check this test", "p")
+                    return 0
+            # ---------------------------------------------------------------------------------------
+            self.Print ("")
+            self.Print ("2. Get sanitize operation time usage as device CPU may sleep all the time", "b")
+            self.Print ("Issue sanitize command: %s"%CMD)      
+            mStr, SC=self.shell_cmd_with_sc(CMD) 
+            if SC!=0:
+                self.Print ("Command fail, return sataus code: %s"%SC, "f")
+                return 1
+            else:
+                self.Print ("Command success with sataus code = 0", "p")
+                self.timer.start()
+                self.Print ("Wait for SPROG >=1 ..")
+                while True:
+                    per = self.GetLog.SanitizeStatus.SPROG
+                    if per>=1:
+                        break
+                self.Print ("Current SPROG=%s now."%per)                
+                self.Print ("Wait  %s seconds (TimeUsageAwake)"%TimeUsageAwake)
+                per = 0                
+                while True:
+                    sleep(1)
+                    self.PrintProgressBar(per, TimeUsageAwake, "", "time: %s"%per)                    
+                    if per == TimeUsageAwake: break
+                    per=per + 1 
+              
+                                
+                
+                
+                self.Print ("Issue get log page command and check if SPROG=65535(sanitize finish)")
+                per = self.GetLog.SanitizeStatus.SPROG
+                self.Print ("Current SPROG: %s"%per)
+                
+                if per==65535:
+                    self.Print ("Sanitize finish, time usage was <= TimeUsageAwake", "p")
+                    return 0
+                else:
+                    self.Print ("Sanitize has not finished")
+                    self.Print ("Issue get log page command every 5 ms for sanitize log(SPROG) to make CPU awake all the time untill sanitize finish")
+                    self.Print ("If sanitize operation finish in TimeUsageAwake*1.1, then pass, else fail")
+                    timeLimit = TimeUsageAwake * 1.1
+                    self.Print ("E.g. %s seconds"%timeLimit)
+                     
+                    per_last = 0
+                    while per != 65535: #print ("Sanitize Progress: %s"%per)
+                        per = self.GetLog.SanitizeStatus.SPROG
+                        sleep(0.005) #self.Print ("Recent sanitize operation was completed")
+                        if per!=per_last:
+                            self.PrintProgressBar(per, 65535, "", "SPROG: %s"%per)
+                            per_last=per  
+                            
+                        timeUsage1 = int(float(self.timer.time))
+                        self.Print ("Sanitize finish")
+                        self.Print ("Sanitize time usage %s seconds"%timeUsage1)       
+                        self.Print ("Check if time usage <= TimeUsageAwake(%s s)"%TimeUsageAwake) 
+                        if timeUsage1<=(TimeUsageAwake*1.1):
+                            self.Print ("Pass", "p")
+                            return 0
+                        else:
+                            self.Print ("Fail", "f")
+                            return 1
                     
     # </sub item scripts> 
                

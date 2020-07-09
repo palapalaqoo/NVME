@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200701"
+    Version = "20200708"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
