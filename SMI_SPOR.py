@@ -15,10 +15,10 @@ import re
 from lib_vct.NVME import NVME
 
 
-class SMI_FerriCase0(NVME):
-    ScriptName = "SMI_FerriCase0.py"
+class SMI_SPOR(NVME):
+    ScriptName = "SMI_SPOR.py"
     Author = "Sam"
-    Version = "20200708"
+    Version = "20200710"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
@@ -421,7 +421,7 @@ class SMI_FerriCase0(NVME):
         
         SizeInBlock= 2097152#  2097152*512 =1G
         writeType = "Sequence write" if isSeqWrite else "Random write  "
-        self.Print("+-- Loop: %s, Sector count: %s, Write type: %s -- "%(Loop, SectorCnt, writeType), "b")
+        self.Print("+-- Loop: %s, Sector count: %s, Write type: %s ---------------------------------- "%(Loop, SectorCnt, writeType), "b")
         
         cnt=0
         while True:
@@ -552,7 +552,7 @@ class SMI_FerriCase0(NVME):
         
                         
         # initial parent class
-        super(SMI_FerriCase0, self).__init__(argv)
+        super(SMI_SPOR, self).__init__(argv)
         
         self.loops = self.GetDynamicArgs(0)  
         self.loops=1 if self.loops==None else self.loops
@@ -711,7 +711,7 @@ class SMI_FerriCase0(NVME):
 
 
 if __name__ == "__main__":
-    DUT = SMI_FerriCase0(sys.argv ) 
+    DUT = SMI_SPOR(sys.argv ) 
     DUT.RunScript()
     DUT.Finish() 
 

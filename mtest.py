@@ -22,7 +22,7 @@ import subprocess
 import random
 # Import VCT modules
 from lib_vct.NVME import NVME
-from SMI_FerriCase0 import SMI_FerriCase0
+import SMI_PLP.SMI_FerriCase0
 
 class mtest1(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -150,12 +150,11 @@ class mtest1(NVME):
     SubCase1TimeOut = 600
     def SubCase1(self):
 
-        self.timer.start()
-        timeUsage1 = int(float(self.timer.time))
-        aa = int(3.193137)
-        self.spor_reset(0, showMsg=True, PowerOffDuration=2)
-        
-        
+        for SectorCnt in range(1, 256):
+            print SectorCnt
+            
+        for SectorCnt in range(255, 0, -1):
+            print SectorCnt
         
         
         
