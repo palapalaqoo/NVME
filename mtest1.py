@@ -152,6 +152,7 @@ class mtest1(NVME):
     SubCase1Desc = "test 1"   
     SubCase1KeyWord = ""
     def SubCase1(self):
+        aa= self.eadBinaryFileToList("tt.bin")
         mStr = self.shell_cmd("ls /des 2>&1 ; echo $? ")
 
         result = int(mStr.splitlines(0))

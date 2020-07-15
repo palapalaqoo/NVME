@@ -13,12 +13,13 @@ import re
 
 # Import VCT modules
 from lib_vct.NVME import NVME
+from __builtin__ import True
 
 
 class SMI_SPOR(NVME):
     ScriptName = "SMI_SPOR.py"
     Author = "Sam"
-    Version = "20200710"
+    Version = "20200715"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
@@ -128,7 +129,7 @@ class SMI_SPOR(NVME):
             # write    
             if not self.NVMEwrite(value=dataPattern, slba=SLBA, SectorCnt=NLB):
                 WriteFail_LBA = SLBA
-                self.Print("Fail at %s th write command with sector = %s"%(writeSuccessCnt+1, NLB), "f")    
+                self.Print("Fail at %s th write command with sector = %s"%(writeSuccessCnt+1, NLB), "p")    
                 '''
                 if self.dfModule:
                     self.Print("Ferri DF module, expect DUT will flush those data.")
@@ -176,8 +177,8 @@ class SMI_SPOR(NVME):
             return True         
         else:
             self.Print("")
-            self.Print("Write fail at start LBA = %s"%slba, "f")            
-            self.Print("Return status: %s"%mStr, "f")
+            self.Print("Write fail at start LBA = %s"%slba, "p")            
+            self.Print("Return status: %s"%mStr, "p")
             return False     
 
     def WriteImg(self, SLBA, NLB, dataPattern):
@@ -406,6 +407,9 @@ class SMI_SPOR(NVME):
     def CreateRamDisk(self, ImageFolderFullPath, ImageFileFullPath):
         # ImageFolderFullPath = ./mnt
         # ImageFileFullPath = ./mnt/img.bin
+        
+        # remove
+        self.rmFile(ImageFileFullPath)
         # create folder
         if not self.isfileExist(ImageFolderFullPath):
             self.shell_cmd("mkdir -p %s"%ImageFolderFullPath)
@@ -414,6 +418,11 @@ class SMI_SPOR(NVME):
             self.shell_cmd("mount -t tmpfs tmpfs %s -o size=1G"%ImageFolderFullPath)
         # init file  to 0x0, size 1G
         self.shell_cmd("dd if=/dev/zero of=%s bs=1M count=1024 >/dev/null 2>&1"%ImageFileFullPath)
+        if self.isfileExist(ImageFileFullPath):
+            return True
+        else:
+            return False
+            
     
     def SPOR(self, FileOutCnt, Loop, SectorCnt, isSeqWrite):
         
@@ -440,10 +449,15 @@ class SMI_SPOR(NVME):
                 self.Print("Fail to Clear first 1G data more then 10 times, quit test case1", "f")
                 return False
 
+        self.Print("")
         self.Print("Create a ram image for mapping device(at %s)"%(self.ImageFileFullPath))
-        self.CreateRamDisk(self.ImageFolderFullPath, self.ImageFileFullPath)
-        self.Print("Done")
-
+        if not self.CreateRamDisk(self.ImageFolderFullPath, self.ImageFileFullPath):
+            self.Print("Fail, create file fail", "f")
+            return 1
+        else:
+            self.Print("Done, ram image was created.", "p")
+            
+        self.Print("")
         # creat rand list
         seed=randint(1, 0xFF) 
         # 65536*32=1G=4096*512
@@ -627,14 +641,21 @@ class SMI_SPOR(NVME):
         ret_code=0
         self.Print("Start to test SPOR")
         self.Print("Total test loop: %s"%self.loops, "p")
-        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "p")        
+        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "p")
+        
+        MaxSecCnt = self.MaxNLBofCDW12() +1
+        self.Print("Max sector that the controller supported: %s"%MaxSecCnt, "p")    
+        if MaxSecCnt>256:
+            MaxSecCnt = 256
+        self.Print("Max sector that will be verified for every loop: %s"%MaxSecCnt, "p")  
+
         self.Print("")
         FileOutCnt=0
         try: 
             for loop in range(self.loops):
                 
                 
-                for SectorCnt in range(1, 256):
+                for SectorCnt in range(1, MaxSecCnt):
                     isSeqWrite=True  # sequence write
                     if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
                     FileOutCnt=FileOutCnt+1
@@ -645,7 +666,7 @@ class SMI_SPOR(NVME):
                     
                     #return 0 #
                     
-                for SectorCnt in range(255, 0, -1):
+                for SectorCnt in range(MaxSecCnt-1, 0, -1):
                     isSeqWrite=True
                     if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
                     FileOutCnt=FileOutCnt+1

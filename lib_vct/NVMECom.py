@@ -706,10 +706,11 @@ class NVMECom():
         with open(filename, "rb") as infile:  # rb = read binary
             infile.seek(offset, 0)           # 0 = start of file, optional in this case, offset in byte
             byteStr = infile.read(0x1)
-            byte = struct.unpack('b', byteStr)[0]      
-            success = True
+            if byteStr != "":
+                byte = struct.unpack('b', byteStr)[0]      
+                success = True
         if not success:
-            self.Print( "read file fail: %s"%filename ) 
+            self.Print( "read file fail, filename = %s, offset = %s"%(filename, offset), "f") 
         return byte 
     
     def writeBinaryFileFromList(self, filePath, mList):            

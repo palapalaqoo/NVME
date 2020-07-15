@@ -22,7 +22,7 @@ import subprocess
 import random
 # Import VCT modules
 from lib_vct.NVME import NVME
-import SMI_PLP.SMI_FerriCase0
+
 
 class mtest1(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -149,7 +149,7 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-
+        aa= self.readBinaryFileToList("tt.bin")
         for SectorCnt in range(1, 256):
             print SectorCnt
             
