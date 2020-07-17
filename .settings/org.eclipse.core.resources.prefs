@@ -15,6 +15,7 @@ encoding/SMI_MetadataTest.py=utf-8
 encoding/SMI_NVMEReset.py=utf-8
 encoding/SMI_PCIPowerStatus.py=utf-8
 encoding/SMI_PLI.py=utf-8
+encoding/SMI_Power_Cycle_Test.py=utf-8
 encoding/SMI_Read.py=utf-8
 encoding/SMI_SPOR.py=utf-8
 encoding/SMI_SRIOV.py=utf-8

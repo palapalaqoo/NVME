@@ -1078,6 +1078,7 @@ class NVME(object, NVMECom):
     # mode = por/spor
         self.status="reset"
         success = True
+        PrintOffsetBK = self.CurrentOffsetSize
         if showMsg: self.SetPrintOffset(self.CurrentOffsetSize + 4) # make console print align to plus 4 spaces
         #power off, and check if device was removed by OS(10 time)
         cnt=0
@@ -1130,7 +1131,7 @@ class NVME(object, NVMECom):
             else:
                 if showMsg: self.Print("Link speed fail")
             
-        if showMsg: self.SetPrintOffset(self.CurrentOffsetSize) # make console print align to plus 0 spaces(last align)     
+        if showMsg: self.SetPrintOffset(PrintOffsetBK) # make console print align to plus 0 spaces(last align)     
         self.status="normal"
         
         if success:
@@ -1431,6 +1432,20 @@ class NVME(object, NVMECom):
         self.Print("LinkSpeedCurrent: %s"%self.initial_LinkSpeedCurr)
         self.Print("LinkWidthMax: %s"%self.initial_LinkWidthMax)
         self.Print("LinkWidthCurrent: %s"%self.initial_LinkWidthCurr)
+        
+        self.Print ("")        
+        self.SetPrintOffset(4)
+        self.Print ("Settings", "p")
+        self.SetPrintOffset(6)
+        # print optionNameFull and value
+        i = 0
+        for mArg in self.ScriptParserArgs:  # len(self.ScriptParserArgs) = len(self.DynamicArgs)
+            optionNameFull=mArg[1]
+            currValue = self.DynamicArgs[i]      
+            i = i +1
+            if currValue!=None: self.Print ("%s: %s"%(optionNameFull, currValue))    
+              
+              
               
         self.SetPrintOffset(4)              
         self.Print ("========================================="     )     

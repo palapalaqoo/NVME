@@ -149,6 +149,11 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
+        self.timer.start("int")
+        bb = self.timer.time
+        
+        
+        
         aa= self.readBinaryFileToList("tt.bin")
         for SectorCnt in range(1, 256):
             print SectorCnt

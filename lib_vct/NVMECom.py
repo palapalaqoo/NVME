@@ -571,13 +571,14 @@ class NVMECom():
         # writ to Log file    
         self.WriteLogFile(  mStr, mfile=mfile )
         
-    def SetDynamicArgs(self, optionName, optionNameFull, helpMsg, argType):
+    def SetDynamicArgs(self, optionName, optionNameFull, helpMsg, argType, default=None):
         # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
         # ex.  self.AddParserArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff", argType=int) 
         #        self.DisablePwr = self.GetDynamicArgs(0)
-        self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType])
+        self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType, default])
     def GetDynamicArgs(self, select):
     # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
+    # len(self.ScriptParserArgs) = len(self.DynamicArgs)
         value = None
         if select<len(self.DynamicArgs):
             value = self.DynamicArgs[select]
@@ -602,6 +603,7 @@ class NVMECom():
             optionNameFull=mArg[1]
             helpMsg=mArg[2]
             argType=mArg[3]
+            default=mArg[4] 
             parser.add_argument("-%s"%optionName, "--%s"%optionNameFull, help=helpMsg, type=argType, nargs='?')
         # Display help message with python argparse when script is called without any arguments
         if len(argv)==0:
@@ -629,8 +631,10 @@ class NVMECom():
             optionName=mArg[0]
             optionNameFull=mArg[1]
             helpMsg=mArg[2]
-            argType=mArg[3]            
-            value=None if args.__dict__[optionNameFull]==None else args.__dict__[optionNameFull]
+            argType=mArg[3]
+            default=mArg[4]            
+            value=None if args.__dict__[optionNameFull]==None else args.__dict__[optionNameFull] # get by dictionary
+            value = value if value != None else default # if user not input arg, then use default
             mScriptParserArgs.append(value)
         
         return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs, mRebootP
@@ -1408,14 +1412,21 @@ class timer_():
     def __init__(self):
         self._StartT=0
         self._StopT=0
-    def start(self):
+        self.returnType = "string"
+    def start(self, returnType = "string"):     #string/int
         self._StartT=time.time()
+        self.returnType = returnType
     def stop(self):
         self._StopT=time.time()
     @property
     def time(self): 
         self._StopT=time.time()
-        return format(self._StopT - self._StartT, '.6f')
+        if self.returnType == "string":
+            return format(self._StopT - self._StartT, '.6f')
+        elif self.returnType == "int":
+            return int(self._StopT - self._StartT)
+        else:
+            return 0
         
 
 
