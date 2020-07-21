@@ -200,14 +200,16 @@ class NVMECom():
         self.timeEventTerminate = False
     
     def threadTimeEvent(self, seconds, eventFunc = None, printProgressBar = False):
+    # ex. self.threadTimeEvent(seconds=10, eventFunc = myFunc, printProgressBar = True):
     # seconds: timer in seconds
     # eventFunc: when time is up, run eventFunc()
     # printProgressBar: if True, show timer ProgressBar every 1 second
     # can Terminate thread using 'self.timeEventTerminate = True'
-        self.timer.start()
+        self.timeEventTerminate = False
+        self.timer.start("int")
         while True:
             # time up
-            if int(float(self.timer.time)) > seconds:                  
+            if self.timer.time > seconds:                  
                 break 
             # if timeEventTerminate
             if self.timeEventTerminate:
@@ -218,9 +220,8 @@ class NVMECom():
             if printProgressBar:
                 self.PrintProgressBar(int(float(self.timer.time)), seconds, prefix = 'Time:', length = 20)                
             sleep(1) 
-        
-        print    
-        if eventFunc != None:
+            
+        if eventFunc != None and not self.timeEventTerminate:
             eventFunc()
             
               

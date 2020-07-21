@@ -810,6 +810,30 @@ class NVME(object, NVMECom):
         return ret      
     
 
+    def NVMEwrite(self, value, slba, SectorCnt, RecordCmdToLogFile=False, showMsg=True):        
+        NLB = SectorCnt -1 #field NLB in DW12    
+
+        cdw10=slba&0xFFFFFFFF
+        cdw11=slba>>32                
+        cdw12=NLB
+        oct_val=oct(value)[-3:]
+        size = 512*(NLB+1)
+        CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
+                             "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
+                            %(NLB+1, size , oct_val, self.dev, size, cdw10, cdw11, cdw12)
+        if not RecordCmdToLogFile: self.RecordCmdToLogFile=False # if not RecordCmdToLogFile, no need to record write command to log file
+        mStr, SC =self.shell_cmd_with_sc(CMD)
+        if not RecordCmdToLogFile: self.RecordCmdToLogFile=True # reset to default(true)
+        if SC==0:
+            return True         
+        else:
+            if showMsg:
+                self.Print("")
+                self.Print("Write fail at start LBA = %s"%slba, "p")            
+                self.Print("Return status: %s"%mStr, "p")
+            return False
+
+
     def Identify_command(self):
         return self.get_reg("id-ctrl", "nn")
         
