@@ -20,11 +20,12 @@ import threading
 import re
 import subprocess
 import random
+import logging
 # Import VCT modules
 from lib_vct.NVME import NVME
+from lib_vct.SMI_SmartCheck.SMI_SmartCheck import SMI_SmartCheck
 
-
-class mtest1(NVME):
+class mtest1(NVME, SMI_SmartCheck):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "mtest1.py"
     Author = "Sam Chan"
@@ -130,9 +131,7 @@ class mtest1(NVME):
     def DoVM_FIOtest1(self):   
         self.shell_cmd("fio --direct=0 --iodepth=128 --ioengine=libaio --bs=128k --rw=randwrite --numjobs=1 --offset=0 --filename=/dev/nvme0n3 --name=mdata --do_verify=0 -size=512M --output-format=terse,normal")
     # <define sub item scripts>
-    SubCase1TimeOut = 2000
-    SubCase1Desc = "test 1"   
-    SubCase1KeyWord = ""
+
     
     def mCMD(self, CMD):
         
@@ -149,17 +148,26 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        self.timer.start("int")
-        bb = self.timer.time
+        
+        logging.getLogger().setLevel(logging.INFO)
+    
+        smart = SMI_SmartCheck('SmiSmartCheck.ini')
+        if smart.loadFromConfig(): 
+            print "Hi"
+            exit(1)
+        smart.startMonitoring()
+        # smart.stopMonitoring()
+    
+        while smart.isMonitoring():
+            # Do something...
+            logging.info("Do something...")
+            time.sleep(2)
+        exit(0)        
         
         
-        
-        aa= self.readBinaryFileToList("tt.bin")
-        for SectorCnt in range(1, 256):
-            print SectorCnt
-            
-        for SectorCnt in range(255, 0, -1):
-            print SectorCnt
+        for loop in range(1, 5+1):
+            self.PrintLoop = loop
+            self.Print("Wait")
         
         
         

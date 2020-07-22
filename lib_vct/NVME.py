@@ -445,8 +445,10 @@ class NVME(object, NVMECom):
                         #  prevent coding no return code, eg. 0/1/255
                         if Code ==None:
                             Code = 0
-                            
-    
+                        
+                        # reset self.Print() 
+                        self.SetPrintOffset(0) 
+                        self.PrintLoop=None    
                              
                         # disable RecordCmdToLogFile to record command
                         self.RecordCmdToLogFile=True             

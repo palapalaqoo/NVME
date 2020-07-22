@@ -48,9 +48,12 @@ class NVMECom():
     LogName_ConsoleOut="log"
     ScriptParserArgs=[]  
     LastProgress=None
-    # for self.Print()
+    ''' for self.Print()
+        self.Print() will print self.PrefixString() + PrintOffset + mMsg
+    '''
+    PrintLoop = None # Loop that will be shown in PrefixString() if PrintLoop != None, "Loop: %s"%self.PrintLoop
     CurrentOffsetSize= 0    # offset size int 
-    PrintOffset = ""     # using self.CurrentOffsetSize to generate spaces, ex. self.CurrentOffsetSize=2, PrintOffset='  '
+    PrintOffset = ""     # using SetPrintOffset(self, offset) to set self.CurrentOffsetSize to generate spaces, ex. self.CurrentOffsetSize=2, PrintOffset='  '
     
     def SubItemNum(self):
         self.SubItemNumValue+=1
@@ -553,8 +556,10 @@ class NVMECom():
         DT="DT: %s"%TimeDiv
         # case number
         Case="Case: %s"%self.SubCasePoint
+        # Loop
+        Loop = "" if self.PrintLoop==None else "Loop: %s"%self.PrintLoop
         
-        return Ltime+" "+DT+" "+Case+"| "
+        return Ltime+" "+DT+" "+Case +" " +Loop+"| "
     
     def Logger(self, msg, mfile="default", color="No"):
         # color: define at self.color or no color       
