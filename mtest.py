@@ -23,9 +23,9 @@ import random
 import logging
 # Import VCT modules
 from lib_vct.NVME import NVME
-from lib_vct.SMI_SmartCheck.SMI_SmartCheck import SMI_SmartCheck
 
-class mtest1(NVME, SMI_SmartCheck):
+
+class mtest1(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "mtest1.py"
     Author = "Sam Chan"
@@ -149,29 +149,20 @@ class mtest1(NVME, SMI_SmartCheck):
     SubCase1TimeOut = 600
     def SubCase1(self):
         
-        logging.getLogger().setLevel(logging.INFO)
-    
-        smart = SMI_SmartCheck('SmiSmartCheck.ini')
-        if smart.loadFromConfig(): 
-            print "Hi"
-            exit(1)
-        smart.startMonitoring()
-        # smart.stopMonitoring()
-    
-        while smart.isMonitoring():
-            # Do something...
-            logging.info("Do something...")
-            time.sleep(2)
-        exit(0)        
+        self.threadTimeEvent(3.18, None, True, 0.1)
+
         
         
-        for loop in range(1, 5+1):
-            self.PrintLoop = loop
-            self.Print("Wait")
+        
+        '''
+        CMD = "python SMI_SmartCheck/SMI_SmartCheck.py"
+        for line in self.yield_shell_cmd(CMD):
+            self.Print( line)
         
         
         
         
+        '''
         '''
         for i in range(10):
             self.PrintProgressBar(i, 10, prefix="hihi", showPercent=True)

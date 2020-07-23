@@ -202,27 +202,35 @@ class NVMECom():
         self.timer=timer_()
         self.timeEventTerminate = False
     
-    def threadTimeEvent(self, seconds, eventFunc = None, printProgressBar = False):
-    # ex. self.threadTimeEvent(seconds=10, eventFunc = myFunc, printProgressBar = True):
+    def threadTimeEvent(self, seconds, eventFunc = None, printProgressBar = False, printProgressBarPeriod = 0.5):
+    # ex. self.threadTimeEvent(seconds=10, eventFunc = myFunc, printProgressBar = True, printProgressBarPeriod = 0.5):
     # seconds: timer in seconds
     # eventFunc: when time is up, run eventFunc()
-    # printProgressBar: if True, show timer ProgressBar every 1 second
+    # printProgressBar: if True, show timer ProgressBar every printProgressBarPeriod second
     # can Terminate thread using 'self.timeEventTerminate = True'
         self.timeEventTerminate = False
-        self.timer.start("int")
+        self.timer.start("float")
+        secondsInUs = seconds*1000000 #seconds in microsceonds
+        printProgressBarPeriodInUs = printProgressBarPeriod*1000000 #seconds in microsceonds
+        printProgressTimeGap = 0
         while True:
-            # time up
-            if self.timer.time > seconds:                  
+            CurrTime = self.timer.time # CurrTime is 6 decimal points
+            CurrTimeInUs = CurrTime*1000000 #seconds in microsceonds
+            
+            # time up, show 100% progress bar
+            if CurrTimeInUs > secondsInUs:     
+                self.PrintProgressBar(secondsInUs, secondsInUs, suffix = "Time: %s s / %s s"%(seconds, seconds), length = 40)             
                 break 
+            
             # if timeEventTerminate
             if self.timeEventTerminate:
                 self.timeEventTerminate = False
                 break
                 
             # if printProgressBar
-            if printProgressBar:
-                self.PrintProgressBar(int(float(self.timer.time)), seconds, prefix = 'Time:', length = 20)                
-            sleep(1) 
+            if printProgressBar and CurrTimeInUs > printProgressTimeGap:
+                printProgressTimeGap = printProgressTimeGap + printProgressBarPeriodInUs
+                self.PrintProgressBar(CurrTimeInUs, secondsInUs, suffix = "Time: %s s / %s s"%(CurrTime, seconds), length = 40)                
             
         if eventFunc != None and not self.timeEventTerminate:
             eventFunc()
@@ -1431,6 +1439,8 @@ class timer_():
             return format(self._StopT - self._StartT, '.6f')
         elif self.returnType == "int":
             return int(self._StopT - self._StartT)
+        elif self.returnType == "float":
+            return round(self._StopT - self._StartT, 6)        
         else:
             return 0
         

@@ -18,7 +18,6 @@ lib_vct/
         -Flow.py                                Module for Flows that can issue event while flow in action       
             -Sanitize.py                        Module for Sanitize flow
             -DST.py                             Module for DST Flow
-	-SMI_SmartCheck				Module for smartcheck
 
 
 

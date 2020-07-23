@@ -24,13 +24,14 @@ class SMI_Power_Cycle_Test(NVME):
         return VALUE
     
     def GSD(self):
-        Timer =  randint(1, self.MaxTimer)
+        Timer =  randint(self.paraPorOffTimer0, self.paraPorOffTimer1) # millisecond
         self.wPattern = self.GetNewPattern()
             
-        LBAptr = 0    
-        self.Print("Starting to write  LBA from 0x0, value = %s, and do POR after %s seconds"%(self.wPattern, Timer)  )
-        
-        self.timer.start("int")
+        LBAptr = 0          
+        self.Print("")
+        self.Print(">>>>> GSD <<<<< ", "b")
+        self.Print("Starting to write  LBA from 0x0, value = %s, and do POR after %s millisecond"%(self.wPattern, Timer)  )        
+        self.timer.start("float") # float will return round(time, 6)
         CurrTime=0
         CurrTime_1=0
         while True:
@@ -38,12 +39,16 @@ class SMI_Power_Cycle_Test(NVME):
                 self.Print("Fail, write command failure", "f")
                 return False
             
-            CurrTime=self.timer.time
-            if CurrTime != CurrTime_1:
-                CurrTime_1 = CurrTime
-                self.PrintProgressBar(CurrTime, self.MaxTimer, length = 20, suffix="Time: %ss / %ss, LBAptr: %s"%(CurrTime, self.MaxTimer, LBAptr), showPercent=False)    
+            # round to millisecond
+            CurrTime=int(self.timer.time*1000) 
+  
+
+            if CurrTime > CurrTime_1+500: # show progress every 0.5 second
+                CurrTime_1 = CurrTime_1 + 500
+                self.PrintProgressBar(CurrTime, self.paraPorOffTimer1, length = 20, suffix="Time: %s ms / %s ms, LBAptr: %s"%(CurrTime, self.paraPorOffTimer1, LBAptr), showPercent=False)    
                 
-            if CurrTime == Timer:
+            if CurrTime > Timer: # time up
+                self.PrintProgressBar(Timer, self.paraPorOffTimer1, length = 20, suffix="Time: %s ms / %s ms, LBAptr: %s"%(Timer, self.paraPorOffTimer1, LBAptr), showPercent=False)
                 self.Print("")
                 self.Print("Do POR..")
                 if self.por_reset(showMsg=True, PowerOffDuration=self.paraPowerOffDuration):
@@ -75,6 +80,8 @@ class SMI_Power_Cycle_Test(NVME):
         self.spor_reset(showMsg=True, PowerOffDuration=self.paraPowerOffDuration)
         
     def ThreadDoSPOR(self, timer):
+        sleep(0.05)
+        # call self.DoSPOR() when time is up
         self.threadTimeEvent(seconds=timer, eventFunc = self.DoSPOR, printProgressBar = True)
         
     def UGSD(self):
@@ -87,7 +94,8 @@ class SMI_Power_Cycle_Test(NVME):
         self.wPattern = self.GetNewPattern()
         initPattern = self.wPattern
         
-        self.Print("")       
+        self.Print("")     
+        self.Print(">>>>> UGSD <<<<< ", "b")  
         self.Print("Starting to write initial pattern into the head of the capacity, LBA from 0x0, size = %s LBA(Capacity*%s), value = %s"\
                    %(wPercentInLBA, wPercent, initPattern)  )
         self.fio_write(offset=0 , size=wSizeInByte, pattern=initPattern, fio_bs=self.OneBlockSize, showProgress=True)
@@ -116,7 +124,8 @@ class SMI_Power_Cycle_Test(NVME):
         self.Print("Done")
         
         
-        Timer =  randint(1, self.MaxTimer)
+        Timer =  randint(self.paraPorOffTimer0, self.paraPorOffTimer1) # millisecond
+        Timer = float(Timer)/1000 # second
         self.Print("")
         self.Print("Create thread to do SPOR after %s seconds"%Timer)            
         t = threading.Thread(target = self.ThreadDoSPOR, args=( Timer,))
@@ -132,7 +141,6 @@ class SMI_Power_Cycle_Test(NVME):
         minLBA = wPercentInLBA +1
         maxLBA = wLBAbottomSLBA - maxSector -1
         
-        self.Print("")
         isRecord = True if self.mTestModeOn else False # if TestModeOn, record cmd, else will not record
         flag = False
         while True:
@@ -197,7 +205,7 @@ class SMI_Power_Cycle_Test(NVME):
         self.paraPowerOffDuration = float(self.paraPowerOffDuration)/1000 # convert to second
          
         
-        self.MaxTimer=20
+
         self.NCAP=self.IdNs.NCAP.int
         self.wPattern = 0
         
@@ -209,7 +217,7 @@ class SMI_Power_Cycle_Test(NVME):
         return 0            
 
     # <define sub item scripts>
-    SubCase1TimeOut = 6000
+    SubCase1TimeOut = 0
     SubCase1Desc = "GSD"   
     SubCase1KeyWord = ""
     def SubCase1(self):
@@ -224,7 +232,7 @@ class SMI_Power_Cycle_Test(NVME):
             
         return ret_code
 
-    SubCase2TimeOut = 6000
+    SubCase2TimeOut = 0
     SubCase2Desc = "UGSD"   
     SubCase2KeyWord = ""
     def SubCase2(self):
@@ -236,6 +244,24 @@ class SMI_Power_Cycle_Test(NVME):
                 ret_code=1
                 break
         
+        return ret_code
+
+    SubCase3TimeOut = 0
+    SubCase3Desc = "UGSD"   
+    SubCase3KeyWord = ""
+    def SubCase3(self):
+        ret_code=0
+        
+        for loop in range(1, self.paraLoops+1):
+            self.PrintLoop = loop
+            if not self.GSD(): 
+                ret_code=1
+                break
+
+            if not self.UGSD(): 
+                ret_code=1
+                break
+                    
         return ret_code
 
     # </define sub item scripts>
