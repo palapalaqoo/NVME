@@ -148,21 +148,17 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        
-        self.threadTimeEvent(3.18, None, True, 0.1)
+        self.Print( self.UseStringStyle("HHHHHHHHHHH", back="green") + self.UseStringStyle("BBBBBB", back="red") )
 
         
         
         
-        '''
-        CMD = "python SMI_SmartCheck/SMI_SmartCheck.py"
-        for line in self.yield_shell_cmd(CMD):
-            self.Print( line)
+
+
         
         
         
-        
-        '''
+
         '''
         for i in range(10):
             self.PrintProgressBar(i, 10, prefix="hihi", showPercent=True)

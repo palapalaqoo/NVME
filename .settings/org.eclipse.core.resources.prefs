@@ -18,6 +18,7 @@ encoding/SMI_PLI.py=utf-8
 encoding/SMI_Power_Cycle_Test.py=utf-8
 encoding/SMI_Read.py=utf-8
 encoding/SMI_SPOR.py=utf-8
+encoding/SMI_SPOR_FerriDF.py=utf-8
 encoding/SMI_SRIOV.py=utf-8
 encoding/SMI_Sanitize.py=utf-8
 encoding/SMI_SanitizeStatusLog.py=utf-8

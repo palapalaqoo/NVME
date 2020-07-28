@@ -293,6 +293,13 @@ class NVMECom():
             if not line:
                 break
             yield line
+            
+            # check if main thread is stop
+            for i in threading.enumerate():
+                if i.name == "MainThread":
+                    # print i.is_alive() 
+                    if not i.is_alive(): process.kill()
+                             
         # get return status    
         out, err = process.communicate()
         yield out  

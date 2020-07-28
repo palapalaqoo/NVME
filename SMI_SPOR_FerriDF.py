@@ -13,10 +13,11 @@ import re
 
 # Import VCT modules
 from lib_vct.NVME import NVME
+from __builtin__ import True
 
 
-class SMI_SPOR(NVME):
-    ScriptName = "SMI_SPOR.py"
+class SMI_SPOR_FerriDF(NVME):
+    ScriptName = "SMI_SPOR_FerriDF.py"
     Author = "Sam"
     Version = "20200715"
     
@@ -130,7 +131,7 @@ class SMI_SPOR(NVME):
                 WriteFail_LBA = SLBA
                 self.Print("Fail at %s th write command with sector = %s"%(writeSuccessCnt+1, NLB), "p")    
                 '''
-                if self.skipPoweringOffBlock:
+                if self.dfModule:
                     self.Print("Ferri DF module, expect DUT will flush those data.")
                     self.WriteImg(SLBA, NLB, dataPattern)     
                 '''               
@@ -234,105 +235,27 @@ class SMI_SPOR(NVME):
             
         self.shell_cmd("cd CSV/Out; rm -f *.csv")
 
-    def SaveToCSVFile(self, fileNameFailBlockList, valueList, titleList=None):
-        fileNameFailBlockListFullPath = fileNameFailBlockList
+    def SaveToCSVFile(self, fileName, valueList, titleList=None):
+        fileNameFullPath = fileName
         # if file not exist, then create it
-        if not os.path.exists(fileNameFailBlockListFullPath):
-            f = open(fileNameFailBlockListFullPath, "w")
+        if not os.path.exists(fileNameFullPath):
+            f = open(fileNameFullPath, "w")
             f.close()
             # write titleList if titleList!=None, write in to file
             if titleList!=None:                
-                with open(fileNameFailBlockListFullPath, 'a') as csvfile:
+                with open(fileNameFullPath, 'a') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow(titleList)                
                         
         
         # write
-        with open(fileNameFailBlockListFullPath, 'a') as csvfile:
+        with open(fileNameFullPath, 'a') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(valueList)
     
-    def printColorFailBlockAndGetNOFfailArea(self, failList):
-        # get all command number list, ex. whichCMD=409, CMDslba= 1024, CMDelba=1031(write sector= 8)
-        whichCMDlist = []
-        for mList in failList: # mList structure = ([block, expectedValueStr, currentValueStr, whichCMD, CMDslba, CMDelba]) for following syntax
-            CMDinfo = [mList[3], mList[4], mList[5]] # grep [whichCMD, CMDslba, CMDelba]
-            if CMDinfo not in whichCMDlist:
-                whichCMDlist.append(CMDinfo)
-                
-        # retrive block to blockList
-        column1 = [i[0] for i in failList]
-        blockList = column1
-        
-        # check block of every whichCMDlist, range from slba to elba
-        AreaInfo = []
-        AreaStart = None
-        AreaStop = None
-        CntPassToFail = 0
-        for CMDinfo in whichCMDlist: #  [whichCMD, CMDslba, CMDelba]
-            CMDslba = CMDinfo[1]
-            CMDelba= CMDinfo[2]
-            LBAptr = CMDslba            
-            
-            isWriteSuccessArea = None
-            while True:
-                if isWriteSuccessArea == None: # first time run while
-                    isWriteSuccessArea = True if LBAptr not in blockList else False
-                    AreaStart = LBAptr
-                    
-                    # check last AreaInfo
-                    cnt = len(AreaInfo)
-                    if cnt!=0:
-                        lastAreaInfo = AreaInfo[cnt-1]
-                        lastIsSuccess = lastAreaInfo[2]
-                        if lastIsSuccess=="pass" and not isWriteSuccessArea: # if last is pass and current is fail
-                            CntPassToFail = CntPassToFail +1
-
-                elif isWriteSuccessArea and LBAptr in blockList: 
-                # if is WriteSuccessArea and write not success , means end of WriteSuccess area(pass to fail)
-                    AreaStop = LBAptr-1
-                    AreaInfo.append([AreaStart, AreaStop, "pass"])
-                    isWriteSuccessArea = False
-                    AreaStart = LBAptr
-                    CntPassToFail = CntPassToFail +1
-                    
-                elif not isWriteSuccessArea and LBAptr not in blockList: 
-                # if is not WriteSuccessArea and write success , means end of WriteSuccess area(fail to pass)
-                    AreaStop = LBAptr-1
-                    AreaInfo.append([AreaStart, AreaStop, "fail"])
-                    isWriteSuccessArea = True      
-                    AreaStart = LBAptr    
-                    
-                LBAptr = LBAptr+1 
-                if LBAptr>CMDelba: break
-            # end while
-            
-            # handle last area        
-            AreaStop = LBAptr-1
-            AreaInfo.append([AreaStart, AreaStop, "pass" if isWriteSuccessArea else"fail"])
-        # end for
-        
-        # draw
-        self.Print( "Green: block data pass, red: block data fail")
-        mStr = ""
-        for mAreaInfo in AreaInfo:
-            mStr = mStr + "|"
-            if mAreaInfo[2] == "pass":
-                mStr = mStr + self.UseStringStyle("%s - %s"%(mAreaInfo[0], mAreaInfo[1]), back="green")
-            else:
-                mStr = mStr + self.UseStringStyle("%s - %s"%(mAreaInfo[0], mAreaInfo[1]), back="red")                
-        self.Print(mStr)
-        
-        return CntPassToFail        
-                
-            
-              
-    
-    def CompareAll(self, fileNameFailBlockList, fileNameFailBlockListSum, fileNameFailDetail, WriteSLBAList, WriteFail_LBA, dataPattern, SectorCnt):
+    def CompareAll(self, fileName, fileNameSum, fileNameFailDetail, WriteSLBAList, WriteFail_LBA, dataPattern, SectorCnt):
     # use cmp to compare image and ssd
-    # if fail, write fail block to log fileNameFailBlockListSum, fileNameFailDetail, and WriteSLBAList to log fileNameFailDetail also
-        WriteCMDcnt = len(WriteSLBAList)
-    
+    # if fail, write fail block to log fileNameSum, fileNameFailDetail, and WriteSLBAList to log fileNameFailDetail also
         block_1 = -1
         totalSize = 2097152*512
         CMD = "cmp -l %s %s -n %s"%(self.dev, self.ImageFileFullPath, totalSize)
@@ -340,8 +263,10 @@ class SMI_SPOR(NVME):
         mStr="(\d+)\s+(\d+)\s+(\d+)" 
         #mStr="(\d+)"
 
+        valueList=[]
         failCnt=0
         failList=[]
+        failList.append(["block", "expected value", "current value"])
         for line in self.yield_shell_cmd(CMD):             
             if re.search(mStr, line):
                 offset = int(re.search(mStr, line).group(1) )
@@ -354,38 +279,28 @@ class SMI_SPOR(NVME):
                 if block!=block_1:
                     #self.Print( "compare fail at block: %s"%block)  
                     
-                    # if skipPoweringOffBlock, the data may be written to ssd even the write command fail
+                    # if dfModule, the data may be written to ssd even the write command fail
                     # so we just check if the data in WriteFail_LBA is dataPattern or last value
                     # if is last value, cmp command will not show it becouse it is not writen as expected result.
                     # Check WriteFail_LBA later                       
-                    if (block >= WriteFail_LBA and block < WriteFail_LBA+SectorCnt) and self.skipPoweringOffBlock:                        
+                    if (block >= WriteFail_LBA and block < WriteFail_LBA+SectorCnt) and self.dfModule:                        
                         pass
-                    else:                            
-                        # save to list, ["block", "expected value", "current value"]
-                        
-                        # find whichCMD
-                        whichCMD = None
-                        CMDslba = None
-                        CMDelba = None
-                        for i in range(WriteCMDcnt, 0, -1): # i countdown to 1
-                            mSLBA = WriteSLBAList[i-1]
-                            if mSLBA <=block and mSLBA +SectorCnt>block: # if block is between (mSLBA) and (mSLBA+SectorCnt)
-                                whichCMD = i
-                                CMDslba = mSLBA
-                                CMDelba = mSLBA +SectorCnt -1
-                                break
+                    else:
+                        # save to csv
+                        valueList.append(block)
+                        if len(valueList)>=10:
+                            self.SaveToCSVFile(fileName, valueList)
+                            valueList=[]   
                             
-                        failList.append([block, expectedValueStr, currentValueStr, whichCMD, CMDslba, CMDelba])
+                        # save to list, ["block", "expected value", "current value"]
+                        failList.append([block, expectedValueStr, currentValueStr])
                                           
                         #
                         failCnt=failCnt+1
-                        block_1=block            
-        
-        # sort failList by whichCMD, i.e. sort by write command order
-        failList.sort(key=lambda a: a[3])
+                        block_1=block                    
                     
-        # if skipPoweringOffBlock, check WriteFail_LBA
-        if self.skipPoweringOffBlock:   
+        # if dfModule, check WriteFail_LBA
+        if self.dfModule:   
             # read 1th byte of fail LBA form image and current SSD
             Image1ByteValue = self.read1ByteFromFile("./mnt/img.bin", WriteFail_LBA*512)
             # Device1ByteValue = self.read1ByteFromFile(self.dev, WriteFail_LBA*512) # using fio to verify value later
@@ -393,7 +308,7 @@ class SMI_SPOR(NVME):
             block = WriteFail_LBA
             expectedValueStr = "0x%X(write fail, last value) or 0x%X(write success, new value)"%(Image1ByteValue, dataPattern)            
             
-            self.Print( "-- skipPoweringOffBlock --, check current data at the write command failure LBA = %s, size = %s sector"%(WriteFail_LBA, SectorCnt), "p")
+            self.Print( "-- dfModule --, check current data at the write command failure LBA = %s, size = %s sector"%(WriteFail_LBA, SectorCnt), "p")
             # using fio to check if data is one of [Image1ByteValue  dataPattern],  if not , fail test
             offset = WriteFail_LBA*512
             size = SectorCnt*512                
@@ -408,81 +323,47 @@ class SMI_SPOR(NVME):
                 currentValueStr = "0x%X"%Image1ByteValue
             else:
                 self.Print( "The data is not all equal to %s nor %s"%(Image1ByteValue, dataPattern), "w")
-                currentValueStr = "uknow"                
-                                
-            CMD = "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512)
-            self.Print( "Do shell command to hexdump sectors: %s"%CMD, "w") 
-            aa= self.shell_cmd(CMD)
-            self.SetPrintOffset(4)
-            self.Print(aa)
-            self.SetPrintOffset(0)  
+                currentValueStr = "uknow"                                
+                CMD = "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512)
+                self.Print( "Do shell command to hexdump sectors: %s"%CMD, "w") 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4)
+                self.Print(aa)
+                self.SetPrintOffset(0)  
                 
+                ''' show last fail sectors and will not recorded
+                valueList.append(block)
+                failCnt=failCnt+1
+                self.CompareRtCode=False
+                '''
                 
             #  show last fail sectors and will not recorded
-            #failList.append([block, expectedValueStr, currentValueStr, whichCMD, CMDslba, CMDelba])                 
+            #failList.append([block, expectedValueStr, currentValueStr])                 
                 
-            self.Print( "-- end of skipPoweringOffBlock --","p")         
-            self.Print("")               
+            self.Print( "-- end of dfModule --","p")         
+                           
 
-        # write to FailBlockList file, e.x. 0_loop0_seq_secCnt129.csv
-        valueList=[]
-        for mList in failList: # mList structure = ([block, expectedValueStr, currentValueStr, whichCMD, CMDslba, CMDelba]) for following syntax
-            valueList.append(mList[0])
-            if len(valueList)>=10: #  show 10 fail block for every row
-                self.SaveToCSVFile(fileNameFailBlockList, valueList)
-                valueList=[]             
-        if len(valueList)!=0:
-            self.SaveToCSVFile(fileNameFailBlockList, valueList)
                     
-        # write to summary file( e.g. summary.csv) with value = [fileNameFailBlockList, failCnt]
-        fName = fileNameFailBlockList.replace("./CSV/Out/", "") # remove dir name and save to summary.csv
-        self.SaveToCSVFile(fileNameFailBlockListSum, [fName, failCnt], titleList=["file name", "number of failure blocks"])
-        
-        # show failure blocks
+        if len(valueList)!=0:
+            self.SaveToCSVFile(fileName, valueList)
+        # save to summary file [fileName, failCnt]
+        fName = fileName.replace("./CSV/Out/", "") # remove dir name
+        self.SaveToCSVFile(fileNameSum, [fName, failCnt], titleList=["file name", "number of failure blocks"])
         fCapacity = self.KMGT(failCnt*512)
         self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(failCnt, fCapacity), "p")
-        
-        # show failure blocks
-        
-        CntPassToFail = self.printColorFailBlockAndGetNOFfailArea(failList)
-
-
-        self.Print("")            
-                    
-        # verify with self.comparison option 
-        self.Print("comparison option: %s"%self.comparison)
-        if self.comparison == "normal":
-            self.Print("Data lost area: %s"%CntPassToFail)
-            self.Print("Check if Data lost area<=1")
-            if CntPassToFail<2:
-                self.Print("Pass", "p")
-            else:
-                self.Print("Fail", "f")
-                self.CompareRtCode=False
-            
-        elif self.comparison == "Advanced":    
-            # if >640k, then fail
-            if failCnt>self.maximumFailureSizeNLB:
-                self.CompareRtCode=False
-    
-     
-                    
-                            
-                # write to file for 'Detail infomation of failure blocks', e.g. summary_fail_block_details.csv
-                self.SaveToCSVFile(fileNameFailDetail , ["block", "expected value", "current value", "which cmd", "cmd start LBA", "cmd end LBA"])
-                for mList in failList:
-                    self.SaveToCSVFile(fileNameFailDetail , mList)
-                    
-                # WriteSLBAList to logfile fileNameFailBlockListWriteStartLBA
-                self.SaveToCSVFile(fileNameFailDetail , ["write command start LBA"])
-                self.SaveToCSVFile(fileNameFailDetail , ["command number", "write slba", "sector"])
-                mSLBAcnt=1
-                for mSLBA in WriteSLBAList:    
-                    self.SaveToCSVFile(fileNameFailDetail , [mSLBAcnt ,mSLBA, SectorCnt])    # SaveToCSVFile is list type so using [mSLBA]
-                    mSLBAcnt = mSLBAcnt +1
-            else:
-                self.CompareRtCode=True
-            
+        # if >640k, then fail
+        if failCnt>self.maximumFailureSizeNLB:
+            self.CompareRtCode=False
+            # write to file for 'Detail infomation of failure blocks'
+            for mList in failList:
+                self.SaveToCSVFile(fileNameFailDetail , mList)
+                
+            # WriteSLBAList to logfile fileNameWriteStartLBA
+            self.SaveToCSVFile(fileNameFailDetail , ["write command start LBA"])
+            for mSLBA in WriteSLBAList:    
+                self.SaveToCSVFile(fileNameFailDetail , [mSLBA])    # SaveToCSVFile is list type so using [mSLBA]
+        else:
+            self.CompareRtCode=True
         return self.CompareRtCode            
         
             
@@ -592,12 +473,12 @@ class SMI_SPOR(NVME):
 
         Wtype = "seq" if isSeqWrite else "rand"
         # file that store compared failure block number
-        fileNameFailBlockList="./CSV/Out/%s_loop%s_%s_secCnt%s.csv"%(FileOutCnt, Loop, Wtype, SectorCnt)     
+        fileName="./CSV/Out/%s_loop%s_%s_secCnt%s.csv"%(FileOutCnt, Loop, Wtype, SectorCnt)     
         # file that store summary of failure block number
-        fileNameFailBlockListSum="./CSV/Out/summary.csv"  
+        fileNameSum="./CSV/Out/summary.csv"  
         fileNameFailDetail="./CSV/Out/summary_fail_block_details.csv"     
-        self.Print("Start to compare date and output to %s"%fileNameFailBlockList) 
-        if self.CompareAll(fileNameFailBlockList, fileNameFailBlockListSum, fileNameFailDetail, WriteSLBAList, WriteFail_LBA, dataPattern, SectorCnt):
+        self.Print("Start to compare date and output to %s"%fileName) 
+        if self.CompareAll(fileName, fileNameSum, fileNameFailDetail, WriteSLBAList, WriteFail_LBA, dataPattern, SectorCnt):
             self.Print("Check if failure size <= %s? Pass"%self.maximumFailureSize, "p")    
             rtCode=True
         else:
@@ -670,47 +551,55 @@ class SMI_SPOR(NVME):
     
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p -r was used, dont use it again
-        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1", argType=int, default = 1) 
+        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1", argType=int) 
         self.SetDynamicArgs(optionName="m", optionNameFull="maximumFailureSize", \
-                            helpMsg="maximum failure size, e.x. '-m 640k' means less then 640k(1280 blocks) data lose is accceptable, default=640k", argType=str, default="640k") 
+                            helpMsg="maximum failure size, e.x. '-m 640k' means less then 640k(1280 blocks) data lose is accceptable, default=640k", argType=str) 
         self.SetDynamicArgs(optionName="c", optionNameFull="sectorSize", \
-                            helpMsg="sector size(sector count) in LBA for case2, default=1", argType=int, default=1) 
+                            helpMsg="sector size(sector count) in LBA for case2, default=1", argType=int) 
         self.SetDynamicArgs(optionName="w", optionNameFull="writeType", \
-                            helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int, default=0)        
+                            helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int)        
         self.SetDynamicArgs(optionName="k", optionNameFull="keepImageFile", \
-                            helpMsg="keep image file(./mnt/img.bin), e.x. -k 1, default=0(will not keep file)", argType=int, default=0)    
-        self.SetDynamicArgs(optionName="spob", optionNameFull="skipPoweringOffBlock", \
-                            helpMsg="Skip powering off block, if set to 1, will skip to check the powering off blocks that the spor was occurred,"\
-                            " and  do hexdump the powering off blocks for inspection,"\
-                            " if set to 0, then expect the data in powering off block remain to init-pattern because of the writing command failure."\
-                            " e.x. -spob 1, default=0", argType=int, default=0)           
-        self.SetDynamicArgs(optionName="cmp", optionNameFull="comparison", \
-                            helpMsg="comparison option in [normal, enhanced, Advanced], e.x. -cmp normal, default=normal", argType=int, default="normal")         
+                            helpMsg="keep image file(./mnt/img.bin), e.x. -k 1, default=0(will not keep file)", argType=int)    
+        self.SetDynamicArgs(optionName="df", optionNameFull="dfModule", \
+                            helpMsg="DUT is Ferri DF module, if set to 1, expect DUT will flush data into SSD when write command fail as spor occurred,"\
+                            " e.x. -df 1, default=0(not DF module)", argType=int)           
+        
                         
         # initial parent class
-        super(SMI_SPOR, self).__init__(argv)
+        super(SMI_SPOR_FerriDF, self).__init__(argv)
         
         self.loops = self.GetDynamicArgs(0)  
+        self.loops=1 if self.loops==None else self.loops
         
         self.maximumFailureSize = self.GetDynamicArgs(1)  
+        self.maximumFailureSize="640k" if self.maximumFailureSize==None else self.maximumFailureSize    #640k=1280 NLB
         self.maximumFailureSizeNLB=self.KMGT_reverse(self.maximumFailureSize)
         
         self.sectorSize=self.GetDynamicArgs(2)
+        self.sectorSize=1 if self.sectorSize==None else self.sectorSize
         
         self.writeType=self.GetDynamicArgs(3)
+        self.writeType=0 if self.writeType==None else self.writeType
         self.writeType="sequence" if self.writeType==0 else "random"
         
         self.keepImageFile=self.GetDynamicArgs(4)
+        self.keepImageFile=0 if self.keepImageFile==None else self.keepImageFile
         self.keepImageFile=False if self.keepImageFile==0 else True
         
-        self.skipPoweringOffBlock=self.GetDynamicArgs(5)
-        self.skipPoweringOffBlock=False if self.skipPoweringOffBlock==0 else True
-        
-        self.comparison=self.GetDynamicArgs(6)
-        
+        self.dfModule=self.GetDynamicArgs(5)
+        self.dfModule=0 if self.dfModule==None else self.dfModule
+        self.dfModule=False if self.dfModule==0 else True
         
         
         self.Print("")
+        self.Print("-- Parameters --------------")
+        
+        self.Print("loops: %s"%self.loops)
+        self.Print("maximumFailureSize: %s"%self.maximumFailureSize)
+        self.Print("sectorSize: %s"%self.sectorSize)
+        self.Print("writeType: %s"%self.writeType)
+        self.Print("keepImageFile: %s"%self.keepImageFile)
+        self.Print("dfModule: %s"%("True" if self.dfModule else "False"))
                 
         self.InitDirs()
         
@@ -843,7 +732,7 @@ class SMI_SPOR(NVME):
 
 
 if __name__ == "__main__":
-    DUT = SMI_SPOR(sys.argv ) 
+    DUT = SMI_SPOR_FerriDF(sys.argv ) 
     DUT.RunScript()
     DUT.Finish() 
 
