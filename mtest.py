@@ -148,8 +148,17 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        self.Print( self.UseStringStyle("HHHHHHHHHHH", back="green") + self.UseStringStyle("BBBBBB", back="red") )
+        #self.Print( self.UseStringStyle("┌┍┎┎┏⎾⌈---------", back="green", mode="underline") + self.UseStringStyle("BBBBBB", back="red") )
+        
+        self.Print( self.UseStringStyle("1994 - 2001",  mode="overline", back = "yellow") + self.UseStringStyle("▏", mode="underline") +self.UseStringStyle("48855", mode="underline") )
 
+        self.Print( self.UseStringStyle(self.UseStringStyle("1994 - 2001",  mode="overline", fore="cyan"), mode="bold" ))
+        self.Print( self.UseStringStyle("1994 - 2001",  fore="purple") + self.UseStringStyle("1994 - 2001",  fore="black") )
+        self.Print( self.UseStringStyle("1994 - 2001",  fore="yellow")+ self.UseStringStyle("1994 - 2001",  fore="black") )
+        self.Print( self.UseStringStyle("1994 - 2001",  fore="cyan") )
+        
+
+        
         
         
         

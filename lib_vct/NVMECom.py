@@ -458,6 +458,7 @@ class NVMECom():
                 'blink'     : 5,   #  闪烁
                 'invert'    : 7,   #  反白显示
                 'hide'      : 8,   #  不可见
+                'overline'  : 53, # 使用overline划线
             },
      
             'default' :
