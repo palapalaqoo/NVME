@@ -760,7 +760,10 @@ class SMI_SPOR(NVME):
         self.SetDynamicArgs(optionName="m", optionNameFull="maximumFailureSize", \
                             helpMsg="maximum failure size, e.x. '-m 640k' means less then 640k(1280 blocks) data lose is accceptable, default=640k", argType=str, default="640k") 
         self.SetDynamicArgs(optionName="c", optionNameFull="sectorSize", \
-                            helpMsg="sector size(sector count) in LBA for case2, default=1", argType=int, default=1) 
+                            helpMsg="sector size(sector count) in LBA for case2, i.e. Number of Logical Blocks will be write to SSD"\
+                            "\nex. sectorSize=1, if SSD format is 512, then write 512 byte"\
+                            "\nsectorSize=1, if SSD format is 4K, then write 4096 byte."\
+                            "\nIf sectorSize=0,that will be random sector for every loop, default=1", argType=int, default=1) 
         self.SetDynamicArgs(optionName="w", optionNameFull="writeType", \
                             helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int, default=0)        
         self.SetDynamicArgs(optionName="k", optionNameFull="keepImageFile", \
@@ -771,7 +774,9 @@ class SMI_SPOR(NVME):
                             " if set to 0, then expect the data in powering off block \nremain to init-pattern because of the writing command failure."\
                             " e.x. -spob 1, default=0", argType=int, default=0)           
         self.SetDynamicArgs(optionName="cmp", optionNameFull="comparison", \
-                            helpMsg="comparison option in [normal, enhanced, advanced], e.x. -cmp normal, default=normal", argType=str, default="normal")         
+                            helpMsg="comparison option in [normal, enhanced, advanced], e.x. -cmp normal, default=normal", argType=str, default="normal")   
+        
+              
                         
         # initial parent class
         super(SMI_SPOR, self).__init__(argv)
@@ -839,17 +844,27 @@ class SMI_SPOR(NVME):
         self.Print("Start to test SPOR")
         self.Print("Total test loop: %s"%self.loops, "p")
         self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "p")
-        
+        self.Print("Test type: %s"%self.writeType, "f")
         MaxSecCnt = self.MaxNLBofCDW12() +1
-        self.Print("Max sector that the controller supported: %s"%MaxSecCnt, "p")    
-        if MaxSecCnt>256:
-            MaxSecCnt = 256
-        self.Print("Max sector that will be verified for every loop: %s"%MaxSecCnt, "p")  
+        self.Print("Max sector that the controller supported: %s"%MaxSecCnt, "p")            
+        
+        self.Print("sectorSize: %s"%("random" if self.sectorSize==0 else self.sectorSize), "p")
+        if self.sectorSize>MaxSecCnt:
+            self.sectorSize = MaxSecCnt
+            self.Print("sectorSize was set to Max sector(%s) because sectorSize is > Max sector"%MaxSecCnt, "w")  
 
         self.Print("")
         FileOutCnt=0
+        isSeqWrite=True if self.writeType=="sequence" else False  # sequence write
         try: 
             for loop in range(self.loops):
+                # SectorCnt = random if self.sectorSize==0 
+                SectorCnt = randint(1,MaxSecCnt) if self.sectorSize==0 else self.sectorSize
+                
+                if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                
+                
+                
                 
                 
                 for SectorCnt in range(1, MaxSecCnt):

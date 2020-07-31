@@ -148,22 +148,91 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        #self.Print( self.UseStringStyle("┌┍┎┎┏⎾⌈---------", back="green", mode="underline") + self.UseStringStyle("BBBBBB", back="red") )
-        
-        self.Print( self.UseStringStyle("1994 - 2001",  mode="overline", back = "yellow") + self.UseStringStyle("▏", mode="underline") +self.UseStringStyle("48855", mode="underline") )
+        sleep(5)            
 
-        self.Print( self.UseStringStyle(self.UseStringStyle("1994 - 2001",  mode="overline", fore="cyan"), mode="bold" ))
-        self.Print( self.UseStringStyle("1994 - 2001",  fore="purple") + self.UseStringStyle("1994 - 2001",  fore="black") )
-        self.Print( self.UseStringStyle("1994 - 2001",  fore="yellow")+ self.UseStringStyle("1994 - 2001",  fore="black") )
-        self.Print( self.UseStringStyle("1994 - 2001",  fore="cyan") )
+    
         
+        '''
+        print self.SmartCheck.isRunning()
+        self.SmartCheck.start()
+        
+        self.SmartCheck.stop()
+                
+        import os
+        import signal
+        import subprocess    
+        
+        # find current bash pid
+        CMDps = "ps -aux |grep bash"
+        rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
+        ptsList0 = []
 
+        for line in self.yield_shell_cmd(CMDps):
+            if re.search(rePattern, line):
+                # pid=int(re.search(rePattern, line).group(1))
+                value=int(re.search(rePattern, line).group(2)) 
+                ptsList0.append(value)
+                
+        CMD = "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
+        p = subprocess.Popen("/bin/gnome-terminal -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
+        # do something here...
         
-        
-        
-        
+        # wait for creating gnome-terminal and get pid by check if pts/x which x is new one
+        GnomePid = None
+        timeMax = 50 # 1 for 0.1s
+        while GnomePid==None:
+            # find current bash pid
+            for line in self.yield_shell_cmd(CMDps):
+                if re.search(rePattern, line):              
+                    pid=int(re.search(rePattern, line).group(1))                                           
+                    value1=int(re.search(rePattern, line).group(2)) 
+                    if value1 not in ptsList0: # find  
+                        GnomePid = pid                    
+                        break
+            timeMax = timeMax -1            
+            if timeMax==0:# time up
+                break            
+            sleep(0.1)
+        # end while
+            
+        if GnomePid ==None: return False
+
+        sleep(5)
 
 
+        self.shell_cmd("kill -9 %s"%GnomePid)
+        '''
+        #p.kill()
+        #p.send_signal(signal.SIGKILL)
+        #p_pid = p.pid  # get the process id
+        #os.kill(p_pid, signal.SIGKILL)      
+
+        '''
+        self.SmartCheck.start()
+        sleep(1)
+        self.SmartCheck.stop()        
+        
+        cmd = "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMsART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=open("/dev/stdout", 'w'))
+
+        print proc.poll()
+        print proc.poll()
+        sleep(1)
+        print proc.poll()
+        print proc.poll()
+        print proc.poll()
+        
+        #while (True):
+            #print proc.poll()
+            # Do something...
+            #line = proc.stdout.readline()[:-1]
+            #self.Print( line)
+    
+        if proc.wait() != 0: exit(1)
+        print proc.poll()
+
+        exit(0)
+        '''
         
         
         

@@ -110,10 +110,10 @@ class NVMe(PCI):
 	def set_ori_log(self): self.__ori_log = True
 
 	def set_device_path(self, path):
-		self.__path = None
-		if self.check_device(path) != 0: return 1
-		path = re.search("(?:/\w+)+/nvme\d+", path).group(0)
 		self.__path = path
+		if self.check_device(path) != 0: return 1
+		try: path = re.search("(?:/\w+)+/nvme\d+", path).group(0)
+		except: pass
 		return 0
 
 	def check_device(self, path=None):
@@ -525,13 +525,13 @@ class NVMe(PCI):
 			proc.returncode = Status_Field
 			return proc
 
-		if lid == 0x1: # ErrorInfo
-			entries = int(opt_arg) if opt_arg else 64
-			data_len = entries*64
-			log_structure = {'LogEntry': {'pos': [data_len-1,0], 'num': entries, 'struct': {'ERROR_COUNT': [63,0], 'SQID': [79,64], 'CMDID': [95,80], 
-																					'STATUS_FIELD': [111,96], 'PARM_ERROR_LOCATION': [127,112], 
-																					'LBA': [191,128], 'NSID': [223,192], 'VS': [231,224], 'CS': [319,256]}}, 
-							}
+		# if lid == 0x1: # ErrorInfo
+		# 	entries = int(opt_arg) if opt_arg else 64
+		# 	data_len = entries*64
+		# 	log_structure = {'LogEntry': {'pos': [data_len-1,0], 'num': entries, 'struct': {'ERROR_COUNT': [63,0], 'SQID': [79,64], 'CMDID': [95,80], 
+		# 																			'STATUS_FIELD': [111,96], 'PARM_ERROR_LOCATION': [127,112], 
+		# 																			'LBA': [191,128], 'NSID': [223,192], 'VS': [231,224], 'CS': [319,256]}}, 
+		# 					}
 		# elif lid == 0x2: # SMART
 		# 	data_len = 512
 		# 	log_structure = {'critical_warning': {'pos': [0], 'num': 0,'struct': {'available_spare': [0], 'temperature':[1], 
@@ -545,35 +545,35 @@ class NVMe(PCI):
 		# 					'critical_temperature_time': [196,199], 
 		# 					'temperature_sensor': {'pos': [215,200], 'num': 8, 'start_idx': 1, 'struct': {'TST': [15,0]}}
 		# 					}
-		elif lid == 0x3: # FWSlotInfo (Firmware Slot Information)
-			data_len = 512
-			log_structure = {'AFI': [0], 'FRS1': [15,8], 'FRS2': [23,16], 'FRS3': [31,24], 
-							'FRS4': [39,32], 'FRS5': [47,40], 'FRS6': [55,48], 'FRS7': [63,56]}
-		elif lid == 0x5: # CommandEffects(Commands Supported and Effects)
-			data_len = 2048
-			log_structure = {'ACS': {'pos': [1023,0], 'num': 256, 'struct': {'CSE': [18,16], 'CCC': [4], 'NIC': [3], 
-																		'NCC': [2], 'LBCC': [1], 'CSUPP': [0]}}, 
-							'IOCS': {'pos': [2047,1024], 'num': 256, 'struct': {'CSE': [18,16], 'CCC': [4], 'NIC': [3], 
-																		'NCC': [2], 'LBCC': [1], 'CSUPP': [0]}}
-							}
-		elif lid == 0x6: # DST
-			data_len = 564
-			log_structure = {'current_DST': {'pos': [1,0], 'num': 0, 'struct': {'operation': [3,0], 'completion': [14,8]}}, 
-							'self_test_result': {'pos': [data_len-1,4], 'num': 20, 'struct': {'STC': [7,4], 'ST_result': [3,0], 'seg_num': [8,15], 
-																					'SC_valid': [19], 'SCT_valid': [18], 'FLBA_valid': [17], 'NSID_valid': [16], 
-																					'POH': [95,32], 
-																					'NSID': [127,96], 'FLBA': [191,128], 'SCT': [194,192], 'SC': [207,200]}}, 
-							}
-		elif lid == 0x81: # Sanitize
-			data_len = 512
-			log_structure = {'SPROG': [1,0], 'ETOW': [11,8], 'ETBE': [15,12], 'ETCE': [19,16],  
-							'SSTAT': {'pos': [3,2], 'num': 0,'struct': {'STATUS': [2,0], 'NCP':[7,3], 'GDE':[8]}}, 
-							'SCDW10': {'pos': [3,2], 'num': 0,'struct': {'SANACT': [2,0], 'AUSE':[3], 'OWPASS':[7,4], 
-																		'OIPBP':[8], 'NDEAC':[9]}}
-							}
-		else:
-			data_len = opt_arg if isinstance(opt_arg, int) else data_len
-			log_structure = {'DataStruct': [data_len-1,0]}
+		# elif lid == 0x3: # FWSlotInfo (Firmware Slot Information)
+		# 	data_len = 512
+		# 	log_structure = {'AFI': [0], 'FRS1': [15,8], 'FRS2': [23,16], 'FRS3': [31,24], 
+		# 					'FRS4': [39,32], 'FRS5': [47,40], 'FRS6': [55,48], 'FRS7': [63,56]}
+		# elif lid == 0x5: # CommandEffects(Commands Supported and Effects)
+		# 	data_len = 2048
+		# 	log_structure = {'ACS': {'pos': [1023,0], 'num': 256, 'struct': {'CSE': [18,16], 'CCC': [4], 'NIC': [3], 
+		# 																'NCC': [2], 'LBCC': [1], 'CSUPP': [0]}}, 
+		# 					'IOCS': {'pos': [2047,1024], 'num': 256, 'struct': {'CSE': [18,16], 'CCC': [4], 'NIC': [3], 
+		# 																'NCC': [2], 'LBCC': [1], 'CSUPP': [0]}}
+		# 					}
+		# elif lid == 0x6: # DST
+		# 	data_len = 564
+		# 	log_structure = {'current_DST': {'pos': [1,0], 'num': 0, 'struct': {'operation': [3,0], 'completion': [14,8]}}, 
+		# 					'self_test_result': {'pos': [data_len-1,4], 'num': 20, 'struct': {'STC': [7,4], 'ST_result': [3,0], 'seg_num': [8,15], 
+		# 																			'SC_valid': [19], 'SCT_valid': [18], 'FLBA_valid': [17], 'NSID_valid': [16], 
+		# 																			'POH': [95,32], 
+		# 																			'NSID': [127,96], 'FLBA': [191,128], 'SCT': [194,192], 'SC': [207,200]}}, 
+		# 					}
+		# elif lid == 0x81: # Sanitize
+		# 	data_len = 512
+		# 	log_structure = {'SPROG': [1,0], 'ETOW': [11,8], 'ETBE': [15,12], 'ETCE': [19,16],  
+		# 					'SSTAT': {'pos': [3,2], 'num': 0,'struct': {'STATUS': [2,0], 'NCP':[7,3], 'GDE':[8]}}, 
+		# 					'SCDW10': {'pos': [3,2], 'num': 0,'struct': {'SANACT': [2,0], 'AUSE':[3], 'OWPASS':[7,4], 
+		# 																'OIPBP':[8], 'NDEAC':[9]}}
+		# 					}
+		# else:
+		data_len = opt_arg if isinstance(opt_arg, int) else data_len
+		log_structure = {'DataStruct': [data_len-1,0]}
 
 		ret = nvme_ioctl.nvme_get_log(fd, ns, lid, rae, data_len)
 		os.close(fd)

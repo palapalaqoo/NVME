@@ -62,7 +62,8 @@ class NVME(object, NVMECom):
             self.mArgv = argv # ['/dev/nvme0n1'], only 1 args
             
         # ResumeSubCase=None means not reboot run script
-        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
+        self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase, \
+        self.mCheckSmart =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -211,7 +212,11 @@ class NVME(object, NVMECom):
         self.initial_LinkSpeedCurr=self.GetLinkSpeedCurrent()
         self.initial_LinkSpeedMax=self.GetLinkSpeedMax()
         self.initial_LinkWidthCurr=self.GetLinkWidthCurrent()
-        self.initial_LinkWidthMax=self.GetLinkWidthMax()        
+        self.initial_LinkWidthMax=self.GetLinkWidthMax()   
+        
+        #check smart
+        self.SmartCheck = SmartCheck_(self.dev_port, self)   
+        
     
     def GetNSID(self):
         return int(self.GetStrFromREsearchByShellCMD(shellCMD = "nvme list-ns %s"%self.device, searchPattern = ".*:(.*)") ,16 )
@@ -380,6 +385,11 @@ class NVME(object, NVMECom):
         
         if PreTestRtCode==0:
             # if PreTestRtCode = true
+            
+            if self.mCheckSmart:
+                self.SmartCheck.start()
+            
+            
             # do subcase and posttest and get the self.rtCode
             
             # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase64>
@@ -457,12 +467,19 @@ class NVME(object, NVMECom):
                     else:
                         # if user didn't assign subcase, return skip                              
                         Code = 255
+
+                    # verify smart check 
+                    if self.mCheckSmart:
+                        if not self.SmartCheck.isRunning():
+                            self.Print("SmartCheck fail, please check smart log: %s.log"%self.SmartCheck.pathLog, "f")
+                            Code = 1
                     
                     # save code to SubCase_rtCode
                     self.SubCase_rtCode.append(Code)
                     
                     # write to log file    
                     self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
+                    
             # </for function from SubCase1 to SubCaseX   >     
     
             # if override Posttest(), then run it, or PreTestRtCode= true
@@ -1453,11 +1470,16 @@ class NVME(object, NVMECom):
             self.Print("%s installed: yes"%self.porPath)
         else:
             self.Print("%s installed: no"%self.porPath, "f")
-            
+        
+        # link info    
         self.Print("LinkSpeedMax: %s"%self.initial_LinkSpeedMax)
         self.Print("LinkSpeedCurrent: %s"%self.initial_LinkSpeedCurr)
         self.Print("LinkWidthMax: %s"%self.initial_LinkWidthMax)
         self.Print("LinkWidthCurrent: %s"%self.initial_LinkWidthCurr)
+        
+        # smart check
+        #self.Print("SmartCheck module: %s"%("exist" if self.SmartCheckModuleExist else "missing"))
+
         
         self.Print ("")        
         self.SetPrintOffset(4)
@@ -1472,6 +1494,7 @@ class NVME(object, NVMECom):
             if currValue!=None: self.Print ("%s: %s"%(optionNameFull, currValue))    
               
               
+        self.Print("CheckSmart: %s"%self.mCheckSmart)
               
         self.SetPrintOffset(4)              
         self.Print ("========================================="     )     
@@ -1604,9 +1627,107 @@ class NVME(object, NVMECom):
     
     def GetLinkWidthMax(self):
         filePath = "/sys/bus/pci/devices/%s/max_link_width"%self.pcie_port
-        return self.ReadFile(filePath)            
+        return self.ReadFile(filePath)   
+    
+# end of NVME    
+# ==============================================================    
+class SmartCheck_():  
+# start(): start smart check
+# stop(): stop smart check
+# isRunning: True/False
+    def isfileExist(self, filePath):
+        if os.path.exists(filePath):
+            return True
+        else:
+            return False    
+      
+    def __init__(self, dev_port, nvme):
+        self._NVME = nvme
+        self.dev_port=dev_port
+        self.pathLog = "Log/SmartLogOut"
+        self.pathSmartIni = "SMART.ini"
+        self.pathSmartModule = "SMI_SmartCheck/SMI_SmartCheck.py"
+        # check if module exist
+        self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False        
+                 
+        self.GnomePid = None
+        self.Proc = None
+        
+
+    def isRunning(self):
+        # find current bash pid
+        CMDps = "ps -aux |grep bash"
+        rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
+        find = False        
+        for line in self._NVME.yield_shell_cmd(CMDps):
+            if re.search(rePattern, line):
+                pid=int(re.search(rePattern, line).group(1))
+                if pid == self.GnomePid:
+                    find = True
+                    break    
+        return True if find else False
+
+    def start(self):
+        if self.SmartCheckModuleExist:
+            # find current bash pid
+            CMDps = "ps -aux |grep bash"
+            rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
+            ptsList0 = []
+    
+            for line in self._NVME.yield_shell_cmd(CMDps):
+                if re.search(rePattern, line):
+                    # pid=int(re.search(rePattern, line).group(1))
+                    value=int(re.search(rePattern, line).group(2)) 
+                    ptsList0.append(value)
+                    
+            # "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
+            CMD = "python %s %s -s %s -p 1 -l %s 2>&1"\
+            %(self.pathSmartModule, self.dev_port, self.pathSmartIni, self.pathLog )                    
+            self.Proc = subprocess.Popen("/bin/gnome-terminal -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
+            # do something here...
+            
+            # wait for creating gnome-terminal and get pid by check if pts/x which x is new one
+            self.GnomePid = None
+            timeMax = 50 # 1 for 0.1s
+            while self.GnomePid==None:
+                # find current bash pid
+                for line in self._NVME.yield_shell_cmd(CMDps):
+                    if re.search(rePattern, line):              
+                        pid=int(re.search(rePattern, line).group(1))                                           
+                        value1=int(re.search(rePattern, line).group(2)) 
+                        if value1 not in ptsList0: # find  
+                            self.GnomePid = pid                    
+                            break
+                timeMax = timeMax -1            
+                if timeMax==0:# time up
+                    break            
+                sleep(0.1)
+            # end while
+                
+            if self.GnomePid ==None: return False
+            else: return True            
+
+    def stop(self):
+        # find current bash pid
+        CMDps = "ps -aux |grep bash"
+        rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
+        find = False
+        
+        for line in self._NVME.yield_shell_cmd(CMDps):
+            if re.search(rePattern, line):
+                pid=int(re.search(rePattern, line).group(1))
+                if pid == self.GnomePid:
+                    find = True
+                    break
+                    
+        if find:        
+            # os.kill(self.GnomePid, signal.SIGKILL)  
+            self._NVME.shell_cmd("kill -9 %s"%self.GnomePid)
+            self.GnomePid = None
+        return True
            
 # ==============================================================    
+
 class DevWakeUpAllTheTime():
 # make device wake up all the time
 # issue compare command to make it wake up
