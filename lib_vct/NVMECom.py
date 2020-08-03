@@ -617,9 +617,9 @@ class NVMECom():
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="script doc", action="store_true")        
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
-        parser.add_argument("-p", "--p", help="log path that store logs", type=str, nargs='?')
+        parser.add_argument("-p", "--p", help="log path that store logs, default='.\Log'", type=str, nargs='?')
         parser.add_argument("-r", "--r", help="reboot parameters, please do not set it", type=int, nargs='?')
-        parser.add_argument("-checksmart", "--checksmart", help="check smart log using SMART.ini and SmartCheck module", action="store_true")
+        parser.add_argument("-checksmart", "--checksmart", help="check smart log using SMART.ini and SmartCheck module, e.x. '-checksmart'", action="store_true")
         
         # script arg define new args if overwrite in script
         for mArg in self.ScriptParserArgs:
@@ -827,7 +827,7 @@ class NVMECom():
     def KMGT(self, size):
     # ex. KMGT(1024), return "1K"
         Size=float(size)
-        SizeF=""
+        SizeF="%s"%size
         if Size>=1024*1024*1024*1024:
             SizeF="%sT"%(Size/(1024*1024*1024*1024))
         elif Size>=1024*1024*1024:
@@ -1428,7 +1428,8 @@ class NVMECom():
             self.Print("searchPattern: %s"%searchPattern, "f")
             return None
         
-
+    def HighLightRed(self, mStr):
+        return self.UseStringStyle(mStr, mode="bold", fore = "red")
             
 #== end NVMECom =================================================
 

@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_SPOR(NVME):
     ScriptName = "SMI_SPOR.py"
     Author = "Sam"
-    Version = "20200715"
+    Version = "20200803"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
@@ -70,7 +70,7 @@ class SMI_SPOR(NVME):
         
         
     
-    def WriteWithSPOR(self, SectorCnt, SizeInBlock, isSeqWrite):   
+    def WriteWithSPOR(self, SectorCnt, SizeInBlock, isSeqWrite, porType):   
     # return WriteFail_Index, start from 0
     # return (self.RandIndex -1 ), dataPattern, dataPattern_last
         SLBA = 0 # start lba
@@ -78,7 +78,7 @@ class SMI_SPOR(NVME):
         WriteSLBAList = []
         
         #self.Print("Start thread to do SPOR")    
-        t = threading.Thread(target = self.ThreadDoSPOR)
+        t = threading.Thread(target = self.ThreadDoPowerOff, args=(porType,))
         t.start()   
         # wait thread starting
         while self.Running!=True:
@@ -97,7 +97,7 @@ class SMI_SPOR(NVME):
         while True: 
             if self.Running==False:
                 WriteFail_LBA= SLBA
-                self.Print("SPOR have not occored!")
+                self.Print("%s have not occored!"%(porType))
                 break
                 
         
@@ -129,7 +129,7 @@ class SMI_SPOR(NVME):
             if not self.NVMEwrite(value=dataPattern, slba=SLBA, SectorCnt=NLB):
                 WriteFail_LBA = SLBA
                 self.Print("Fail at %s th write command with sector = %s"%(writeSuccessCnt+1, NLB), "p")   
-                self.Print("Wait for SPOR finish ..")
+                self.Print("Wait for %s finish .."%porType)
                 '''
                 if self.skipPoweringOffBlock:
                     self.Print("Ferri DF module, expect DUT will flush those data.")
@@ -177,7 +177,8 @@ class SMI_SPOR(NVME):
             return True         
         else:
             self.Print("")
-            self.Print("Write fail at start LBA = %s"%slba, "p")            
+            self.Print("Write fail at start LBA = %s"%slba, "p") 
+            mStr = mStr.partition('\n')[0] #print first line
             self.Print("Return status: %s"%mStr, "p")
             return False     
 
@@ -511,7 +512,7 @@ class SMI_SPOR(NVME):
         self.Print( "1.) Calculate number of compare failure blocks")
         fCapacity = self.KMGT(failCnt*512)
         self.SetPrintOffset(4)
-        self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(failCnt, fCapacity))
+        self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(self.HighLightRed(failCnt), fCapacity))
         self.SetPrintOffset(0)
         
         # VerifyDismatchBlocks size 
@@ -632,7 +633,7 @@ class SMI_SPOR(NVME):
             return False
             
     
-    def SPOR(self, FileOutCnt, Loop, SectorCnt, isSeqWrite):
+    def SPOR(self, FileOutCnt, Loop, SectorCnt, isSeqWrite, porType):
         
         self.per = 0        
         
@@ -675,7 +676,7 @@ class SMI_SPOR(NVME):
         else:
             self.CreateRandSample(seed=seed, area=65536, contant=32, isSeqWrite=isSeqWrite) 
         
-        WriteFail_Index, dataPattern, dataPattern_last, WriteSLBAList, WriteFail_LBA  = self.WriteWithSPOR(SectorCnt, SizeInBlock, isSeqWrite)
+        WriteFail_Index, dataPattern, dataPattern_last, WriteSLBAList, WriteFail_LBA  = self.WriteWithSPOR(SectorCnt, SizeInBlock, isSeqWrite, porType)
         # sleep for waiting all the disk ready 
         sleep(2)
 
@@ -699,20 +700,16 @@ class SMI_SPOR(NVME):
         return rtCode         
                     
             
-    def ThreadDoSPOR(self):
+    def ThreadDoPowerOff(self, porType):
         # time base, must issue in 60s
         #self.IssueSPORtimeBase = True if SectorCnt<30 else False
         self.IssueSPORtimeBase = True
         TimeOut=20
         if self.IssueSPORtimeBase:            
-            doSPOR = randint(1, TimeOut)
-            if self.mTestModeOn: doSPOR = 3
-            self.Print("Start thread(ThreadDoSPOR) to do SPOR when writing time >= %s second"%doSPOR)       
-        else:     
-        # random time to run, range 1 to 90 of 1G writting
-            doSPOR = randint(1, 90)
-            self.Print("Start thread to do SPOR when writing percentage > %s/100"%doSPOR)
-        #doSPOR=19    #TODO
+            doSPORtimer = randint(1, TimeOut)
+            if self.mTestModeOn: doSPORtimer = 3
+            self.Print("Start thread(ThreadDoPowerOff) to do %s when writing time >= %s second"%(self.HighLightRed(porType), doSPORtimer))       
+        #doSPORtimer=19    #TODO
         IssuedSPOR=False
         self.timer.start()
         self.Running=True
@@ -729,8 +726,11 @@ class SMI_SPOR(NVME):
                 # do spor
                 if not IssuedSPOR:
                     self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %ss / 20s"%cTime, showPercent=False)                    
-                    if (doSPOR <= cTime):
-                        self.spor_reset()
+                    if (doSPORtimer <= cTime):
+                        if porType=="spor" :
+                            self.spor_reset(PowerOffDuration=self.PowerOffDuration) 
+                        else: 
+                            self.por_reset(PowerOffDuration=self.PowerOffDuration)
                         IssuedSPOR = True
                         break
                 if cTime>TimeOut+1:
@@ -739,15 +739,15 @@ class SMI_SPOR(NVME):
                 self.PrintProgressBar(percent, 100, length = 20)
                 # do spor
                 if not IssuedSPOR:
-                    if (doSPOR < percent):
-                        self.spor_reset()
+                    if (doSPORtimer < percent):
+                        self.spor_reset(PowerOffDuration=self.PowerOffDuration)
                         IssuedSPOR = True                
             sleep(0.1)
             
             
         self.Print("")
-        self.Print("Do SPOR finished")        
-        self.Print("Stop thread(ThreadDoSPOR)")
+        self.Print("Do %s finished"%porType)        
+        self.Print("Stop thread(ThreadDoPowerOff)")
         self.Running=False    
         self.timer.stop()
         
@@ -756,14 +756,14 @@ class SMI_SPOR(NVME):
     
     def __init__(self, argv):
         # initial new parser if need, -t -d -s -p -r was used, dont use it again
-        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1", argType=int, default = 1) 
+        self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="test Loop, default=1, e.x. '-l 10'", argType=int, default = 1) 
         self.SetDynamicArgs(optionName="m", optionNameFull="maximumFailureSize", \
                             helpMsg="maximum failure size, e.x. '-m 640k' means less then 640k(1280 blocks) data lose is accceptable, default=640k", argType=str, default="640k") 
         self.SetDynamicArgs(optionName="c", optionNameFull="sectorSize", \
                             helpMsg="sector size(sector count) in LBA for case2, i.e. Number of Logical Blocks will be write to SSD"\
-                            "\nex. sectorSize=1, if SSD format is 512, then write 512 byte"\
-                            "\nsectorSize=1, if SSD format is 4K, then write 4096 byte."\
-                            "\nIf sectorSize=0,that will be random sector for every loop, default=1", argType=int, default=1) 
+                            "\nex. '-c 1', if SSD format is 512, then write 512 byte for every nvme command"\
+                            "\nex. '-c 1', if SSD format is 4K, then write 4096 byte."\
+                            "\nex. '-c 0',that will be random sector for every loop, default=1", argType=int, default=1) 
         self.SetDynamicArgs(optionName="w", optionNameFull="writeType", \
                             helpMsg="write type, 0=sequence, 1=random, default=0(sequence write)", argType=int, default=0)        
         self.SetDynamicArgs(optionName="k", optionNameFull="keepImageFile", \
@@ -774,8 +774,13 @@ class SMI_SPOR(NVME):
                             " if set to 0, then expect the data in powering off block \nremain to init-pattern because of the writing command failure."\
                             " e.x. -spob 1, default=0", argType=int, default=0)           
         self.SetDynamicArgs(optionName="cmp", optionNameFull="comparison", \
-                            helpMsg="comparison option in [normal, enhanced, advanced], e.x. -cmp normal, default=normal", argType=str, default="normal")   
-        
+                            helpMsg="comparison option in [normal, enhanced, advanced], e.x. -cmp normal, default=normal", argType=str, default="normal")  
+        self.SetDynamicArgs(optionName="poroffdur", optionNameFull="PowerOffDuration", \
+                            helpMsg="Power Off Duration in second, default = 0, e.x. -poroffdur 2.5, Duration=2.5 seconds", argType=float, default=0)        
+        self.SetDynamicArgs(optionName="porofftype", optionNameFull="porofftype", \
+                            helpMsg="Power Off Type in spor/por/mixed, if type mixed was set, then will do por/spor in sequence, default = spor, e.x. '-porofftype spor'", argType=str, default="spor")           
+        #self.SetDynamicArgs(optionName="wdt", optionNameFull="writeDelayTime", \
+        #                    helpMsg="Write Delay Time for every write command, default '-wdt 0'", argType=int, default=0)           
               
                         
         # initial parent class
@@ -799,7 +804,9 @@ class SMI_SPOR(NVME):
         
         self.comparison=self.GetDynamicArgs(6)
         
+        self.PowerOffDuration = self.GetDynamicArgs(7)
         
+        self.porofftype= self.GetDynamicArgs(8)
         
         self.Print("")
                 
@@ -837,18 +844,20 @@ class SMI_SPOR(NVME):
 
     # <define sub item scripts>
     SubCase1TimeOut = 0
-    SubCase1Desc = "Loop for SPOR testing"   
+    SubCase1Desc = "SPOR testing"   
     SubCase1KeyWord = ""
     def SubCase1(self):   
         ret_code=0
         self.Print("Start to test SPOR")
         self.Print("Total test loop: %s"%self.loops, "p")
         self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "p")
-        self.Print("Test type: %s"%self.writeType, "f")
+        self.Print("Test type: %s"%self.writeType, "p")
         MaxSecCnt = self.MaxNLBofCDW12() +1
         self.Print("Max sector that the controller supported: %s"%MaxSecCnt, "p")            
         
-        self.Print("sectorSize: %s"%("random" if self.sectorSize==0 else self.sectorSize), "p")
+        self.Print("SectorSize: %s"%("random" if self.sectorSize==0 else self.sectorSize), "p")
+        self.Print("Por type: %s"%(self.porofftype), "p")
+        
         if self.sectorSize>MaxSecCnt:
             self.sectorSize = MaxSecCnt
             self.Print("sectorSize was set to Max sector(%s) because sectorSize is > Max sector"%MaxSecCnt, "w")  
@@ -858,35 +867,16 @@ class SMI_SPOR(NVME):
         isSeqWrite=True if self.writeType=="sequence" else False  # sequence write
         try: 
             for loop in range(self.loops):
-                # SectorCnt = random if self.sectorSize==0 
+                
                 SectorCnt = randint(1,MaxSecCnt) if self.sectorSize==0 else self.sectorSize
+                if self.porofftype=="mixed":
+                    porType="por" if loop%2==0 else "spor"
+                else:
+                    porType = self.porofftype
                 
-                if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
+                if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite, porType=porType): return 1
                 
-                
-                
-                
-                
-                for SectorCnt in range(1, MaxSecCnt):
-                    isSeqWrite=True  # sequence write
-                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
-                    FileOutCnt=FileOutCnt+1
-                    
-                    isSeqWrite=False
-                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
-                    FileOutCnt=FileOutCnt+1                  
-                    
-                    #return 0 #
-                    
-                for SectorCnt in range(MaxSecCnt-1, 0, -1):
-                    isSeqWrite=True
-                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1
-                    FileOutCnt=FileOutCnt+1
-                    
-                    isSeqWrite=False
-                    if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite): return 1   
-                    FileOutCnt=FileOutCnt+1
-                                 
+          
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit", "w")  
@@ -895,38 +885,7 @@ class SMI_SPOR(NVME):
             if not self.dev_alive:
                 self.spor_reset()
             return 255              
-        
-        
-    SubCase2TimeOut = 6000000
-    SubCase2Desc = "One time SPOR testing"   
-    SubCase2KeyWord = ""
-    def SubCase2(self):   
-        ret_code=0
-        self.Print("Start to test SPOR")
-        self.Print("Test type: %s"%self.writeType, "f")
-        self.Print("Sector size: %s LBA"%self.sectorSize, "f")
-        self.Print("%s(%s blocks) data lose is accceptable"%(self.maximumFailureSize, self.maximumFailureSizeNLB), "f")
-        self.Print("")
-        FileOutCnt=0
-        try: 
-            isSeqWrite=True if self.writeType=="sequence" else False  # sequence write
-            if not self.SPOR(FileOutCnt, Loop=0, SectorCnt = self.sectorSize, isSeqWrite=isSeqWrite): return 1        
-        except KeyboardInterrupt:
-            self.Print("")
-            self.Print("Detect ctrl+C, quit", "w")  
-            # check device is alive or not
-            self.Running=False
-            if not self.dev_alive:
-                self.spor_reset()
-            return 255              
-                
-        
-        
-        
-        
-        
-        
-        
+
         return ret_code
 
     # </define sub item scripts>

@@ -145,10 +145,14 @@ class mtest1(NVME):
     def PreTest(self):
         return 0    
    
-    
     SubCase1TimeOut = 600
     def SubCase1(self):
-        sleep(5)            
+        self.spor_reset(showMsg=True)
+        print "hello9"      
+            
+    SubCase1TimeOut = 600
+    def SubCase2(self):
+        self.spor_reset(showMsg=True)          
 
     
         

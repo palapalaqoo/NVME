@@ -480,7 +480,10 @@ class NVME(object, NVMECom):
                     # write to log file    
                     self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
                     
-            # </for function from SubCase1 to SubCaseX   >     
+            # </for function from SubCase1 to SubCaseX   >    
+            # smart check , stop it
+            if self.mCheckSmart:
+                self.SmartCheck.stop()
     
             # if override Posttest(), then run it, or PreTestRtCode= true
             if self.IsMethodOverride( "PostTest"):
@@ -1683,7 +1686,7 @@ class SmartCheck_():
             # "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
             CMD = "python %s %s -s %s -p 1 -l %s 2>&1"\
             %(self.pathSmartModule, self.dev_port, self.pathSmartIni, self.pathLog )                    
-            self.Proc = subprocess.Popen("/bin/gnome-terminal -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
+            self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck --tab -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
             # do something here...
             
             # wait for creating gnome-terminal and get pid by check if pts/x which x is new one
