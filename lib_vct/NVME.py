@@ -167,9 +167,9 @@ class NVME(object, NVMECom):
             setattr(NVME, "SubCase%sTimeOut"%x, "")        
                     
         # others
-        NVME.ScriptName="Null"
-        NVME.Author="Null"
-        NVME.Version="Null"
+        NVME.ScriptName=None
+        NVME.Author=None
+        NVME.Version=None
                  
     def init_parameters(self):        
                 
@@ -325,8 +325,11 @@ class NVME(object, NVMECom):
             return  getattr(self, "SubCase%sKeyWord"%Num)
         elif Type=="timeout":
             return  getattr(self, "SubCase%sTimeOut"%Num)        
+        elif Type=="scriptname":
+            return  getattr(self, "ScriptName")  
                 
     def CreateSubCaseListForParser(self):
+    # show case list for -h command
         mStr="Case List:\n"
 
         for SubCaseNum in range(1, self.SubCaseMaxNum+1):
@@ -338,6 +341,9 @@ class NVME(object, NVMECom):
                 Timeout=self.GetAbstractFunctionOrVariable(SubCaseNum, "timeout")  
                 mStr = mStr + "  Case %s : %s "%(SubCaseNum, Description) +"\n"
 
+        
+        
+        
         return mStr
                 
                           
@@ -357,7 +363,9 @@ class NVME(object, NVMECom):
             sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                     
 
         # print document only
-        if self.mScriptDoc: return 0 
+        if self.mScriptDoc: 
+            self.PrintFlow()
+            return 0 
            
         
         # if override Pretest(), then run it, or PreTestRtCode= 0
@@ -1503,6 +1511,25 @@ class NVME(object, NVMECom):
         self.Print ("========================================="     )     
         self.SetPrintOffset(0)
         self.Print ("") 
+    
+    def PrintFlow(self):
+    # PrintFlow, ex. SMI_SPOR.flow where SMI_SPOR from scriptname
+        Name = self.GetAbstractFunctionOrVariable(0, "scriptname")
+
+        if Name!=None:
+            Name=Name.replace(".py","")
+            FilePath =Name+".flow"
+            mLineList = self.ReadFileFromLineToEnd(FilePath, 0)
+        
+            if len(mLineList)==0: return
+            
+            self.SetPrintOffset(4)
+            self.Print("Flow:", "p")            
+            for line in mLineList:
+                line=line.replace("\n", "")
+                self.Print(line)
+            self.SetPrintOffset(0)
+  
         
     def GetBlockSize(self):
         # get current block size, i.e. 512, 4096(4k) .. etc.

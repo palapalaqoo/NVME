@@ -87,9 +87,9 @@ class SMI_SPOR(NVME):
         # init data
         dataPattern=randint(1, 0xFF)            
         if isSeqWrite:
-            self.Print("Start sequence writing data with value 0x%X for first 1G"%dataPattern)
+            self.Print("Start sequence writing data with value 0x%X for first 1G and sleep %s seconds for every write command(writeDelayTime)"%(dataPattern, self.writeDelayTime))
         else:
-            self.Print("Start random writing data with value 0x%X for first 1G"%dataPattern)   
+            self.Print("Start random writing data with value 0x%X for first 1G and sleep %s seconds for every write command(writeDelayTime)"%(dataPattern, self.writeDelayTime))
                         
         dataPattern_last=0   
         writeSuccessCnt = 0     
@@ -142,7 +142,11 @@ class SMI_SPOR(NVME):
 
             writeSuccessCnt = writeSuccessCnt +1
             WriteSLBAList.append(SLBA)
-            self.per = float(cnt)/float(SizeInBlock)            
+            self.per = float(cnt)/float(SizeInBlock)    
+            
+            # writeDelayTime
+            if self.writeDelayTime!=0:
+                sleep(float(self.writeDelayTime))        
         # end of while            
         t.join()
         self.Print("")        
@@ -543,7 +547,7 @@ class SMI_SPOR(NVME):
         self.Print("comparison option: %s"%self.comparison)
         if self.comparison == "normal":
             self.Print("Data lost area: %s"%CntPassToFail)
-            self.Print("Check if Data lost area<=2")
+            self.Print("Check if Data lost area<=2, i.e. CntPassToFail<=2")
             if CntPassToFail<=2:
                 self.Print("Pass", "p")
             else:
@@ -559,7 +563,7 @@ class SMI_SPOR(NVME):
                 self.CompareRtCode=False
                 
         elif self.comparison == "advanced": 
-            self.Print("Check if Data Break point=0, i.e. CntPassToFail<=0 and CntFailToPass==0, PLP feature")
+            self.Print("Check if Data Break point=0, i.e. CntPassToFail<=0 and CntFailToPass==0, PLP model")
             if CntPassToFail==0 and CntFailToPass==0:
                 self.Print("Pass", "p")
             else:
@@ -774,13 +778,17 @@ class SMI_SPOR(NVME):
                             " if set to 0, then expect the data in powering off block \nremain to init-pattern because of the writing command failure."\
                             " e.x. -spob 1, default=0", argType=int, default=0)           
         self.SetDynamicArgs(optionName="cmp", optionNameFull="comparison", \
-                            helpMsg="comparison option in [normal, enhanced, advanced], e.x. -cmp normal, default=normal", argType=str, default="normal")  
+                            helpMsg="comparison option in [normal, enhanced, advanced], e.x. -cmp normal, default=normal."\
+                            "\nnormal: if Data lost area<=2, i.e. CntPassToFail<=2, then pass"\
+                            "\nenhanced: if Data Break point<=1, i.e. CntPassToFail<=1 and CntFailToPass==0, then pass"\
+                            "\nadvanced: if Data Break point=0, i.e. CntPassToFail<=0 and CntFailToPass==0, PLP model, then pass"\
+                            , argType=str, default="normal")  
         self.SetDynamicArgs(optionName="poroffdur", optionNameFull="PowerOffDuration", \
                             helpMsg="Power Off Duration in second, default = 0, e.x. -poroffdur 2.5, Duration=2.5 seconds", argType=float, default=0)        
         self.SetDynamicArgs(optionName="porofftype", optionNameFull="porofftype", \
                             helpMsg="Power Off Type in spor/por/mixed, if type mixed was set, then will do por/spor in sequence, default = spor, e.x. '-porofftype spor'", argType=str, default="spor")           
-        #self.SetDynamicArgs(optionName="wdt", optionNameFull="writeDelayTime", \
-        #                    helpMsg="Write Delay Time for every write command, default '-wdt 0'", argType=int, default=0)           
+        self.SetDynamicArgs(optionName="wdt", optionNameFull="writeDelayTime", \
+                            helpMsg="Write Delay Time for every write command, default = 0, e.x. '-wdt 2.5', write and delay 2.5 seconds", argType=str, default="0")           
               
                         
         # initial parent class
@@ -807,6 +815,8 @@ class SMI_SPOR(NVME):
         self.PowerOffDuration = self.GetDynamicArgs(7)
         
         self.porofftype= self.GetDynamicArgs(8)
+        
+        self.writeDelayTime =  self.GetDynamicArgs(9)
         
         self.Print("")
                 

@@ -615,7 +615,7 @@ class NVMECom():
         parser.add_argument("dev", help="device, e.g. /dev/nvme0n1", type=str)
         parser.add_argument("subcases", help="sub cases that will be tested, e.g. '1 2 3'", type=str, nargs='?')
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
-        parser.add_argument("-d", "--d", help="script doc", action="store_true")        
+        parser.add_argument("-d", "--d", help="print script doc and flow if acceptable", action="store_true")        
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
         parser.add_argument("-p", "--p", help="log path that store logs, default='.\Log'", type=str, nargs='?')
         parser.add_argument("-r", "--r", help="reboot parameters, please do not set it", type=int, nargs='?')

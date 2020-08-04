@@ -145,14 +145,19 @@ class mtest1(NVME):
     def PreTest(self):
         return 0    
    
+    
     SubCase1TimeOut = 600
     def SubCase1(self):
-        self.spor_reset(showMsg=True)
-        print "hello9"      
-            
-    SubCase1TimeOut = 600
-    def SubCase2(self):
-        self.spor_reset(showMsg=True)          
+        FilePath ="./flow_mtest.txt"
+        aa = self.ReadFileFromLineToEnd(FilePath, 0)
+        #aa = self.ReadFile(FilePath)
+        
+        self.SetPrintOffset(4)
+        for line in aa:
+            line=line.replace("\n", "")
+            print line
+        self.SetPrintOffset(0)
+        sleep(1)            
 
     
         
