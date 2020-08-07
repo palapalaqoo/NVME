@@ -13,7 +13,7 @@ from lib_vct.NVME import NVME
 class SMI_Power_Cycle_Test(NVME):
     ScriptName = "SMI_Power_Cycle_Test.py"
     Author = "Sam"
-    Version = "20200716"
+    Version = "20200807"
     
             
     def GetNewPattern(self):
@@ -186,23 +186,24 @@ class SMI_Power_Cycle_Test(NVME):
     def __init__(self, argv):
         # initial parent class
         self.SetDynamicArgs(optionName="l", optionNameFull="Loops", \
-                            helpMsg="number of loops, default = 10", argType=int, default=1)
+                            helpMsg="number of loops, default = 1", argType=int, default=1)
         self.SetDynamicArgs(optionName="pot0", optionNameFull="PorOffTimer0", \
-                            helpMsg="Power Off Timer minium in millisecond, default = 2000", argType=int, default=2000)
+                            helpMsg="Power Off Timer minium in second, default = 2, e.x. '-pot0 1.5'", argType=float, default=2)
         self.SetDynamicArgs(optionName="pot1", optionNameFull="PorOffTimer1", \
-                            helpMsg="Power Off Timer maxium in millisecond, default = 4000", argType=int, default=4000)
+                            helpMsg="Power Off Timer maxium in second, default = 4, e.x. '-pot1 3.5'", argType=float, default=4)
         self.SetDynamicArgs(optionName="pod", optionNameFull="PowerOffDuration", \
-                            helpMsg="Power Off Duration in millisecond, default = 5000", argType=int, default=5000)
+                            helpMsg="Power Off Duration in second, default = 5, e.x. '-pod 4.5'", argType=float, default=5)
  
         super(SMI_Power_Cycle_Test, self).__init__(argv)
 
 
         self.paraLoops = self.GetDynamicArgs(0) 
-        self.paraPorOffTimer0 = self.GetDynamicArgs(1) 
-        self.paraPorOffTimer1 = self.GetDynamicArgs(2) 
+        self.paraPorOffTimer0 = int(self.GetDynamicArgs(1) * 1000)# convert to minisecond
+
+        self.paraPorOffTimer1 = int(self.GetDynamicArgs(2) * 1000)# convert to minisecond
                  
-        self.paraPowerOffDuration = self.GetDynamicArgs(3) 
-        self.paraPowerOffDuration = float(self.paraPowerOffDuration)/1000 # convert to second
+        self.paraPowerOffDuration = float(self.GetDynamicArgs(3) )# convert to float in second
+
          
         
 
@@ -247,7 +248,7 @@ class SMI_Power_Cycle_Test(NVME):
         return ret_code
 
     SubCase3TimeOut = 0
-    SubCase3Desc = "UGSD"   
+    SubCase3Desc = "UGSD GSD Mix"   
     SubCase3KeyWord = ""
     def SubCase3(self):
         ret_code=0

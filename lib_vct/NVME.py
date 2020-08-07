@@ -459,6 +459,17 @@ class NVME(object, NVMECom):
                             self.Print(str(error), "f" )
                             self.Print( "=====================================", "f" )
                             Code = 1
+                        except KeyboardInterrupt:
+                            self.Print("")
+                            self.Print("Detect ctrl+C, skip all sub cases", "w")  
+                            # check device is alive or not
+                            self.Running=False
+                            if not self.dev_alive:
+                                self.spor_reset()
+                            # set self.UserSubItems = []  to skip all remain testcase
+                            self.UserSubItems=[]
+                            # current case return 255
+                            Code = 255
                         
                         #  prevent coding no return code, eg. 0/1/255
                         if Code ==None:

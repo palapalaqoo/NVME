@@ -65,8 +65,19 @@ class DST_():
         # print Progress with 0% 
         if self.ShowProgress:
             self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
+        
+        cnt = 0    
+        while True:
+            if self._mNVME.GetLog.DeviceSelfTest.CDSTO!=0:
+                break;
+            else:
+                cnt = cnt +1
+                
+            if cnt==100:
+                self._mNVME.Print ("Can't detect 'Current Device Self-Test Operation' !=0 after read it for 100 times, i.e. alwasy is 0" )
+                return -1
+        
         while True:            
-            sleep (0.1)
             # if DST_per value changed, then print DST_per
             DST_per=self._mNVME.GetLog.DeviceSelfTest.CDSTC
             if DST_per_old!=DST_per:
@@ -100,7 +111,9 @@ class DST_():
                 else:                
                     self._mNVME.Print ("")
                 break
-
+            sleep (0.02)
+        # end while
+                        
         if self.ShowMessage:
             self._mNVME.Print ("DST finished" )
         if error==0:           
