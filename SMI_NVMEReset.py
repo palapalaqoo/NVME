@@ -27,7 +27,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20200605"
+    Version = "20200810"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -206,6 +206,26 @@ class SMI_NVMeReset(NVME):
                     self.Print("Reset type: %s, PASS"%(rtResetType), "p")
                 else:
                     self.Print("Reset type: %s, Fail"%(rtResetType), "f")
+                    
+
+                    self.Print("")
+                    self.Print("Issue command for Device Self-test Log with offset=0: ")
+                    CMD = "nvme admin-passthru /dev/nvme0n1 --opcode=0x2 -r --cdw10=0x70006 --cdw11=0 --cdw12=0 --cdw13=0 -l 32 2>&1"
+                    self.Print(CMD)
+                    mStr = self.shell_cmd(CMD)
+                    self.Print(mStr)
+
+                    LogPageOffsetSupport = True if self.IdCtrl.LPA.bit(2)=="1" else False
+                    if LogPageOffsetSupport:                    
+                        self.Print("")
+                        self.Print("Issue command for Device Self-test Log with offset=4: ")
+                        CMD = "nvme admin-passthru /dev/nvme0n1 --opcode=0x2 -r --cdw10=0x60006 --cdw11=0 --cdw12=4 --cdw13=0 -l 28 2>&1"
+                        self.Print(CMD)
+                        mStr = self.shell_cmd(CMD)
+                        self.Print(mStr)                    
+                    
+                    
+                    
                     rtCode = 1                         
             else:
                 self.Print ("Controller does not support the DST operation"     )

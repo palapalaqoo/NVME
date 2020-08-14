@@ -14,7 +14,8 @@ class SelfTestResultDataStructure_Descriptor(object,NVMECom):
         self.DataStructureOffset = 4+(WhichNumber-1)*28
         self._mNVME = obj    
         # init NVMECom
-        NVMECom.__init__(self, obj)          
+        NVMECom.__init__(self, obj) 
+        self.RecordCmdToLogFile = True         
         self._LogPageOffsetSupport = True if self._mNVME.IdCtrl.LPA.bit(2)=="1" else False
     
     def GetDataInInt(self, startbyte, stopbyte):

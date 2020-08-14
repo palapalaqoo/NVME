@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200708"
+    Version = "20200811"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -391,7 +391,8 @@ class SMI_PLI(NVME):
     
     
     def __init__(self, argv):
-        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops, default = 10", argType=int)
+        self.SetDynamicArgs(optionName="l", optionNameFull="loops", helpMsg="number of loops, default = 10, loops = 0 means infinity loop"\
+                            "\nuse ctrl+c to skip test", argType=int)
         self.SetDynamicArgs(optionName="s0", optionNameFull="secondParameter0", helpMsg="seconds for idle/randRead/seqWrite, default = '300' (5 minutes)", argType=int)
         self.SetDynamicArgs(optionName="sector", optionNameFull="WriteRead_LPI_sector", helpMsg="Write/Read LPI sector, default = '256'", argType=int)
         self.SetDynamicArgs(optionName="size", optionNameFull="WriteRead_LPI_size", helpMsg="Write/Read LPI size, default = '800M'", argType=str)

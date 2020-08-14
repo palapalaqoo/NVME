@@ -15,6 +15,7 @@ import math
 import re
 import traceback
 import signal
+import logging
 #import smi_comm
 from time import sleep
 from lib_vct.NVMECom import NVMECom
@@ -463,7 +464,7 @@ class NVME(object, NVMECom):
                             self.Print("")
                             self.Print("Detect ctrl+C, skip all sub cases", "w")  
                             # check device is alive or not
-                            self.Running=False
+                            #self.Running=False
                             if not self.dev_alive:
                                 self.spor_reset()
                             # set self.UserSubItems = []  to skip all remain testcase
@@ -1180,13 +1181,15 @@ class NVME(object, NVMECom):
         if success:
             if showMsg: self.Print("Device is on now")        
             # verify link
-            if showMsg: self.Print("Verify link speed..")
+            if showMsg: self.Print("Verify link speed and width")
             value = self.GetLinkSpeedCurrent()
+            if showMsg: self.Print("Current link speed: %s, initial link speed: %s"%(value, self.initial_LinkSpeedCurr))
             if value!=self.initial_LinkSpeedCurr:
                 self.Print("Error!, LinkSpeedCurrent changed, initial value %s, current value %s"%(self.initial_LinkSpeedCurr, value), "f")
                 success = False
                 
             value = self.GetLinkWidthCurrent()
+            if showMsg: self.Print("Current link width: %s, initial link width: %s"%(value, self.initial_LinkWidthCurr))
             if value!=self.initial_LinkWidthCurr:
                 self.Print("Error!, LinkWidthCurrent changed, initial value %s, current value %s"%(self.initial_LinkWidthCurr, value), "f")
                 success = False
@@ -1688,13 +1691,28 @@ class SmartCheck_():
         self.pathLog = "Log/SmartLogOut"
         self.pathSmartIni = "SMART.ini"
         self.pathSmartModule = "SMI_SmartCheck/SMI_SmartCheck.py"
-        # check if module exist
-        self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False        
-                 
         self.GnomePid = None
         self.Proc = None
-        
-
+                
+        # check if module exist, if exist, load module
+        self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False    
+        if self.SmartCheckModuleExist: # load module for isRunOncePass()
+            modulePath = "SMI_SmartCheck.SMI_SmartCheck.SMI_SmartCheck"
+            try:
+                from SMI_SmartCheck.SMI_SmartCheck import SMI_SmartCheck as _temp
+                self.SMI_SmartCheck = _temp
+            except ImportError:
+                self._NVME.Print("import %s fail"%modulePath)
+                self.SmartCheckModuleExist = False     
+                
+            if self.SmartCheckModuleExist:
+                logging.getLogger().setLevel(logging.CRITICAL)   # disable all output
+                # SMI_SmartCheck("SMART.ini", "/dev/nvme0", total_cycle=0, smart_monitor_period=2, log_file='./SmartLog/exampleLog1')
+                self.smart = self.SMI_SmartCheck("SMART.ini", self.dev_port, total_cycle=0, smart_monitor_period=2, log_file=self.pathLog)
+                if self.smart.loadFromConfig(): 
+                    self._NVME.Print("smart.loadFromConfig() fail", "f")
+                    self.SmartCheckModuleExist = False
+                    
     def isRunning(self):
         # find current bash pid
         CMDps = "ps -aux |grep bash"
@@ -1707,6 +1725,16 @@ class SmartCheck_():
                     find = True
                     break    
         return True if find else False
+
+    def isRunOncePass(self):
+    # run once for get log and check if is pass
+        if not self.SmartCheckModuleExist:
+            self._NVME.Print("Fail, detected SmartCheckModuleExist = false", "f")
+            return False
+
+        isError = self.smart.getSmart() # true= smart log fail
+        return True if not isError else False
+     
 
     def start(self):
         if self.SmartCheckModuleExist:

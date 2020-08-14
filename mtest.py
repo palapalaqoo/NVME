@@ -148,18 +148,20 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        FilePath ="./flow_mtest.txt"
-        aa = self.ReadFileFromLineToEnd(FilePath, 0)
-        #aa = self.ReadFile(FilePath)
-        
-        self.SetPrintOffset(4)
-        for line in aa:
-            line=line.replace("\n", "")
-            print line
-        self.SetPrintOffset(0)
-        sleep(1)            
 
-    
+        if self.SmartCheck.isRunOncePass(): print "pass" 
+        else: print "fail" 
+        
+        if self.SmartCheck.isRunOncePass(): print "pass"
+        else: print "fail" 
+        
+        self.por_reset()
+        self.por_reset()
+        
+        if self.SmartCheck.isRunOncePass(): print "pass"
+        else: print "fail" 
+
+
         
         '''
         print self.SmartCheck.isRunning()
