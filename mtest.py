@@ -149,18 +149,15 @@ class mtest1(NVME):
     SubCase1TimeOut = 600
     def SubCase1(self):
 
-        if self.SmartCheck.isRunOncePass(): print "pass" 
-        else: print "fail" 
-        
-        if self.SmartCheck.isRunOncePass(): print "pass"
-        else: print "fail" 
-        
-        self.por_reset()
-        self.por_reset()
-        
-        if self.SmartCheck.isRunOncePass(): print "pass"
-        else: print "fail" 
 
+        for i in range(20):
+            self.SmartCheck.isRunOncePass()
+            sleep(2)
+        self.SmartCheck.stop()
+        
+        
+        
+        aa = 5
 
         
         '''

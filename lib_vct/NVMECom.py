@@ -619,7 +619,7 @@ class NVMECom():
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
         parser.add_argument("-p", "--p", help="log path that store logs, default='.\Log'", type=str, nargs='?')
         parser.add_argument("-r", "--r", help="reboot parameters, please do not set it", type=int, nargs='?')
-        parser.add_argument("-checksmart", "--checksmart", help="check smart log using SMART.ini and SmartCheck module, e.x. '-checksmart'", action="store_true")
+        #parser.add_argument("-checksmart", "--checksmart", help="check smart log using SMART.ini and SmartCheck module, e.x. '-checksmart'", action="store_true")
         
         # script arg define new args if overwrite in script
         for mArg in self.ScriptParserArgs:
@@ -661,9 +661,9 @@ class NVMECom():
             value = value if value != None else default # if user not input arg, then use default
             mScriptParserArgs.append(value)
         
-        mCheckSmart=True if args.checksmart else False
+        #mCheckSmart=True if args.checksmart else False
         
-        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs, mRebootP, mCheckSmart
+        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs, mRebootP#, mCheckSmart
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format

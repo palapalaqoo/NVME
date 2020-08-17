@@ -16,6 +16,7 @@ import re
 import traceback
 import signal
 import logging
+import string
 #import smi_comm
 from time import sleep
 from lib_vct.NVMECom import NVMECom
@@ -64,7 +65,8 @@ class NVME(object, NVMECom):
             
         # ResumeSubCase=None means not reboot run script
         self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase, \
-        self.mCheckSmart =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
+        =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
+        #self.mCheckSmart =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
             print "Command parameter error!, run 'python %s -h' for more information"%os.path.basename(sys.argv[0])
@@ -394,10 +396,10 @@ class NVME(object, NVMECom):
         
         if PreTestRtCode==0:
             # if PreTestRtCode = true
-            
+            '''
             if self.mCheckSmart:
                 self.SmartCheck.start()
-            
+            '''
             
             # do subcase and posttest and get the self.rtCode
             
@@ -489,10 +491,12 @@ class NVME(object, NVMECom):
                         Code = 255
 
                     # verify smart check 
+                    '''
                     if self.mCheckSmart:
                         if not self.SmartCheck.isRunning():
                             self.Print("SmartCheck fail, please check smart log: %s.log"%self.SmartCheck.pathLog, "f")
                             Code = 1
+                    '''
                     
                     # save code to SubCase_rtCode
                     self.SubCase_rtCode.append(Code)
@@ -502,8 +506,10 @@ class NVME(object, NVMECom):
                     
             # </for function from SubCase1 to SubCaseX   >    
             # smart check , stop it
+            '''
             if self.mCheckSmart:
                 self.SmartCheck.stop()
+            '''
     
             # if override Posttest(), then run it, or PreTestRtCode= true
             if self.IsMethodOverride( "PostTest"):
@@ -1492,9 +1498,12 @@ class NVME(object, NVMECom):
         
         # print por module is installed or not
         if self.isfileExist(self.porPath):
-            self.Print("%s installed: yes"%self.porPath)
+            self.Print("POR module installed(%s): yes"%self.porPath)
         else:
-            self.Print("%s installed: no"%self.porPath, "f")
+            self.Print("POR module installed(%s): no"%self.porPath, "f")
+        
+        # smart check module    
+        self.Print("SmartCheckModuleExist: %s"%self.SmartCheck.SmartCheckModuleExist)
         
         # link info    
         self.Print("LinkSpeedMax: %s"%self.initial_LinkSpeedMax)
@@ -1519,7 +1528,9 @@ class NVME(object, NVMECom):
             if currValue!=None: self.Print ("%s: %s"%(optionNameFull, currValue))    
               
               
-        self.Print("CheckSmart: %s"%self.mCheckSmart)
+        #self.Print("CheckSmart: %s"%self.mCheckSmart)
+        
+
               
         self.SetPrintOffset(4)              
         self.Print ("========================================="     )     
@@ -1693,8 +1704,10 @@ class SmartCheck_():
         self.pathSmartModule = "SMI_SmartCheck/SMI_SmartCheck.py"
         self.GnomePid = None
         self.Proc = None
-                
-        # check if module exist, if exist, load module
+        self.tkinter = None 
+        self.isGUIshowing = False   
+        #self.tkLlistbox = None 
+        # check if module exist, if exist, load module, else all smart log will not be checked
         self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False    
         if self.SmartCheckModuleExist: # load module for isRunOncePass()
             modulePath = "SMI_SmartCheck.SMI_SmartCheck.SMI_SmartCheck"
@@ -1713,6 +1726,9 @@ class SmartCheck_():
                     self._NVME.Print("smart.loadFromConfig() fail", "f")
                     self.SmartCheckModuleExist = False
                     
+            # GUI
+            self.tkinter = self._NVME.ImportModuleWithAutoYumInstall("Tkinter", "sudo yum -y install tkinter python-tools")  
+                                   
     def isRunning(self):
         # find current bash pid
         CMDps = "ps -aux |grep bash"
@@ -1725,6 +1741,86 @@ class SmartCheck_():
                     find = True
                     break    
         return True if find else False
+    
+    def disable_event(self):
+        pass
+    def close_program(self):
+        self.root.destroy()    
+        
+    def ThreadCreatUI(self):
+        # if tkinter module load success, init tkinter parameters
+        if self.tkinter!=None:
+            self.root=self.tkinter.Tk()  
+            self.root.geometry('{}x{}'.format(1100, 800))
+            
+            F_slotView = self.tkinter.Frame(self.root)
+            F_slotView.pack(side="top")
+            
+            self.scrollbar = self.tkinter.Scrollbar(self.root)
+            self.scrollbar.pack(side="right", fill="y")        
+
+            #self.tkLlistbox = self.tkinter.Listbox( self.root, height = 10, width = 8) # Dev="nvme0n1"
+            #self.tkLlistbox.pack(side="top")   
+
+            # attach listbox to self.scrollbar
+            #self.tkLlistbox.config(yscrollcommand=self.scrollbar.set)
+            #self.scrollbar.config(command=self.tkLlistbox.yview)        
+            
+            self.tkText = self.tkinter.Text(self.root, height = 1000, width = 800)
+            self.tkText.pack(side="top")   
+            
+            # attach listbox to self.scrollbar
+            self.tkText.config(yscrollcommand=self.scrollbar.set)
+            self.scrollbar.config(command=self.tkText.yview)                    
+            
+            F_Info = self.tkinter.Frame(self.root)
+            F_Info.pack(side="bottom")   
+            self.isGUIshowing = True
+            
+            btn = self.tkinter.Button(self.root, height = 40, width = 100, text = "Click me to close if tool crash", command = self.close_program) # using button to quit
+            btn.pack(side="top")              
+            
+            #self.root.protocol("WM_DELETE_WINDOW", self.disable_event) # disable delete
+            self.root.mainloop()
+        
+
+    def showWithGUI(self):
+        if not self.SmartCheckModuleExist or self.tkinter==None:
+            self._NVME.Print("Fail, detected SmartCheckModuleExist = false or tkinter not installed", "f")
+            return False
+        
+        # start thread to run gui        
+        if not self.isGUIshowing: 
+            tGUI = threading.Thread(target = self.ThreadCreatUI)
+            tGUI.start() 
+            
+            while True:
+                if self.isGUIshowing: 
+                    sleep(0.1)
+                    break # wait for thread start
+        
+        #bkPos = self.scrollbar.get()
+        # get current position
+        bkPos = self.tkText.index(self.tkinter.INSERT)
+
+        
+        # clear all
+        #self.tkLlistbox.delete(0,'end')
+        self.tkText.delete('1.0', "end")
+        
+        # add list
+        contextList = self._NVME.ReadFileFromLineToEnd("%s.log"%self.pathLog, 0)  
+        for text in contextList:
+            #text =  re.sub(r'[^{0}\n]'.format(string.printable), '', text)
+            #self.tkLlistbox.insert("end", text)       
+            self.tkText.insert("insert", text)   
+            
+        self.tkText.mark_set("insert", bkPos)
+        self.tkText.see("insert")
+ 
+        
+    
+
 
     def isRunOncePass(self):
     # run once for get log and check if is pass
@@ -1733,11 +1829,19 @@ class SmartCheck_():
             return False
 
         isError = self.smart.getSmart() # true= smart log fail
+        # show data and cat log to new tab
+        if self.tkinter ==None:
+            self.runCMDwithNewTab("date; cat %s.log"%self.pathLog)
+        else:
+            self.showWithGUI()
         return True if not isError else False
      
 
-    def start(self):
+    def runCMDwithNewTab(self, CMD):
         if self.SmartCheckModuleExist:
+            # if new tab already exist, close it
+            if self.GnomePid!=None: self.stop()
+            
             # find current bash pid
             CMDps = "ps -aux |grep bash"
             rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
@@ -1748,10 +1852,7 @@ class SmartCheck_():
                     # pid=int(re.search(rePattern, line).group(1))
                     value=int(re.search(rePattern, line).group(2)) 
                     ptsList0.append(value)
-                    
-            # "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
-            CMD = "python %s %s -s %s -p 1 -l %s 2>&1"\
-            %(self.pathSmartModule, self.dev_port, self.pathSmartIni, self.pathLog )                    
+                                   
             self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck --tab -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
             # do something here...
             
@@ -1775,6 +1876,14 @@ class SmartCheck_():
                 
             if self.GnomePid ==None: return False
             else: return True            
+
+    def start(self):
+        if self.SmartCheckModuleExist:
+            # "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
+            CMD = "python %s %s -s %s -p 1 -l %s 2>&1"\
+            %(self.pathSmartModule, self.dev_port, self.pathSmartIni, self.pathLog ) 
+            return self.runCMDwithNewTab(CMD)
+        else: return False
 
     def stop(self):
         # find current bash pid

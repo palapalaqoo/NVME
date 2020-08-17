@@ -340,6 +340,24 @@ class SMI_PLI(NVME):
         else:
             self.Print("Fail!", "f")
             return False
+    
+    def doSmartCheck(self):
+        rtCode = True
+        if not self.SmartCheck.SmartCheckModuleExist:
+            self.Print("Can't find smart check module!", "f")
+            rtCode = False
+        else:
+            if self.SmartCheck.isRunOncePass():
+                self.Print("Check SMART log: Pass", "p")
+                rtCode = True
+            else:
+                self.Print("Check SMART log: Fail", "f")
+                self.Print("Please check SMART log output file: %s"%self.SmartCheck.pathLog, "f")
+                rtCode = False     
+                
+            
+            
+        return rtCode           
         
     def RunFlow(self):
         result = True
@@ -355,17 +373,23 @@ class SMI_PLI(NVME):
             if (loop % 3)==0:
                 self.Print("Loop: %s,  IdleForXmin"%loop, "p")
                 self.SetPrintOffset(4)
+                if not self.doSmartCheck(): return False    # check smart log
                 result = self.IdleForXmin()
+                if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
             elif  (loop % 3)==1:
                 self.Print("Loop: %s,  RandReadXminMixOfSectorSizes"%loop, "p")        
                 self.SetPrintOffset(4)      
+                if not self.doSmartCheck(): return False
                 result = self.RandReadXminMixOfSectorSizes()
+                if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
             else:
                 self.Print("Loop: %s,  SeqWriteXmin256SectorTransfer"%loop, "p")  
                 self.SetPrintOffset(4)
+                if not self.doSmartCheck(): return False
                 result = self.SeqWriteXmin256SectorTransfer()
+                if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
 
             if result ==False:
@@ -374,14 +398,18 @@ class SMI_PLI(NVME):
             # if Loop/3 is even
             if (loop / 3) % 2 ==0: 
                 self.Print("Loop: %s,  WritePLI"%loop, "p")  
-                self.SetPrintOffset(4)                
+                self.SetPrintOffset(4)              
+                if not self.doSmartCheck(): return False  
                 result = self.WritePLI()
+                if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
             # else Loop/3 is not even
             else:
                 self.Print("Loop: %s,  ReadPLI"%loop, "p")
                 self.SetPrintOffset(4)
+                if not self.doSmartCheck(): return False
                 result = self.ReadPLI()
+                if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
                 
             if result ==False:
