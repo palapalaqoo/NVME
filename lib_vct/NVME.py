@@ -1751,34 +1751,32 @@ class SmartCheck_():
         # if tkinter module load success, init tkinter parameters
         if self.tkinter!=None:
             self.root=self.tkinter.Tk()  
-            self.root.geometry('{}x{}'.format(1100, 800))
+            self.root.geometry('{}x{}'.format(800, 1200))
+            self.root.pack_propagate(0) # fix height and width (no shrinking)
             
-            F_slotView = self.tkinter.Frame(self.root)
-            F_slotView.pack(side="top")
+            self.F_slotView = self.tkinter.Frame(self.root, height = 800, width = 1000)
+            self.F_slotView.pack()
+            self.F_slotView.pack_propagate(0) # fix height and width (no shrinking)
             
-            self.scrollbar = self.tkinter.Scrollbar(self.root)
-            self.scrollbar.pack(side="right", fill="y")        
-
-            #self.tkLlistbox = self.tkinter.Listbox( self.root, height = 10, width = 8) # Dev="nvme0n1"
-            #self.tkLlistbox.pack(side="top")   
-
+            self.scrollbarX = self.tkinter.Scrollbar(self.F_slotView, orient = self.tkinter.HORIZONTAL)
+            self.scrollbarX.pack(side="bottom", fill="x")  
+            self.scrollbarY = self.tkinter.Scrollbar(self.F_slotView)
+            self.scrollbarY.pack(side="right", fill="y")   
+                        
+            self.tkText = self.tkinter.Text(self.F_slotView, wrap=self.tkinter.NONE, height = 800, width = 1000, highlightbackground="brown")
+            self.tkText.pack(fill="y")   
+           
             # attach listbox to self.scrollbar
-            #self.tkLlistbox.config(yscrollcommand=self.scrollbar.set)
-            #self.scrollbar.config(command=self.tkLlistbox.yview)        
-            
-            self.tkText = self.tkinter.Text(self.root, height = 1000, width = 800)
-            self.tkText.pack(side="top")   
-            
-            # attach listbox to self.scrollbar
-            self.tkText.config(yscrollcommand=self.scrollbar.set)
-            self.scrollbar.config(command=self.tkText.yview)                    
-            
-            F_Info = self.tkinter.Frame(self.root)
-            F_Info.pack(side="bottom")   
+            self.tkText.config(xscrollcommand=self.scrollbarX.set)
+            self.scrollbarX.config(command=self.tkText.xview)                    
+            self.tkText.config(yscrollcommand=self.scrollbarY.set)
+            self.scrollbarY.config(command=self.tkText.yview)  
+                        
             self.isGUIshowing = True
             
-            btn = self.tkinter.Button(self.root, height = 40, width = 100, text = "Click me to close if tool crash", command = self.close_program) # using button to quit
-            btn.pack(side="top")              
+            btn = self.tkinter.Button(self.root, height = 5, width = 20, text = "Click me to close if tool crash", command = self.close_program) # using button to quit
+            btn.pack(side="top")  
+            btn.pack_propagate(0)            
             
             #self.root.protocol("WM_DELETE_WINDOW", self.disable_event) # disable delete
             self.root.mainloop()
@@ -1799,26 +1797,23 @@ class SmartCheck_():
                     sleep(0.1)
                     break # wait for thread start
         
-        #bkPos = self.scrollbar.get()
-        # get current position
-        bkPos = self.tkText.index(self.tkinter.INSERT)
-
-        
         # clear all
-        #self.tkLlistbox.delete(0,'end')
         self.tkText.delete('1.0', "end")
         
-        # add list
+        # print line by line
         contextList = self._NVME.ReadFileFromLineToEnd("%s.log"%self.pathLog, 0)  
         for text in contextList:
             #text =  re.sub(r'[^{0}\n]'.format(string.printable), '', text)
             #self.tkLlistbox.insert("end", text)       
             self.tkText.insert("insert", text)   
-            
-        self.tkText.mark_set("insert", bkPos)
-        self.tkText.see("insert")
- 
         
+        # print date
+        date = self._NVME.shell_cmd("date")
+        self.tkText.insert("insert", date)
+            
+        # set to last position
+        self.tkText.yview_moveto(1.0)
+
     
 
 
