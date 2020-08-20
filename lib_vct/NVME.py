@@ -83,6 +83,8 @@ class NVME(object, NVMECom):
         # final return code
         self.rtCode=0
         self.SubCase_rtCode=[]
+        # closingFuncList, dynamic function that will be run in ResetToInitStatus() after test finish
+        self.closingFuncList = []
         # Start Local Time
         self.StartLocalTime=time.time()
         self.SubCasePoint=0
@@ -617,6 +619,10 @@ class NVME(object, NVMECom):
             else:    
                 self.Print("Fail", "f")
                 success=False        
+        
+        if len(self.closingFuncList)!=0:
+            for mFunc in self.closingFuncList:
+                mFunc()
                 
         return success
 
@@ -1705,7 +1711,8 @@ class SmartCheck_():
         self.GnomePid = None
         self.Proc = None
         self.tkinter = None 
-        self.isGUIshowing = False   
+        self.isGUIshowing = False 
+        self.root = None  
         #self.tkLlistbox = None 
         # check if module exist, if exist, load module, else all smart log will not be checked
         self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False    
@@ -1744,8 +1751,17 @@ class SmartCheck_():
     
     def disable_event(self):
         pass
+    
+    # set self.close_program() to closingFuncList, note it's from _NVME to run the func
     def close_program(self):
-        self.root.destroy()    
+        if self.isGUIshowing:
+            self._NVME.Print("Closing smartcheck GUI..")
+            self._NVME.SmartCheck.root.quit() 
+            #self._NVME.SmartCheck.root.destroy()
+            self.tGUI.join(1)           
+            self.isGUIshowing=False             
+            self._NVME.Print("Done")
+        return True
         
     def ThreadCreatUI(self):
         # if tkinter module load success, init tkinter parameters
@@ -1762,23 +1778,25 @@ class SmartCheck_():
             self.scrollbarX.pack(side="bottom", fill="x")  
             self.scrollbarY = self.tkinter.Scrollbar(self.F_slotView)
             self.scrollbarY.pack(side="right", fill="y")   
-                        
-            self.tkText = self.tkinter.Text(self.F_slotView, wrap=self.tkinter.NONE, height = 800, width = 1000, highlightbackground="brown")
-            self.tkText.pack(fill="y")   
+                         
+            self.tkLlistbox = self.tkinter.Listbox( self.F_slotView, height = 800, width = 1000, font="Courier 10 bold")
+            self.tkLlistbox.pack(side="top")
            
             # attach listbox to self.scrollbar
-            self.tkText.config(xscrollcommand=self.scrollbarX.set)
-            self.scrollbarX.config(command=self.tkText.xview)                    
-            self.tkText.config(yscrollcommand=self.scrollbarY.set)
-            self.scrollbarY.config(command=self.tkText.yview)  
+            self.tkLlistbox.config(xscrollcommand=self.scrollbarX.set)
+            self.scrollbarX.config(command=self.tkLlistbox.xview)                    
+            self.tkLlistbox.config(yscrollcommand=self.scrollbarY.set)
+            self.scrollbarY.config(command=self.tkLlistbox.yview)              
                         
             self.isGUIshowing = True
+            # set self.close_program() to closingFuncList, note it's from _NVME to run the func
+            self._NVME.closingFuncList.append(self._NVME.SmartCheck.close_program)
             
-            btn = self.tkinter.Button(self.root, height = 5, width = 20, text = "Click me to close if tool crash", command = self.close_program) # using button to quit
-            btn.pack(side="top")  
-            btn.pack_propagate(0)            
+            #btn = self.tkinter.Button(self.root, height = 5, width = 20, text = "Click me to close if tool crash", command = self.close_program) # using button to quit
+            #btn.pack(side="top")  
+            #btn.pack_propagate(0)            
             
-            #self.root.protocol("WM_DELETE_WINDOW", self.disable_event) # disable delete
+            self.root.protocol("WM_DELETE_WINDOW", self.disable_event) # disable delete
             self.root.mainloop()
         
 
@@ -1789,32 +1807,31 @@ class SmartCheck_():
         
         # start thread to run gui        
         if not self.isGUIshowing: 
-            tGUI = threading.Thread(target = self.ThreadCreatUI)
-            tGUI.start() 
+            self.tGUI = threading.Thread(target = self.ThreadCreatUI)
+            self.tGUI.start() 
             
             while True:
                 if self.isGUIshowing: 
                     sleep(0.1)
                     break # wait for thread start
+
+        # save last position
+        vw = self.tkLlistbox.yview()
         
         # clear all
-        self.tkText.delete('1.0', "end")
-        
+        self.tkLlistbox.delete(0,'end')
+
+        # print date
+        text = self._NVME.shell_cmd("date")
+        self.tkLlistbox.insert("end", text) # new line    
+                
         # print line by line
         contextList = self._NVME.ReadFileFromLineToEnd("%s.log"%self.pathLog, 0)  
         for text in contextList:
-            #text =  re.sub(r'[^{0}\n]'.format(string.printable), '', text)
-            #self.tkLlistbox.insert("end", text)       
-            self.tkText.insert("insert", text)   
-        
-        # print date
-        date = self._NVME.shell_cmd("date")
-        self.tkText.insert("insert", date)
-            
-        # set to last position
-        self.tkText.yview_moveto(1.0)
+            self.tkLlistbox.insert("end", text) # new line
 
-    
+        # go back to last position
+        self.tkLlistbox.yview_moveto(vw[0]) 
 
 
     def isRunOncePass(self):
@@ -1829,8 +1846,7 @@ class SmartCheck_():
             self.runCMDwithNewTab("date; cat %s.log"%self.pathLog)
         else:
             self.showWithGUI()
-        return True if not isError else False
-     
+        return True if not isError else False     
 
     def runCMDwithNewTab(self, CMD):
         if self.SmartCheckModuleExist:

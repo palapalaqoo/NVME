@@ -152,11 +152,10 @@ class mtest1(NVME):
 
 
 
-
         for i in range(20):
             self.SmartCheck.isRunOncePass()
             sleep(2)
-        self.SmartCheck.stop()
+
         
         
         

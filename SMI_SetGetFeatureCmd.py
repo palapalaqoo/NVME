@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20200618"
+    Version = "20200820"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -266,7 +266,8 @@ class SMI_SetGetFeatureCMD(NVME):
             DS=self.CreateLBARangeDataStructure(value+1)
             mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)
         elif fid==0xC:
-            DS='\\x0\\x0\\x0\\x0\\x0\\x0\\x0\\x0'
+            #DS='\\x0\\x0\\x0\\x0\\x0\\x0\\x0\\x0'
+            DS=''.join(["\\x0" for i in range(8*32)]) # set 32 power states to 0x0, i.e. 64bit * 32 power states
             mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)            
         else:
             mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid)
