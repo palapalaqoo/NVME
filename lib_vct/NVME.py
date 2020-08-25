@@ -97,6 +97,9 @@ class NVME(object, NVMECom):
         self.middle_SB=0
         self.last_SB=0
         
+        #check smart
+        self.SmartCheck = SmartCheck_(self.dev_port, self)   
+                
         if self.ctrl_alive:  
             # init NVMECom
             NVMECom.__init__(self, self)            
@@ -219,8 +222,6 @@ class NVME(object, NVMECom):
         self.initial_LinkWidthCurr=self.GetLinkWidthCurrent()
         self.initial_LinkWidthMax=self.GetLinkWidthMax()   
         
-        #check smart
-        self.SmartCheck = SmartCheck_(self.dev_port, self)   
         
     
     def GetNSID(self):
@@ -1706,6 +1707,7 @@ class SmartCheck_():
         self._NVME = nvme
         self.dev_port=dev_port
         self.pathLog = "Log/SmartLogOut"
+        self.historyLogDir = "Log/SmartLogHistory"
         self.pathSmartIni = "SMART.ini"
         self.pathSmartModule = "SMI_SmartCheck/SMI_SmartCheck.py"
         self.GnomePid = None
@@ -1736,6 +1738,7 @@ class SmartCheck_():
             # GUI
             self.tkinter = self._NVME.ImportModuleWithAutoYumInstall("Tkinter", "sudo yum -y install tkinter python-tools")  
                                    
+    # for time base smart check
     def isRunning(self):
         # find current bash pid
         CMDps = "ps -aux |grep bash"
@@ -1834,18 +1837,32 @@ class SmartCheck_():
         self.tkLlistbox.yview_moveto(vw[0]) 
 
 
-    def isRunOncePass(self):
+    def isRunOncePass(self, HistoryLogFileName = None):
     # run once for get log and check if is pass
+    # HistoryLogFileName: if != None, copy log to self.historyLogDir/HistoryLogFileName
         if not self.SmartCheckModuleExist:
             self._NVME.Print("Fail, detected SmartCheckModuleExist = false", "f")
             return False
 
+        # issue get smart and check if is pass
         isError = self.smart.getSmart() # true= smart log fail
         # show data and cat log to new tab
         if self.tkinter ==None:
             self.runCMDwithNewTab("date; cat %s.log"%self.pathLog)
         else:
             self.showWithGUI()
+            
+        if HistoryLogFileName!=None:
+            # Create dir
+            if not os.path.exists(self.historyLogDir):
+                os.makedirs(self.historyLogDir)            
+            # write to file
+            fullPath = "%s/%s"%(self.historyLogDir, HistoryLogFileName)
+            self._NVME.shell_cmd("echo $(date) >> %s"%(fullPath)) # print date
+            self._NVME.shell_cmd("cat %s.log >> %s"%(self.pathLog, fullPath)) # print smart log
+            
+            
+            
         return True if not isError else False     
 
     def runCMDwithNewTab(self, CMD):
@@ -1888,6 +1905,7 @@ class SmartCheck_():
             if self.GnomePid ==None: return False
             else: return True            
 
+    # for time base smart check
     def start(self):
         if self.SmartCheckModuleExist:
             # "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
@@ -1896,6 +1914,7 @@ class SmartCheck_():
             return self.runCMDwithNewTab(CMD)
         else: return False
 
+    # for time base smart check
     def stop(self):
         # find current bash pid
         CMDps = "ps -aux |grep bash"

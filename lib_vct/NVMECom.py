@@ -131,7 +131,9 @@ class NVMECom():
         mStr ="summary_regress_xxx:        summary for regression tool \n" + \
                     "summary_color_xxx:    color summary log \n" + \
                     "detail_cmd_xxx:        all the commands issued in this test \n" + \
-                    "console_out_xxx:    color console output  \n" 
+                    "console_out_xxx:    color console output  \n" + \
+                    "%s:    last smart check output(if avaliable)  \n"%(self._NVME.SmartCheck.pathLog) + \
+                    "%s:    smart check history(if avaliable) \n"%(self._NVME.SmartCheck.historyLogDir)
         f.write(mStr)
         f.write("\n")        
         f.close()        
@@ -181,6 +183,7 @@ class NVMECom():
        
             
     def __init__(self, son):        
+        self._NVME = son
         # set NVMECom parameters from subclass
         self.device=son.dev
         self.device_port=son.dev[0:son.dev.find("nvme")+5]

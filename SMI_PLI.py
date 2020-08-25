@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200820"
+    Version = "20200825"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -343,16 +343,19 @@ class SMI_PLI(NVME):
     
     def doSmartCheck(self):
         rtCode = True
+        self.cntSmartCheck = self.cntSmartCheck +1
+        fileName = "smartCheck_%s.txt"%self.cntSmartCheck
+        fulllPath = "%s/%s"%(self.SmartCheck.historyLogDir, fileName)
         if not self.SmartCheck.SmartCheckModuleExist:
             self.Print("Can't find smart check module!", "f")
             rtCode = False
         else:
-            if self.SmartCheck.isRunOncePass():
-                self.Print("Check SMART log: Pass", "p")
+            if self.SmartCheck.isRunOncePass(fileName):
+                self.Print("Check SMART: Pass(%s)"%fulllPath, "p")
                 rtCode = True
             else:
-                self.Print("Check SMART log: Fail", "f")
-                self.Print("Please check SMART log output file: %s"%self.SmartCheck.pathLog, "f")
+                self.Print("Check SMART: Fail(%s)"%fulllPath, "f")
+                self.Print("Please check SMART log file: %s"%fulllPath, "f")
                 rtCode = False     
                 
             
@@ -368,7 +371,10 @@ class SMI_PLI(NVME):
                 return False
             self.Print("Done")        
         
-        for loop in range(1, self.loops+1):
+        loop = 0
+        while True:
+            loop = loop +1
+            if (loop > self.loops) and (self.loops!=0): break
             self.Print("-----------------------------------------------------", "b")
             if (loop % 3)==0:
                 self.Print("Loop: %s,  IdleForXmin"%loop, "p")
@@ -464,6 +470,7 @@ class SMI_PLI(NVME):
         self.paraLPISizeInBLK = self.KMGT_reverse(self.paraLPISize, self.OneBlockSize)# get number of blocks
         
         self.timeIsUp = False
+        self.cntSmartCheck = 0
         
 
     # define pretest, if not return 0 , skip all subcases
@@ -514,6 +521,7 @@ class SMI_PLI(NVME):
         self.Print("")
         self.Print("Note: Press Ctrl-C to skip the test!", "p")
         self.Print("")
+        
         try:
             ret_code=0 if self.RunFlow() else 1
         except KeyboardInterrupt:

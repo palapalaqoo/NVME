@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_SPOR(NVME):
     ScriptName = "SMI_SPOR.py"
     Author = "Sam"
-    Version = "20200803"
+    Version = "20200824"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
@@ -884,9 +884,20 @@ class SMI_SPOR(NVME):
                 else:
                     porType = self.porofftype
                 
+                if self.SmartCheck.isRunOncePass():
+                    self.Print("Check smart log: Pass", "p")
+                else:
+                    self.Print("Check smart log: Fail", "f")
+                    return 1
+                
                 if not self.SPOR(FileOutCnt, Loop=loop, SectorCnt = SectorCnt, isSeqWrite=isSeqWrite, porType=porType): return 1
                 
-          
+                if self.SmartCheck.isRunOncePass():
+                    self.Print("Check smart log: Pass", "p")
+                else:
+                    self.Print("Check smart log: Fail", "f")
+                    return 1
+                          
         except KeyboardInterrupt:
             self.Print("")
             self.Print("Detect ctrl+C, quit", "w")  
