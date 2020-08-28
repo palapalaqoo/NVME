@@ -1711,6 +1711,8 @@ class SmartCheck_():
         self.pathSmartIni = "SMART.ini"
         self.pathSmartModule = "SMI_SmartCheck/SMI_SmartCheck.py"
         self.GnomePid = None
+        self.GnomePtsNo = None
+        self.SmartCheckThread = None
         self.Proc = None
         self.tkinter = None 
         self.isGUIshowing = False 
@@ -1837,8 +1839,12 @@ class SmartCheck_():
         self.tkLlistbox.yview_moveto(vw[0]) 
 
 
-    def isRunOncePass(self, HistoryLogFileName = None):
+    def isRunOncePass(self, DisplayOption = "console", HistoryLogFileName = None):
     # run once for get log and check if is pass
+    # DisplayOption: 
+    #    'console', show result at current console
+    #    'newtab', show at new console tab
+    #    'gui', show with GUI if tkinter is installed, else use new console tab
     # HistoryLogFileName: if != None, copy log to self.historyLogDir/HistoryLogFileName
         if not self.SmartCheckModuleExist:
             self._NVME.Print("Fail, detected SmartCheckModuleExist = false", "f")
@@ -1846,11 +1852,25 @@ class SmartCheck_():
 
         # issue get smart and check if is pass
         isError = self.smart.getSmart() # true= smart log fail
-        # show data and cat log to new tab
-        if self.tkinter ==None:
-            self.runCMDwithNewTab("date; cat %s.log"%self.pathLog)
-        else:
-            self.showWithGUI()
+        
+        if DisplayOption == "console":
+            # show at current console
+            Log = self._NVME.shell_cmd("cat %s.log"%self.pathLog)
+            self._NVME.Print(Log, "i")
+
+        elif DisplayOption == "newtab":
+            # show data and cat log to new tab
+            self.runCMDwithNewTab("date")
+            self.runCMDwithNewTab("cat %s.log"%self.pathLog)
+        elif DisplayOption == "gui":
+            # show data and cat log to new tab if tkinter not installed
+            if self.tkinter ==None:
+                self._NVME.Print("tkinter was not installed, using newtab to display log!", "w")
+                self.runCMDwithNewTab("date")
+                self.runCMDwithNewTab("cat %s.log"%self.pathLog)
+            else:
+            # using GUI
+                self.showWithGUI()
             
         if HistoryLogFileName!=None:
             # Create dir
@@ -1865,7 +1885,76 @@ class SmartCheck_():
             
         return True if not isError else False     
 
-    def runCMDwithNewTab(self, CMD):
+    def getCurrPIDandPtsList(self):
+    # get current pid and pts list of all pts for grome terminal
+    # return pidList, ptsList
+        # find current bash pid
+        CMDps = "ps -aux |grep bash"
+        rePattern =  "(\d+)\s+.*pts/(\d+)\s.*\d:\d\d\sbash" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
+        pidList = []
+        ptsList = []
+        for line in self._NVME.yield_shell_cmd(CMDps):
+            if re.search(rePattern, line):
+                pid=int(re.search(rePattern, line).group(1))
+                pts=int(re.search(rePattern, line).group(2)) 
+                pidList.append(pid)
+                ptsList.append(pts)                
+        return pidList, ptsList
+                
+
+    def createNewTab(self):
+    # return createdPid, createdPts
+        # backup current pidList, ptsList(not used here)
+        pidList, ptsList = self.getCurrPIDandPtsList()
+        # create new tab        
+        #self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck --tab -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
+        self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck --tab -- bash",shell=True, stdout=subprocess.PIPE)
+        # wait for creating gnome-terminal and get pid by check if pts/x which x is new one
+        createdPid = None
+        createdPts = None
+        timeMax = 50 # 1 for 0.1s
+        while True:
+            pidListNew, ptsListNew = self.getCurrPIDandPtsList()
+            if len(pidListNew)!=len(pidList):    # if tab created
+                for i in range(len(pidListNew)):     # find created pid and pts number
+                    if pidListNew[i] not in pidList:
+                        createdPid = pidListNew[i]
+                        createdPts = ptsListNew[i]
+                        return createdPid, createdPts            
+            timeMax = timeMax -1            
+            if timeMax==0:# time up
+                break            
+            sleep(0.1)
+        # end while
+        return createdPid, createdPts
+
+    def runCMDwithNewTab(self, CMD, waitForCMDfinish=True):
+    # note: CMD must can not with ;
+    # i.e. one runCMDwithNewTab for one command only
+        if self.SmartCheckModuleExist:
+            # if new tab already exist, close it
+            #if self.GnomePid!=None: self.stop()
+            if self.GnomePid==None:
+                self.GnomePid, self.GnomePtsNo = self.createNewTab()
+                
+            # run command and print to new tab using /dev/pts/x where x is pts port number
+            if self.GnomePid ==None: 
+                return False
+            else:
+                if waitForCMDfinish==True: 
+                    self._NVME.shell_cmd("%s > /dev/pts/%s"%(CMD, self.GnomePtsNo))
+                else:
+                    # issue command and parser console out
+                    self.SmartCheckThread = threading.Thread(target = self.CMDThread, args=(CMD,))
+                    self.SmartCheckThread.start()                     
+                return True
+          
+    def CMDThread(self, CMD):
+        # run cmd and output to new tab
+        for line in self._NVME.yield_shell_cmd(CMD):
+            self._NVME.shell_cmd("echo '%s' > /dev/pts/%s"%(line, self.GnomePtsNo))      
+
+    def runCMDwithNewTabAsync(self, CMD):        
         if self.SmartCheckModuleExist:
             # if new tab already exist, close it
             if self.GnomePid!=None: self.stop()
@@ -1903,7 +1992,7 @@ class SmartCheck_():
             # end while
                 
             if self.GnomePid ==None: return False
-            else: return True            
+            else: return True           
 
     # for time base smart check
     def start(self):
@@ -1911,7 +2000,8 @@ class SmartCheck_():
             # "python SMI_SmartCheck/SMI_SmartCheck.py /dev/nvme0 -s SMART.ini -p 1 -l ./SmartLog/exampleLog2 2>&1"
             CMD = "python %s %s -s %s -p 1 -l %s 2>&1"\
             %(self.pathSmartModule, self.dev_port, self.pathSmartIni, self.pathLog ) 
-            return self.runCMDwithNewTab(CMD)
+            return self.runCMDwithNewTabAsync(CMD)
+            #return self.runCMDwithNewTab(CMD, waitForCMDfinish=False)
         else: return False
 
     # for time base smart check
@@ -1932,6 +2022,11 @@ class SmartCheck_():
             # os.kill(self.GnomePid, signal.SIGKILL)  
             self._NVME.shell_cmd("kill -9 %s"%self.GnomePid)
             self.GnomePid = None
+            self.GnomePtsNo = None
+            
+        if self.SmartCheckThread!=None:
+            self.SmartCheckThread.kill()
+            self.SmartCheckThread=None
         return True
            
 # ==============================================================    

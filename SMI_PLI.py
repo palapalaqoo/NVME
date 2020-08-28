@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200825"
+    Version = "20200827"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -350,7 +350,7 @@ class SMI_PLI(NVME):
             self.Print("Can't find smart check module!", "f")
             rtCode = False
         else:
-            if self.SmartCheck.isRunOncePass(fileName):
+            if self.SmartCheck.isRunOncePass(DisplayOption = self.paraSmartDisplay, HistoryLogFileName = fileName):
                 self.Print("Check SMART: Pass(%s)"%fulllPath, "p")
                 rtCode = True
             else:
@@ -434,6 +434,13 @@ class SMI_PLI(NVME):
         self.SetDynamicArgs(optionName="t1", optionNameFull="PorOffTimer1", helpMsg="Power Off Timer maxium in millisecond, default = 4000", argType=int)
         self.SetDynamicArgs(optionName="precon", optionNameFull="Precondition", helpMsg="do precondition, usage, -precon no, default = yes", argType=str)
         self.SetDynamicArgs(optionName="poroffdur", optionNameFull="PowerOffDuration", helpMsg="Power Off Duration in millisecond, default = 0", argType=str)
+        self.SetDynamicArgs(optionName="smartdisplay", optionNameFull="SmartDisplay",\
+                             helpMsg="Smart log display option, default = 'console'"\
+                             "\n'-smartdisplay console', display smart log in current console"\
+                             "\n'-smartdisplay newtab', display smart log in new console"\
+                             "\n'-smartdisplay gui', display smart log with GUI if tkinter was installed, else display smart log in new console"\
+                             "\n'-smartdisplay no', will hide smart log"\
+                             , argType=str, default="console")
         
         
         # initial parent class
@@ -462,7 +469,9 @@ class SMI_PLI(NVME):
         self.paraPrecondition="yes" if self.paraPrecondition!="no" else self.paraPrecondition 
         
         self.paraPowerOffDuration = self.GetDynamicArgs(7) 
-        self.paraPowerOffDuration=0 if self.paraPowerOffDuration==None else self.paraPowerOffDuration           
+        self.paraPowerOffDuration=0 if self.paraPowerOffDuration==None else self.paraPowerOffDuration       
+        
+        self.paraSmartDisplay = self.GetDynamicArgs(8) 
         
         self.NCAP=self.IdNs.NCAP.int  
         self.MaxNLB = self.MaxNLBofCDW12()   
@@ -521,7 +530,7 @@ class SMI_PLI(NVME):
         self.Print("")
         self.Print("Note: Press Ctrl-C to skip the test!", "p")
         self.Print("")
-        
+                
         try:
             ret_code=0 if self.RunFlow() else 1
         except KeyboardInterrupt:
