@@ -27,7 +27,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20200810"
+    Version = "20200902"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -91,7 +91,23 @@ class SMI_NVMeReset(NVME):
         os.close(fd)
         return ret    
     
-    
+     
+    def GetEN(self):
+        #return self.CR.CC.bit(0)       
+        CC= self.MemoryRegisterBaseAddress+0x14
+        CChex=hex(CC)
+        rtStr = self.shell_cmd("devmem2 %s"%CChex)
+        mStr=":\s0x(\w+)"   #  Value at address 0xa1100014: 0x00460001
+        if re.search(mStr, rtStr):
+            rtStr=int(re.search(mStr, rtStr).group(1),16)
+        else:
+            print "GetEN error"
+            rtStr=int(0)
+
+        CC_EN = rtStr & 0x1
+        return CC_EN    
+
+
     
     def GetRDY(self):
         #return self.CR.CSTS.bit(0) 
@@ -102,6 +118,7 @@ class SMI_NVMeReset(NVME):
         if re.search(mStr, CSTS):
             CSTS=int(re.search(mStr, CSTS).group(1),16)
         else:
+            print "GetRDY error"
             CSTS=int(0)
 
         RDY = CSTS & 0x1
@@ -160,8 +177,8 @@ class SMI_NVMeReset(NVME):
         #implement in SMI_NVMEReset.py
         CC= self.MemoryRegisterBaseAddress+0x14
         CChex=hex(CC)
-        self.shell_cmd("devmem2 %s w 0x00460000"%CChex, 1)
-                
+        sleep(0.5)
+        self.shell_cmd("devmem2 %s w 0x00460000"%CChex)                
         self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
         self.status="normal"
         return 0                
@@ -368,7 +385,7 @@ class SMI_NVMeReset(NVME):
         
         self.Print ("Check if CSTS.RDY is set to 1 before reset:")
         if RDY==1:
-            self.Print("Pass", "p")
+            self.Print("Pass")
         else:
             self.Print("Fail, exit sub case!", "f")
             ret_code=1
@@ -379,22 +396,58 @@ class SMI_NVMeReset(NVME):
         ASQ = self.CR.ASQ.str   
         ACQ = self.CR.ACQ.str    
                       
-        self.Print ("NVME reset (Controller disable)"        )
+        self.Print ("Issue NVME reset (Controller disable)"        )
+        self.Print ("")
         t = threading.Thread(target = self.nvme_reset)
         t.start()
         
-        self.Print ("Wait for CSTS.RDY = 0")
-        while self.GetRDY()==1:
-            pass
+        self.Print ("Wait for CC.EN = 0")
+        while True:
+            if self.GetEN()==0: break
         
-        self.Print("CSTS.RDY = 0", "p")
+        self.Print ("CC.EN = 0 now, timer start here")
+        self.timer.start("float")
+
+        self.Print ("Wait for CSTS.RDY = 0")
+        while True:
+            if self.GetRDY()==0: break        
+        
+        self.Print ("CSTS.RDY = 0 now, timer stop here")
+        T0 = self.timer.time
+        self.Print ("time usage for CSTS.RDY to transition from ‘1’ to ‘0’ after CC.EN transitions from ‘1’ to ‘0’ is less then %s second"%format(T0, '.6f'))
+        self.Print ("")
+        
+        self.Print ("Wait for CC.EN = 1")
+        while True:
+            if self.GetEN()==1: break     
+
+        self.Print ("CC.EN = 1 now, timer start here")
+        self.timer.start("float")
+        
+        #self.Print("CSTS.RDY = 0", "p")
         self.Print ("Wait for CSTS.RDY = 1")
-        while self.GetRDY()==0:
-            pass
+        while True:
+            if self.GetRDY()==1: break 
+        
+        self.Print ("CSTS.RDY = 1 now, timer stop here")
+        T1 = self.timer.time
+        self.Print ("time usage for CSTS.RDY to transition from ‘0’ to ‘1’ after CC.EN transitions from ‘0’ to ‘1’ is less then %s second"%format(T1, '.6f'))
+        self.Print ("")
+        
+        sleep(1)
+        TimeOut = self.CR.CAP.TO.int
+        TimeOutInSecond = TimeOut*0.5
+        self.Print ("ControllerRegister.CAP.Timeout (TO): %s, i.e. %s second"%(TimeOut, TimeOutInSecond))
+        self.Print ("Check if time usage for CSTS.RDY is <= CAP.Timeout")
+        if T0 > TimeOutInSecond or T1 > TimeOutInSecond:
+            self.Print ("Fail", "f")
+            ret_code=1
+        else:
+            self.Print ("Pass", "p")
+                    
         
         t.join()
-        self.Print("CSTS.RDY = 1", "p")
-        
+        self.Print ("")
         self.Print ("compare AQA, ASQ, ACQ after reset")
         self.Print ("before reset: AQA = %s" %(AQA))
         self.Print ("before reset: ASQ = %s" %(ASQ))

@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200827"
+    Version = "20200907"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -180,25 +180,40 @@ class SMI_PLI(NVME):
         t.start()        
         
         while True:
-            self.RecordCmdToLogFile = False
+            #self.RecordCmdToLogFile = False
             mStr, SC=self.shell_cmd_with_sc(CMD)
-            self.RecordCmdToLogFile = True
+            #self.RecordCmdToLogFile = True
             # if fail
             if (SC!=0):
-                sleep(1) # sleep 1 s to prevent /dev/nvme0n1 is exist after spor
-                if self.dev_alive:
-                    self.Print("FIO write Fail, devices is still alive, fail the test", "f")
-                    t.join()
-                    return False
-                else:
-                    self.Print("FIO write Failure as expected, device is missing(power off), wait for device power on", "p")
-                    #wait ThreadTimeUpDoSpor finish
-                    t.join()
-                    if self.dev_alive:
-                        self.Print("Success to power disk on")
+                # check if device is missing(expect missing)
+                if self.ctrl_alive:
+                    self.Print("FIO read Fail", "w")
+                    failMaxCnt = 5
+                    while True:
+                        if failMaxCnt==0: break
+                        if not self.ctrl_alive: break
+                        failMaxCnt -= 1                     
+                                                
+                        self.Print("devices is still alive(Linux may not update disk status after power off)", "w")
+                        self.Print("issue 'echo 1 > /sys/bus/pci/rescan ' now and check again after 0.1s", "w")
+                        self.shell_cmd("echo 1 > /sys/bus/pci/rescan ", 0.1)
+                    
+                    if not self.ctrl_alive:
+                        self.Print("After rescan and wait 0.1s, devices is missing, keep going")
                     else:
-                        self.Print("Fail to power disk on, fail the test", "f")
-                        return False                        
+                        self.Print("After rescan and wait 0.1s, devices is still alive, fail the test", "f")
+                        t.join()
+                        return False
+                # end of check if device is missing(expect missing)   
+                                
+                self.Print("FIO write Failure as expected, device is missing(power off), wait for device power on", "p")
+                #wait ThreadTimeUpDoSpor finish
+                t.join()
+                if self.ctrl_alive:
+                    self.Print("Success to power disk on")
+                else:
+                    self.Print("Fail to power disk on, fail the test", "f")
+                    return False                        
                 break
             
             # if time up
@@ -289,24 +304,40 @@ class SMI_PLI(NVME):
         CMD = "fio --direct=1 --iodepth=1 --ioengine=libaio --bs=%s --rw=read --numjobs=1 --size=%s --offset=%s "\
         "--filename=%s --name=mdata --do_verify=0 2>&1"%(BS, SIZE, OFFSET, self.dev)        
         while True:
-            self.RecordCmdToLogFile = False
+            #self.RecordCmdToLogFile = False
             mStr, SC=self.shell_cmd_with_sc(CMD)
-            self.RecordCmdToLogFile = True
+            #self.RecordCmdToLogFile = True
             # if fail
             if (SC!=0):
-                if self.dev_alive:
-                    self.Print("FIO read Fail, devices is still alive, fail the test", "f")
-                    t.join()
-                    return False
-                else:
-                    self.Print("FIO read Failure as expected, device is missing(power off), wait for device power on", "p")
-                    #wait ThreadTimeUpDoSpor finish
-                    t.join()
-                    if self.dev_alive:
-                        self.Print("Success to power disk on")
+                # check if device is missing(expect missing)
+                if self.ctrl_alive:
+                    self.Print("FIO read Fail", "w")
+                    failMaxCnt = 5
+                    while True:
+                        if failMaxCnt==0: break
+                        if not self.ctrl_alive: break
+                        failMaxCnt -= 1                     
+                                                
+                        self.Print("devices is still alive(Linux may not update disk status after power off)", "w")
+                        self.Print("issue 'echo 1 > /sys/bus/pci/rescan ' now and check again after 0.1s", "w")
+                        self.shell_cmd("echo 1 > /sys/bus/pci/rescan ", 0.1)
+                    
+                    if not self.ctrl_alive:
+                        self.Print("After rescan and wait 0.1s, devices is missing, keep going")
                     else:
-                        self.Print("Fail to power disk on, fail the test", "f")
-                        return False                        
+                        self.Print("After rescan and wait 0.1s, devices is still alive, fail the test", "f")
+                        t.join()
+                        return False
+                # end of check if device is missing(expect missing)     
+                
+                self.Print("FIO read Failure as expected, device is missing(power off), wait for device power on", "p")
+                #wait ThreadTimeUpDoSpor finish
+                t.join()
+                if self.ctrl_alive:
+                    self.Print("Success to power disk on")
+                else:
+                    self.Print("Fail to power disk on, fail the test", "f")
+                    return False                        
                 break
             
             # if time up
@@ -376,6 +407,7 @@ class SMI_PLI(NVME):
             loop = loop +1
             if (loop > self.loops) and (self.loops!=0): break
             self.Print("-----------------------------------------------------", "b")
+            '''
             if (loop % 3)==0:
                 self.Print("Loop: %s,  IdleForXmin"%loop, "p")
                 self.SetPrintOffset(4)
@@ -400,7 +432,7 @@ class SMI_PLI(NVME):
 
             if result ==False:
                 return False
-            
+            ''' 
             # if Loop/3 is even
             if (loop / 3) % 2 ==0: 
                 self.Print("Loop: %s,  WritePLI"%loop, "p")  
@@ -409,6 +441,7 @@ class SMI_PLI(NVME):
                 result = self.WritePLI()
                 if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
+            '''
             # else Loop/3 is not even
             else:
                 self.Print("Loop: %s,  ReadPLI"%loop, "p")
@@ -417,7 +450,7 @@ class SMI_PLI(NVME):
                 result = self.ReadPLI()
                 if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
-                
+            '''    
             if result ==False:
                 return False
         
@@ -437,7 +470,8 @@ class SMI_PLI(NVME):
         self.SetDynamicArgs(optionName="smartdisplay", optionNameFull="SmartDisplay",\
                              helpMsg="Smart log display option, default = 'console'"\
                              "\n'-smartdisplay console', display smart log in current console"\
-                             "\n'-smartdisplay newtab', display smart log in new console"\
+                             "\n'-smartdisplay newtab', display smart log in new tab"\
+                             "\n'-smartdisplay newconsole', display smart log in new console"\
                              "\n'-smartdisplay gui', display smart log with GUI if tkinter was installed, else display smart log in new console"\
                              "\n'-smartdisplay no', will hide smart log"\
                              , argType=str, default="console")

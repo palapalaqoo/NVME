@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_SPOR(NVME):
     ScriptName = "SMI_SPOR.py"
     Author = "Sam"
-    Version = "20200824"
+    Version = "20200907"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
@@ -909,6 +909,30 @@ class SMI_SPOR(NVME):
 
         return ret_code
 
+    SubCase2TimeOut = 0
+    SubCase2Desc = "SPOR module test"   
+    SubCase2KeyWord = ""
+    def SubCase2(self):  
+        self.Print("Verify SPOR for power module with smart checking")
+        self.Print("Total test loop: %s"%self.loops)
+        self.Print("Power Off Duration in second: %s"%self.PowerOffDuration)      
+           
+        if not self.SmartCheck.isRunOncePass(): return False
+            
+        for loop in range(self.loops):   
+            self.Print("")
+            self.Print("loop: %s, start to do spor -----------------------------------------------------------------------"%loop)    
+            if not self.spor_reset(showMsg=True, PowerOffDuration=self.PowerOffDuration): 
+                self.Print("loop: %s, fail"%loop, "f") 
+                return 1
+            else:
+                self.Print("loop: %s, pass"%loop, "p") 
+            
+            self.Print("Check smart log")    
+            if not self.SmartCheck.isRunOncePass(): return False
+            self.Print("")
+
+        return 0
     # </define sub item scripts>
 
     # define PostTest  

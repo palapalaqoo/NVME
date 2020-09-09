@@ -25,6 +25,8 @@ class RegDescriptor(object,NVMECom):
         self.regtype=regType
         self.nsspec=nsSpec
         self._NVME = NVMEobj
+        self.lastCMD = None
+        self.lastNvmeCMD = None
     
     def get_reg(self, cmd, reg, gettype=0, nsSpec=True):
     #-- cmd = nvme command, show-regs, id-ctrl, id-ns
@@ -42,6 +44,8 @@ class RegDescriptor(object,NVMECom):
             DEV=self.device_port
         #DEV=self.device if cmd=="id-ns" else self.device_port
         mStr="nvme %s %s |grep '^%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
+        self.lastNvmeCMD = "nvme %s %s" %(cmd, DEV)
+        self.lastCMD= mStr
         if gettype==0:
             return self.shell_cmd(mStr)[::-1]
         if gettype==1:
@@ -61,7 +65,10 @@ class RegDescriptor(object,NVMECom):
     def int(self):
         mstr=self.get_reg(cmd=self.cmd, reg=self.reg, gettype=1, nsSpec=self.nsspec)
         if mstr=="":
-            self._NVME.Print("Error read  %s %s"%(self.cmd, self.reg), "f")  
+            self._NVME.Print("Error read  %s %s, CMD : %s"%(self.cmd, self.reg, self.lastCMD), "f")  
+            self._NVME.Print("try to issue CMD : %s"%(self.lastNvmeCMD), "f")
+            mStr = self._NVME.shell_cmd(self.lastNvmeCMD)
+            self._NVME.Print(mStr)            
             return 0      
         if self.regtype==RegType.hex:         
             mstrint=int(mstr, 16)

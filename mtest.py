@@ -148,14 +148,14 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-
-        self.SmartCheck.start()
-
-        
-        sleep(50)
-
-        
-        
+        self.Print("")
+        LsDev=""
+        CMD = "ls -l %s* | grep %s"%(self.dev_port, self.dev) # ls -l /dev/nvme0* |grep /dev/nvme0n1
+        rtStr = self.shell_cmd(CMD)
+        mStr="(.+)," # ex. NVMe Status:INVALID_NS(b) NVMe\s+Status.+\((\w+)\)
+        if re.search(mStr, rtStr):
+            LsDev = re.search(mStr, rtStr).group(1)  
+        #self.SmartCheck.stop()
         
         aa = 5
 

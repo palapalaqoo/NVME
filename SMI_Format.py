@@ -25,7 +25,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20200407"
+    Version = "20200902"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -782,7 +782,6 @@ class SMI_Format(NVME):
         ret_code=0
         self.Print ("Check data After the format NVM command successfully completes with SES=0x2 (Cryptographic Erase )")
         self.Print ("This is accomplished by deleting the encryption key.")
-        self.Print ("The data from the controller after format NVM command is encrypted(garbled)")
         if not self.SecureEraseSupported:
             self.Print ("Secure Erase is not Supported, quite this test")
         else:
@@ -790,19 +789,13 @@ class SMI_Format(NVME):
             self.write_SML_data(0xab)
             self.Print ("send format command with SES=0x2(Cryptographic Erase)")
             self.Print( self.Format(1, 0, 2) )
-            self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff or 0xab, then fail the test"%(self.start_SB, self.middle_SB, self.last_SB))
-            if self.isequal_SML_data(0x0):
-                self.Print("FAIL, data is 0x0", "f")
-                ret_code = 1
-            elif self.isequal_SML_data(0xff):
-                self.Print("FAIL, data is 0xff", "f")
-                ret_code = 1
-            elif self.isequal_SML_data(0xab):
+            self.Print ("Check data at block %s, %s and %s, size=1M, if data is 0xab, then fail the test"%(self.start_SB, self.middle_SB, self.last_SB))
+            if self.isequal_SML_data(0xab):
                 self.Print("FAIL, data is 0xab", "f")
                 ret_code = 1
             else:
                 self.Print("PASS", "p")  
-                
+        '''        
         if self.IsControllerName(self.CryptographicErasePass_0):     
             self.Print ("Controller is %s, so let this test pass"%self.CryptographicErasePass_0)
             ret_code=0
@@ -811,7 +804,8 @@ class SMI_Format(NVME):
             ret_code=0
         if self.IsControllerName(self.CryptographicErasePass_2):     
             self.Print ("Controller is %s, so let this test pass"%self.CryptographicErasePass_2)
-            ret_code=0                        
+            ret_code=0   
+        '''                     
             
         return ret_code
 

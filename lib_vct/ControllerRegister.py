@@ -51,6 +51,7 @@ class CR_(object,NVMECom):
         self.CSTS=RegDescriptor("show-regs", "csts", NVMEobj=obj)
         self.CSTS.bss=RegDescriptor("show-regs", "csts", NVMEobj=obj)
         self.CSTS.SHST=RegDescriptor("show-regs", "csts", 2, 3, NVMEobj=obj)
+        self.CSTS.RDY=RegDescriptor("show-regs", "csts", 0, 0, NVMEobj=obj)
         
         self.AQA=RegDescriptor("show-regs", "aqa", NVMEobj=obj)  
         self.ASQ=RegDescriptor("show-regs", "asq", NVMEobj=obj)  

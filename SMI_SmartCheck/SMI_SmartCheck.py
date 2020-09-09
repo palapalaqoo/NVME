@@ -1,16 +1,9 @@
 #!/usr/bin/env python
-from Data import *
-from NVMe import NVMe
-from CMD import CMD
+from SMI_TestTools_Lite.Data import *
+from SMI_TestTools_Lite.NVMe import NVMe
 
-import sys
 import os
-
 import argparse
-import ctypes
-import struct
-import fcntl
-import random
 import time
 import logging
 import ConfigParser
@@ -24,7 +17,7 @@ import json
 class SMI_SmartCheck(object):
 	script_attribute = {
 		'name'					: 'SMI_SmartCheck',
-		'version'				: '20200729A',
+		'version'				: '20200731A',
 		'author'				: 'Thomas Lei',
 	}
 
@@ -95,8 +88,19 @@ class SMI_SmartCheck(object):
 
 		# Convert to path to Path by-id
 		pathBasenameDiskSN = os.path.basename(self.disk_id) if (self.disk_id[:5] == "/dev/") else self.disk_id # Gives the extracked disk name or disk SN
-		idPathName = CMD("idPathArray=($(ls /dev/disk/by-id -la| grep %s | awk '{printf \"%%s \", $9}'));echo ${idPathArray[0]}"%(pathBasenameDiskSN), timeout=1000).get_stdout("line")
+		# idPathName = CMD("idPathArray=($(ls /dev/disk/by-id -la| grep %s | awk '{printf \"%%s \", $9}'));echo ${idPathArray[0]}"%(pathBasenameDiskSN), timeout=1000).get_stdout("line")
+		idPathName = None
+		signal.signal(signal.SIGALRM, lambda signum, frame: None)
+		signal.alarm(1)
+		idPathName = subprocess.Popen("idPathArray=($(ls /dev/disk/by-id -la| grep %s | awk '{printf \"%%s \", $9}'));echo ${idPathArray[0]}"%(pathBasenameDiskSN), shell=True, stdout=subprocess.PIPE).stdout.read()[:-1]
+		signal.alarm(0)
 		self.disk_id = "/dev/disk/by-id/%s"%(idPathName) if idPathName else self.disk_id
+
+		pathProtocol = 'ata' if (self.disk_id.find('nvme') < 0) else 'nvme'
+
+		if pathProtocol != self.protocol: 
+			logging.error("Error!!! Device's protocol not match with '%s'."%(self.smart_config_file))
+			return 1
 
 		if self.protocol == 'nvme': self.NVMe = NVMe(self.disk_id)
 		else: pass
@@ -278,7 +282,12 @@ class SMI_SmartCheck(object):
 		else:
 			try:
 				cmd = "unset arg;for((i=1;i<=255;i++));do arg[i]=\"-v$i,raw48\";done;smartctl -A %s ${arg[@]}| grep '^[[:space:][:digit:]]' | awk '{printf \"%%d: %%d,\",$1,$10}'"%(self.disk_id)
-				attrValue = "{%s}"%(CMD(cmd, timeout=2000).get_stdout("line"))
+
+				# signal.signal(signal.SIGALRM, lambda signum, frame: None)
+				signal.alarm(2)
+				attrValue = "{%s}"%(subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout.read()[:-1])
+				signal.alarm(0)
+				# attrValue = "{%s}"%(CMD(cmd, timeout=2000).get_stdout("line"))
 
 				# here 'attrValue' is e.g.(in string): {{1: 211641346},{3: 0},{4: 1466},{5: 0},{7: 53754585},{9: 9333},{10: 0},{12: 1458},{183: 0},{184: 0},{187: 0},{188: 8},{189: 0},{190: 706215975},{193: 1707},{194: 68719476775},{195: 211641346},{197: 0},{198: 0},{199: 0},{240: 205591494534207},{241: 4073426008},{242: 8271790727},}
 				attrValue = ast.literal_eval(attrValue)
@@ -316,11 +325,15 @@ class SMI_SmartCheck(object):
 		filePath = os.path.dirname(self.log_file)
 		if filePath and (not os.path.exists(filePath)): os.makedirs(filePath)
 
+		logUpdateTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+
 		ret = 0
 		if 'json' in fmt:
 			try: 
 				SmartPagesLog = open(self.log_file+".json", 'w')
-				SmartPagesLog.write( json.dumps({'toolInfo': self.script_attribute, 'log': self.SmartPagesDict()}, sort_keys=True, indent=4, separators=(',', ': ')) )
+				SmartPagesLog.write( json.dumps({	'toolInfo': self.script_attribute, 
+													'logInfo': {'lastUpdate': logUpdateTime}, 
+													'log': self.SmartPagesDict()}, sort_keys=True, indent=4, separators=(',', ': ')) )
 				SmartPagesLog.close()
 			except: ret = 1
 		if 'txt' in fmt:
@@ -328,6 +341,9 @@ class SMI_SmartCheck(object):
 				SmartPagesLog = open(self.log_file+".log", 'w')
 				SmartPagesLog.write('{:=^104}\n'.format(" Tool Information ")+
 									''.join(map(lambda (t,c): '{:^104}\n'.format("%s: %s"%(t,c)), self.script_attribute.items()))+
+									'{:=^104}\n'.format("") )
+				SmartPagesLog.write('{:=^104}\n'.format(" Log Information ")+
+									'{:^104}\n'.format("Log last updated at: %s"%(logUpdateTime))+
 									'{:=^104}\n'.format("") )
 				SmartPagesLog.write(self.SmartPagesTable())
 				SmartPagesLog.close()
@@ -438,12 +454,12 @@ if __name__ == "__main__":
 	parser.add_argument('disk_id', type=str, help="Disk ID which is going to be tested.")
 	parser.add_argument('-c', '--total_cycle', type=int, default=0,
 						help="Set test cycle, 0 means infinite. Default is 0.")
+	parser.add_argument('-l', '--log_file', type=str, default="",
+						help="SMART log filename. Keep empty if you do not want to keep SMART data log.")
 	parser.add_argument('-p', '--smart_monitor_period', type=int, default=5,
 						help="Set period of monitoring SMART data (in seconds). Default is 5.")
 	parser.add_argument('-s', '--smart_config_file', type=str, default="",
 						help="Assign SMART configuration filename. Keep empty if you do not want to monitor SMART data.")
-	parser.add_argument('-l', '--log_file', type=str, default="",
-						help="SMART log filename. Keep empty if you do not want to keep SMART data log.")
 
 	args = parser.parse_args()
 	logging.info('\n'+description)

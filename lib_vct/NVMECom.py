@@ -280,7 +280,21 @@ class NVMECom():
         
         return value, SC
         
+    def getLsDev(self):
+    # get ls -l for /dev/nvme0n1
+        LsDev=""
+        CMD = "ls -l %s* | grep %s"%(self._NVME.dev_port, self._NVME.dev) # ls -l /dev/nvme0* |grep /dev/nvme0n1
+        # ex. brw-rw----. 1 root disk 259, 0 Sep  9 12:57 /dev/nvme0n1, get brw-rw----. 1 root disk 259
+        # ex. -rw-r--r--. 1 root root      0 Sep  9 14:56 /dev/nvme0n1, here is fail pattern that will return all fail pattern
+        mStr="(.+)," 
+        rtStr = self.shell_cmd(CMD)
+        if re.search(mStr, rtStr):
+            LsDev = re.search(mStr, rtStr).group(1)  
+        else:
+            LsDev = rtStr
 
+        return LsDev
+            
     def yield_shell_cmd(self, cmd):
         # like shell_cmd(), but it will yield new line
         #---------------------------------------------------------------------------------------
@@ -1443,7 +1457,7 @@ class timer_():
         self._StartT=0
         self._StopT=0
         self.returnType = "string"
-    def start(self, returnType = "string"):     #string/int
+    def start(self, returnType = "string"):     #string/int/float
         self._StartT=time.time()
         self.returnType = returnType
     def stop(self):

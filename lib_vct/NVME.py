@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from _ctypes import sizeof
+from sepolgen.refparser import success
 
 # Import python built-ins
 '''
@@ -99,6 +100,8 @@ class NVME(object, NVMECom):
         
         #check smart
         self.SmartCheck = SmartCheck_(self.dev_port, self)   
+        # set self.stop() to closingFuncList for close console or ugi after test finished
+        self.closingFuncList.append(self.SmartCheck.stop)        
                 
         if self.ctrl_alive:  
             # init NVMECom
@@ -220,7 +223,10 @@ class NVME(object, NVMECom):
         self.initial_LinkSpeedCurr=self.GetLinkSpeedCurrent()
         self.initial_LinkSpeedMax=self.GetLinkSpeedMax()
         self.initial_LinkWidthCurr=self.GetLinkWidthCurrent()
-        self.initial_LinkWidthMax=self.GetLinkWidthMax()   
+        self.initial_LinkWidthMax=self.GetLinkWidthMax()
+        
+        # for por/spor, we have to check file property
+        self.initial_LsDev=self.getLsDev()   
         
         
     
@@ -397,13 +403,7 @@ class NVME(object, NVMECom):
         else:
             PreTestRtCode = 0
         
-        if PreTestRtCode==0:
-            # if PreTestRtCode = true
-            '''
-            if self.mCheckSmart:
-                self.SmartCheck.start()
-            '''
-            
+        if PreTestRtCode==0:            
             # do subcase and posttest and get the self.rtCode
             
             # <for function from SubCase1 to SubCaseX if function is overrided, where max SubCaseX=SubCase64>
@@ -492,14 +492,6 @@ class NVME(object, NVMECom):
                     else:
                         # if user didn't assign subcase, return skip                              
                         Code = 255
-
-                    # verify smart check 
-                    '''
-                    if self.mCheckSmart:
-                        if not self.SmartCheck.isRunning():
-                            self.Print("SmartCheck fail, please check smart log: %s.log"%self.SmartCheck.pathLog, "f")
-                            Code = 1
-                    '''
                     
                     # save code to SubCase_rtCode
                     self.SubCase_rtCode.append(Code)
@@ -508,11 +500,6 @@ class NVME(object, NVMECom):
                     self.WriteSubCaseResultToLog(Code, SubCaseNum, Description)
                     
             # </for function from SubCase1 to SubCaseX   >    
-            # smart check , stop it
-            '''
-            if self.mCheckSmart:
-                self.SmartCheck.stop()
-            '''
     
             # if override Posttest(), then run it, or PreTestRtCode= true
             if self.IsMethodOverride( "PostTest"):
@@ -717,7 +704,9 @@ class NVME(object, NVMECom):
     
     @property
     def ctrl_alive(self):
-        return self.dev_exist(nsid=0)  
+        mStr, SC = self.shell_cmd_with_sc("nvme id-ctrl %s > /dev/null 2>&1"%self.dev_port)
+        return True if SC==0 else False
+        #return self.dev_exist(nsid=0)  
 
 
     def dev_exist(self, nsid=-1):
@@ -1164,6 +1153,7 @@ class NVME(object, NVMECom):
         if showMsg: self.Print("Start to power off device..")
         while self.ctrl_alive:            
             self.shell_cmd("%s %s %s off 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode), sleep_time) 
+            self.shell_cmd("echo 1 > /sys/bus/pci/rescan ")
             cnt=cnt+1
             if cnt >=10:
                 self.Print("can't power device off", "f")
@@ -1173,10 +1163,29 @@ class NVME(object, NVMECom):
         if success:
             if showMsg: self.Print("Device is off now")
             # if system file exist, then remove them,ex. /dev/nvme0n1 and /dev/nvme0
-            if self.isfileExist(self.dev):
-                self.shell_cmd("rm %s -f"%self.dev)
-            if self.isfileExist(self.dev_port):
-                self.shell_cmd("rm %s -f"%self.dev_port)
+            cnt=0
+            while True:
+                if not self.isfileExist(self.dev):
+                    break                  
+                else:
+                    self.shell_cmd("rm %s -f"%self.dev)              
+                cnt+=1                    
+                if cnt >=10:
+                    self.Print("fail to remove file %s"%self.dev, "w")
+                    break
+                sleep(0.1)
+
+            cnt=0
+            while True:
+                if not self.isfileExist(self.dev_port):
+                    break                  
+                else:
+                    self.shell_cmd("rm %s -f"%self.dev_port)              
+                cnt+=1                    
+                if cnt >=10:
+                    self.Print("fail to remove file %s"%self.dev_port, "w")
+                    break
+                sleep(0.1)
             
             if showMsg: self.Print("Sleep for %s second(PowerOffDuration)"%PowerOffDuration)   
             sleep(PowerOffDuration)
@@ -1186,11 +1195,45 @@ class NVME(object, NVMECom):
             cnt=0
             while not self.ctrl_alive:
                 self.shell_cmd("%s %s %s on 2>&1 > /dev/null" %(self.porPath, self.dev_port, mode)) 
+                self.shell_cmd("echo 1 > /sys/bus/pci/rescan ")
                 cnt=cnt+1
                 if cnt >=10:
-                    self.Print("can't power device on", "f")
-                    success =  False     
+                    self.Print("NVME identify command fail for 10 times, can't power device on", "f")
+                    success =  False
+            
+            cnt=0
+            if success:
+                if showMsg: self.Print("NVME identify command success!, wait for drive(%s) get ready"%self.dev)
+                while not self.dev_alive: #using dev_alive instead of ctrl_alive to make sure os is ready to access /dev/nvme0n1 
+                    self.shell_cmd("echo 1 > /sys/bus/pci/rescan ")
+                    cnt=cnt+1
+                    if cnt >=10:
+                        self.Print("can't power device on after 5 s", "f")
+                        success =  False  
+                    sleep(0.5)
                     
+            if success:
+                if showMsg: self.Print("Drive(%s) exist"%self.dev)
+                # check if property is correct after por on
+                CurrLsDev = self.getLsDev()
+                if CurrLsDev!=self.initial_LsDev:
+                    if showMsg: self.Print("Drive(%s) property is not correct "%self.dev, "w")
+                    if showMsg: self.Print("Curr : %s"%(CurrLsDev))
+                    if showMsg: self.Print("Initial: %s "%(self.initial_LsDev))
+                    if showMsg: self.Print("Try to remove and rescan pci..")
+                    self.shell_cmd("  echo 1 > /sys/bus/pci/devices/%s/remove " %(self.pcie_port), 0.1)
+                    self.shell_cmd("rm %s -f"%self.dev, 0.2) 
+                    self.shell_cmd("  echo 1 > /sys/bus/pci/rescan ", 0.5)  
+                    if showMsg: self.Print("Check again ..")
+                    CurrLsDev = self.getLsDev()
+                    if showMsg: self.Print("Curr : %s"%(CurrLsDev))
+                    if showMsg: self.Print("Initial: %s "%(self.initial_LsDev))                    
+                    if CurrLsDev!=self.initial_LsDev: 
+                        if showMsg: self.Print("Drive(%s) property is still not correct!"%self.dev, "f")
+                        success =  False 
+                    else:
+                        if showMsg: self.Print("Pass")
+                                           
         if success:
             if showMsg: self.Print("Device is on now")        
             # verify link
@@ -1218,6 +1261,10 @@ class NVME(object, NVMECom):
         if success:
             return True     
         else:
+            self.Print("")
+            self.Print("Issue command: dmesg -T |tail -n 40")
+            mStr = self.shell_cmd("dmesg -T |tail -n 40")
+            self.Print(mStr, "b")
             return False       
     
     # for fixing 'tr: write error: Broken pipe'
@@ -1509,6 +1556,9 @@ class NVME(object, NVMECom):
         else:
             self.Print("POR module installed(%s): no"%self.porPath, "f")
         
+        # property of /dev/nvme0n1    
+        self.Print("Current property of %s: %s"%(self.dev, self.initial_LsDev))
+        
         # smart check module    
         self.Print("SmartCheckModuleExist: %s"%self.SmartCheck.SmartCheckModuleExist)
         
@@ -1739,34 +1789,9 @@ class SmartCheck_():
                     
             # GUI
             self.tkinter = self._NVME.ImportModuleWithAutoYumInstall("Tkinter", "sudo yum -y install tkinter python-tools")  
-                                   
-    # for time base smart check
-    def isRunning(self):
-        # find current bash pid
-        CMDps = "ps -aux |grep bash"
-        rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
-        find = False        
-        for line in self._NVME.yield_shell_cmd(CMDps):
-            if re.search(rePattern, line):
-                pid=int(re.search(rePattern, line).group(1))
-                if pid == self.GnomePid:
-                    find = True
-                    break    
-        return True if find else False
-    
+                
     def disable_event(self):
         pass
-    
-    # set self.close_program() to closingFuncList, note it's from _NVME to run the func
-    def close_program(self):
-        if self.isGUIshowing:
-            self._NVME.Print("Closing smartcheck GUI..")
-            self._NVME.SmartCheck.root.quit() 
-            #self._NVME.SmartCheck.root.destroy()
-            self.tGUI.join(1)           
-            self.isGUIshowing=False             
-            self._NVME.Print("Done")
-        return True
         
     def ThreadCreatUI(self):
         # if tkinter module load success, init tkinter parameters
@@ -1794,10 +1819,8 @@ class SmartCheck_():
             self.scrollbarY.config(command=self.tkLlistbox.yview)              
                         
             self.isGUIshowing = True
-            # set self.close_program() to closingFuncList, note it's from _NVME to run the func
-            self._NVME.closingFuncList.append(self._NVME.SmartCheck.close_program)
             
-            #btn = self.tkinter.Button(self.root, height = 5, width = 20, text = "Click me to close if tool crash", command = self.close_program) # using button to quit
+            #btn = self.tkinter.Button(self.root, height = 5, width = 20, text = "Click me to close if tool crash", command = self.stop) # using button to quit
             #btn.pack(side="top")  
             #btn.pack_propagate(0)            
             
@@ -1860,8 +1883,12 @@ class SmartCheck_():
 
         elif DisplayOption == "newtab":
             # show data and cat log to new tab
-            self.runCMDwithNewTab("date")
-            self.runCMDwithNewTab("cat %s.log"%self.pathLog)
+            self.runCMDwithNewTab("date", "newTab")
+            self.runCMDwithNewTab("cat %s.log"%self.pathLog, "newTab")
+        elif DisplayOption == "newconsole":
+            # show data and cat log to new tab
+            self.runCMDwithNewTab("date", "newConsole")
+            self.runCMDwithNewTab("cat %s.log"%self.pathLog, "newConsole")            
         elif DisplayOption == "gui":
             # show data and cat log to new tab if tkinter not installed
             if self.tkinter ==None:
@@ -1902,13 +1929,14 @@ class SmartCheck_():
         return pidList, ptsList
                 
 
-    def createNewTab(self):
+    def createNewTab(self, tabType="newTab"):
+    # tabType: newConsole/newTab
     # return createdPid, createdPts
         # backup current pidList, ptsList(not used here)
         pidList, ptsList = self.getCurrPIDandPtsList()
         # create new tab        
-        #self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck --tab -- bash -c '%s; exec bash'"%CMD,shell=True, stdout=subprocess.PIPE)
-        self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck --tab -- bash",shell=True, stdout=subprocess.PIPE)
+        paraTab = "--tab" if tabType=="newTab" else "" # if tabType = "newTab", set --tab
+        self.Proc = subprocess.Popen("/bin/gnome-terminal --title=smartcheck %s -- bash"%paraTab,shell=True, stdout=subprocess.PIPE)
         # wait for creating gnome-terminal and get pid by check if pts/x which x is new one
         createdPid = None
         createdPts = None
@@ -1928,33 +1956,57 @@ class SmartCheck_():
         # end while
         return createdPid, createdPts
 
-    def runCMDwithNewTab(self, CMD, waitForCMDfinish=True):
+    def runCMDwithNewTab(self, CMD, tabType):
     # note: CMD must can not with ;
     # i.e. one runCMDwithNewTab for one command only
         if self.SmartCheckModuleExist:
             # if new tab already exist, close it
-            #if self.GnomePid!=None: self.stop()
             if self.GnomePid==None:
-                self.GnomePid, self.GnomePtsNo = self.createNewTab()
+                self.GnomePid, self.GnomePtsNo = self.createNewTab(tabType=tabType)
                 
             # run command and print to new tab using /dev/pts/x where x is pts port number
             if self.GnomePid ==None: 
                 return False
             else:
-                if waitForCMDfinish==True: 
-                    self._NVME.shell_cmd("%s > /dev/pts/%s"%(CMD, self.GnomePtsNo))
-                else:
-                    # issue command and parser console out
-                    self.SmartCheckThread = threading.Thread(target = self.CMDThread, args=(CMD,))
-                    self.SmartCheckThread.start()                     
+                self._NVME.shell_cmd("%s > /dev/pts/%s"%(CMD, self.GnomePtsNo))               
                 return True
-          
-    def CMDThread(self, CMD):
-        # run cmd and output to new tab
-        for line in self._NVME.yield_shell_cmd(CMD):
-            self._NVME.shell_cmd("echo '%s' > /dev/pts/%s"%(line, self.GnomePtsNo))      
-
-    def runCMDwithNewTabAsync(self, CMD):        
+            
+    def stop(self):  
+    # stop console or ugi
+        if self.isGUIshowing:
+            self._NVME.Print("Closing smartcheck GUI..")
+            self._NVME.SmartCheck.root.quit() 
+            #self._NVME.SmartCheck.root.destroy()
+            self.tGUI.join(1)           
+            self.isGUIshowing=False             
+            self._NVME.Print("Done")        
+        else:
+            pidList, ptsList = self.getCurrPIDandPtsList()
+            if self.GnomePid in pidList:
+                # os.kill(self.GnomePid, signal.SIGKILL)  
+                self._NVME.Print("Closing smartcheck console..")
+                self._NVME.shell_cmd("kill -9 %s"%self.GnomePid)
+                self.GnomePid = None
+                self.GnomePtsNo = None         
+        return True   
+    '''
+    # for time base smart check
+    def isRunning(self):
+    # old function, no used
+        # find current bash pid
+        CMDps = "ps -aux |grep bash"
+        rePattern =  "(\d+)\s+.*pts/(\d+)\s" # first is pid, 2th is pts  # root     20775  0.0  0.0 115580  3600 pts/1    Ss   10:02   0:00 bash
+        find = False        
+        for line in self._NVME.yield_shell_cmd(CMDps):
+            if re.search(rePattern, line):
+                pid=int(re.search(rePattern, line).group(1))
+                if pid == self.GnomePid:
+                    find = True
+                    break    
+        return True if find else False    
+    
+    def runCMDwithNewTabAsync(self, CMD):     
+    # old function, no used   
         if self.SmartCheckModuleExist:
             # if new tab already exist, close it
             if self.GnomePid!=None: self.stop()
@@ -2028,7 +2080,7 @@ class SmartCheck_():
             self.SmartCheckThread.kill()
             self.SmartCheckThread=None
         return True
-           
+    '''           
 # ==============================================================    
 
 class DevWakeUpAllTheTime():
