@@ -13,7 +13,7 @@ from lib_vct.NVME import NVME
 class SMI_Power_Cycle_Test(NVME):
     ScriptName = "SMI_Power_Cycle_Test.py"
     Author = "Sam"
-    Version = "20200807"
+    Version = "20200914"
     
             
     def GetNewPattern(self):
@@ -26,7 +26,7 @@ class SMI_Power_Cycle_Test(NVME):
     def GSD(self):
         Timer =  randint(self.paraPorOffTimer0, self.paraPorOffTimer1) # millisecond
         self.wPattern = self.GetNewPattern()
-            
+        
         LBAptr = 0          
         self.Print("")
         self.Print(">>>>> GSD <<<<< ", "b")
@@ -35,7 +35,7 @@ class SMI_Power_Cycle_Test(NVME):
         CurrTime=0
         CurrTime_1=0
         while True:
-            if not self.NVMEwrite(self.wPattern, LBAptr, 1): 
+            if not self.NVMEwrite(self.wPattern, LBAptr, 1, OneBlockSize=self.OneBlockSize): 
                 self.Print("Fail, write command failure", "f")
                 return False
             
@@ -62,7 +62,7 @@ class SMI_Power_Cycle_Test(NVME):
         # end of while        
         self.Print("") 
         self.Print("Start to verify data from LBA 0x0 to %s, expected data = %s"%(LBAptr, self.wPattern))
-        TestSize = self.OneBlockSize*LBAptr
+        TestSize = self.OneBlockSize*(LBAptr+1) # LBAptr start from 0
         if self.fio_isequal(offset=0, size=TestSize, pattern=self.wPattern, fio_bs=self.OneBlockSize):
             self.Print("Pass", "p")
             return True
@@ -147,7 +147,7 @@ class SMI_Power_Cycle_Test(NVME):
             SLBA = randint(minLBA, maxLBA)
             Sector = randint(1, maxSector)
             
-            if not self.NVMEwrite(randPattern, SLBA, Sector, RecordCmdToLogFile=isRecord, showMsg=True): 
+            if not self.NVMEwrite(randPattern, SLBA, Sector, RecordCmdToLogFile=isRecord, showMsg=True, OneBlockSize=self.OneBlockSize): 
                 self.Print("Write command fail as expected after do SPOR", "w")
                 break
             

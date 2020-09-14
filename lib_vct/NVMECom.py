@@ -46,6 +46,7 @@ class NVMECom():
     LogName_SummaryColor="log"
     LogName_CmdDetail="log"
     LogName_ConsoleOut="log"
+    LogName_Id=0    # start from 0
     ScriptParserArgs=[]  
     LastProgress=None
     ''' for self.Print()
@@ -85,16 +86,25 @@ class NVMECom():
             return False
         else:
             NVMECom.LogName_CmdDetail =  self.LogPath + mStr
+            NVMECom.LogName_CmdDetail += "_%s"%NVMECom.LogName_Id # with id
             
         mStr = self.shell_cmd("ls %s|grep console_out_"%self.LogPath)
         if(mStr ==""):
             self.InitLogFile()
             return False
         else:
-            NVMECom.LogName_ConsoleOut =  self.LogPath + mStr                        
+            NVMECom.LogName_ConsoleOut =  self.LogPath + mStr     
+            NVMECom.LogName_ConsoleOut += "_%s"%NVMECom.LogName_Id # with id
         
-                
-
+    def SplitLog(self):
+    # LogName_Id +=1, and split CmdDetail, ConsoleOut
+        NVMECom.LogName_Id +=1
+        NVMECom.LogName_CmdDetail = self.LogPath + "detail_cmd"+ "_%s"%NVMECom.LogName_Id +".log"
+        NVMECom.LogName_ConsoleOut = self.LogPath + "console_out"+ "_%s"%NVMECom.LogName_Id +".log"
+        
+        # redirect stdout to LogName_ConsoleOut
+        sys.stdout.close()
+        sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)
                     
     def InitLogFile(self):
         # self.LogPath default ='Log/'
@@ -108,19 +118,20 @@ class NVMECom():
         if not os.path.exists(self.LogPath):
             os.makedirs(self.LogPath)
         #create log
-        NVMECom.LogName_Summary =  self.LogPath + "summary_regress_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        # NVMECom.LogName_Summary =  self.LogPath + "summary_regress_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        NVMECom.LogName_Summary =  self.LogPath + "summary_regress"+".log"
         f = open(NVMECom.LogName_Summary, "w")
         f.close()
         #create color log
-        NVMECom.LogName_SummaryColor = self.LogPath + "summary_color_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        NVMECom.LogName_SummaryColor = self.LogPath + "summary_color"+".log"
         f = open(NVMECom.LogName_SummaryColor, "w")
         f.close()    
         #create command log for save all host command that issue to the controller 
-        NVMECom.LogName_CmdDetail =  self.LogPath + "detail_cmd_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        NVMECom.LogName_CmdDetail =  self.LogPath + "detail_cmd" + "_%s"%NVMECom.LogName_Id +".log"
         f = open(NVMECom.LogName_CmdDetail, "w")
         f.close() 
         #create command log for save all console output
-        NVMECom.LogName_ConsoleOut =  self.LogPath + "console_out_"+time.strftime('%Y_%m_%d_%Hh%Mm%Ss')+".log"
+        NVMECom.LogName_ConsoleOut =  self.LogPath + "console_out"+ "_%s"%NVMECom.LogName_Id +".log"
         f = open(NVMECom.LogName_ConsoleOut, "w")
         f.close()     
 
@@ -145,6 +156,7 @@ class NVMECom():
         
     class tee(object):
     # if need to flush all console messages to log, below syntax will call NVMECom.tee.flush()  to do it
+    # if need to roll back, using close()
     # sys.stdout.flush()
         def __init__(self, logFile):
             self.terminal = sys.stdout
@@ -178,6 +190,11 @@ class NVMECom():
             self.log.flush()
             #self.log.close()
             #self.log = open(self.mLogFile, "a")
+            
+        def close(self):
+        # flush then roll back to original stdout
+            self.flush()
+            sys.stdout = self.terminal
              
         
        

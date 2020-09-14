@@ -14,7 +14,7 @@ from lib_vct.NVME import NVME
 class SMI_PLI(NVME):
     ScriptName = "SMI_PLI.py"
     Author = "Sam"
-    Version = "20200907"
+    Version = "20200910"
 
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
@@ -406,8 +406,9 @@ class SMI_PLI(NVME):
         while True:
             loop = loop +1
             if (loop > self.loops) and (self.loops!=0): break
+            
+            if loop%20==1 and loop!=1: self.SplitLog() # split log every 20 loops
             self.Print("-----------------------------------------------------", "b")
-            '''
             if (loop % 3)==0:
                 self.Print("Loop: %s,  IdleForXmin"%loop, "p")
                 self.SetPrintOffset(4)
@@ -432,7 +433,7 @@ class SMI_PLI(NVME):
 
             if result ==False:
                 return False
-            ''' 
+            
             # if Loop/3 is even
             if (loop / 3) % 2 ==0: 
                 self.Print("Loop: %s,  WritePLI"%loop, "p")  
@@ -441,7 +442,6 @@ class SMI_PLI(NVME):
                 result = self.WritePLI()
                 if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
-            '''
             # else Loop/3 is not even
             else:
                 self.Print("Loop: %s,  ReadPLI"%loop, "p")
@@ -450,7 +450,7 @@ class SMI_PLI(NVME):
                 result = self.ReadPLI()
                 if not self.doSmartCheck(): return False
                 self.SetPrintOffset(0)
-            '''    
+                
             if result ==False:
                 return False
         

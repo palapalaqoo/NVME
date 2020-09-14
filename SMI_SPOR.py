@@ -18,7 +18,7 @@ from lib_vct.NVME import NVME
 class SMI_SPOR(NVME):
     ScriptName = "SMI_SPOR.py"
     Author = "Sam"
-    Version = "20200907"
+    Version = "20200914"
     
     def CreateRandSample(self, seed, area, contant, isSeqWrite):
         # area x  contant = total samples, e.g. create random value form 0 to (area x contant-1), 
@@ -126,7 +126,7 @@ class SMI_SPOR(NVME):
                 continue
             
             # write    
-            if not self.NVMEwrite(value=dataPattern, slba=SLBA, SectorCnt=NLB):
+            if not self.NVMEwrite(value=dataPattern, slba=SLBA, SectorCnt=NLB, RecordCmdToLogFile=self.mTestModeOn, OneBlockSize=self.OneBlockSize):
                 WriteFail_LBA = SLBA
                 self.Print("Fail at %s th write command with sector = %s"%(writeSuccessCnt+1, NLB), "p")   
                 self.Print("Wait for %s finish .."%porType)
@@ -138,7 +138,7 @@ class SMI_SPOR(NVME):
                 break;
             else:
                 # sueecess writing, save to img
-                self.WriteImg(SLBA, NLB, dataPattern)
+                self.WriteImg(SLBA, NLB, dataPattern, self.OneBlockSize)
 
             writeSuccessCnt = writeSuccessCnt +1
             WriteSLBAList.append(SLBA)
@@ -151,47 +151,14 @@ class SMI_SPOR(NVME):
         t.join()
         self.Print("")        
         return (self.RandIndex -1 ), dataPattern, dataPattern_last, WriteSLBAList, WriteFail_LBA
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-    def NVMEwrite(self, value, slba, SectorCnt):        
-        NLB = SectorCnt -1 #field NLB in DW12    
 
-        cdw10=slba&0xFFFFFFFF
-        cdw11=slba>>32                
-        cdw12=NLB
-        oct_val=oct(value)[-3:]
-        size = 512*(NLB+1)
-        CMD = "dd if=/dev/zero bs=512 count=%s 2>&1   |stdbuf -o %s tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s  "\
-                             "-o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
-                            %(NLB+1, size , oct_val, self.dev, size, cdw10, cdw11, cdw12)
-        if not self.mTestModeOn: self.RecordCmdToLogFile=False # if normal test, no need to record write command to save log size
-        mStr, SC =self.shell_cmd_with_sc(CMD)
-        if not self.mTestModeOn: self.RecordCmdToLogFile=True
-        if SC==0:
-            return True         
-        else:
-            self.Print("")
-            self.Print("Write fail at start LBA = %s"%slba, "p") 
-            mStr = mStr.partition('\n')[0] #print first line
-            self.Print("Return status: %s"%mStr, "p")
-            return False     
-
-    def WriteImg(self, SLBA, NLB, dataPattern):
+    def WriteImg(self, SLBA, NLB, dataPattern, OneBlockSize):
         # sueecess writing, save to img
-        offset = SLBA*512
+        # 4k supported
+        offset = SLBA*OneBlockSize
         size = NLB
         value=dataPattern
-        data = (((''.join(["%02x"%(value)]))*512)*size).decode("hex")
+        data = (((''.join(["%02x"%(value)]))*OneBlockSize)*size).decode("hex")
         with open("%s"%(self.ImageFileFullPath), "r+b") as f:
             f.seek(offset)  
             f.write(data)                    
@@ -407,7 +374,7 @@ class SMI_SPOR(NVME):
         WriteCMDcnt = len(WriteSLBAList)
     
         block_1 = -1
-        totalSize = 2097152*512
+        totalSize = 2097152*512 # test 1G byte for 512/4K
         CMD = "cmp -l %s %s -n %s"%(self.dev, self.ImageFileFullPath, totalSize)
         # cmp output: ex,    1894400 0 324,     where 1894400=address, 0=value in self.dev(currentValueStr), 324=self.ImageFileFullPath(expectedValueStr)
         mStr="(\d+)\s+(\d+)\s+(\d+)" 
@@ -418,7 +385,7 @@ class SMI_SPOR(NVME):
         for line in self.yield_shell_cmd(CMD):             
             if re.search(mStr, line):
                 offset = int(re.search(mStr, line).group(1) )
-                block = (offset -1)/512 # value from cmp command start form 1
+                block = (offset -1)/self.OneBlockSize # value from cmp command start form 1
                 currentValueInt = int(re.search(mStr, line).group(2) ,8 ) # convert OCT to INT
                 expectedValueInt = int(re.search(mStr, line).group(3), 8 ) # convert OCT to INT
                 currentValueStr = "0x%X"%currentValueInt # convert INT to hex string
@@ -460,7 +427,7 @@ class SMI_SPOR(NVME):
         # if skipPoweringOffBlock, check WriteFail_LBA
         if self.skipPoweringOffBlock:   
             # read 1th byte of fail LBA form image and current SSD
-            Image1ByteValue = self.read1ByteFromFile("./mnt/img.bin", WriteFail_LBA*512)
+            Image1ByteValue = self.read1ByteFromFile("./mnt/img.bin", WriteFail_LBA*self.OneBlockSize)
             # Device1ByteValue = self.read1ByteFromFile(self.dev, WriteFail_LBA*512) # using fio to verify value later
             # save to list, ["block", "expected value", "current value"]
             block = WriteFail_LBA
@@ -468,10 +435,10 @@ class SMI_SPOR(NVME):
             self.SetPrintOffset(4)
             self.Print( "-- skipPoweringOffBlock --, check current data at the write command failure LBA = %s, size = %s sector"%(WriteFail_LBA, SectorCnt))            
             # using fio to check if data is one of [Image1ByteValue  dataPattern],  if not , fail test
-            offset = WriteFail_LBA*512
-            size = SectorCnt*512                
-            isDataPattern = self.fio_isequal(offset, size, pattern = dataPattern, fio_bs=512)
-            isImagePattern = self.fio_isequal(offset, size, pattern = Image1ByteValue, fio_bs=512)
+            offset = WriteFail_LBA*self.OneBlockSize
+            size = SectorCnt*self.OneBlockSize                
+            isDataPattern = self.fio_isequal(offset, size, pattern = dataPattern, fio_bs=self.OneBlockSize)
+            isImagePattern = self.fio_isequal(offset, size, pattern = Image1ByteValue, fio_bs=self.OneBlockSize)
             
             if isDataPattern:
                 self.Print( "All the data from LBA = %s, size = %s sector, value = %s"%(WriteFail_LBA, SectorCnt, dataPattern)) 
@@ -483,7 +450,7 @@ class SMI_SPOR(NVME):
                 self.Print( "The data is not all equal to %s nor %s"%(Image1ByteValue, dataPattern), "w")
                 currentValueStr = "uknow"                
                                 
-            CMD = "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*512, SectorCnt*512)
+            CMD = "hexdump %s -s %s -n %s"%(self.dev, WriteFail_LBA*self.OneBlockSize, SectorCnt*self.OneBlockSize)
             self.Print( "Do shell command to hexdump sectors: %s"%CMD) 
             aa= self.shell_cmd(CMD)
             self.SetPrintOffset(8)
@@ -514,9 +481,9 @@ class SMI_SPOR(NVME):
         
         # show failure blocks
         self.Print( "1.) Calculate number of compare failure blocks")
-        fCapacity = self.KMGT(failCnt*512)
+        fCapacity = self.KMGT(failCnt*self.OneBlockSize)
         self.SetPrintOffset(4)
-        self.Print( "Number of compare failure blocks: %s blocks( size: %sbytes )"%(self.HighLightRed(failCnt), fCapacity))
+        self.Print( "Number of compare failure blocks: %s blocks( data lost size: %sbytes )"%(self.HighLightRed(failCnt), self.HighLightRed(fCapacity)))
         self.SetPrintOffset(0)
         
         # VerifyDismatchBlocks size 
@@ -641,7 +608,7 @@ class SMI_SPOR(NVME):
         
         self.per = 0        
         
-        SizeInBlock= 2097152#  2097152*512 =1G
+        SizeInBlock= 2097152#  2097152*512 =1G, test 1G byte for 512/4K
         writeType = "Sequence write" if isSeqWrite else "Random write  "
         self.Print("+-- Loop: %s, Sector count: %s, Write type: %s ---------------------------------- "%(Loop, SectorCnt, writeType), "b")
         
@@ -676,9 +643,15 @@ class SMI_SPOR(NVME):
         # 65536*32=1G=4096*512
         
         if isSeqWrite:
-            self.CreateRandSample(seed=seed, area=1, contant=2097152, isSeqWrite=isSeqWrite)    # one area, start from 0
+            if self.OneBlockSize==512:
+                self.CreateRandSample(seed=seed, area=1, contant=2097152, isSeqWrite=isSeqWrite) # one area, start from 0, 2097152*512=1G
+            else:   #4096
+                self.CreateRandSample(seed=seed, area=1, contant=2097152/8, isSeqWrite=isSeqWrite) # one area, start from 0, 2097152/8*4096=1G
         else:
-            self.CreateRandSample(seed=seed, area=65536, contant=32, isSeqWrite=isSeqWrite) 
+            if self.OneBlockSize==512:
+                self.CreateRandSample(seed=seed, area=65536, contant=32, isSeqWrite=isSeqWrite) 
+            else:
+                self.CreateRandSample(seed=seed, area=65536, contant=32/8, isSeqWrite=isSeqWrite)
         
         WriteFail_Index, dataPattern, dataPattern_last, WriteSLBAList, WriteFail_LBA  = self.WriteWithSPOR(SectorCnt, SizeInBlock, isSeqWrite, porType)
         # sleep for waiting all the disk ready 
@@ -708,14 +681,14 @@ class SMI_SPOR(NVME):
         # time base, must issue in 60s
         #self.IssueSPORtimeBase = True if SectorCnt<30 else False
         self.IssueSPORtimeBase = True
-        TimeOut=20
+        TimeOut=20000 # in millisecond
         if self.IssueSPORtimeBase:            
-            doSPORtimer = randint(1, TimeOut)
-            if self.mTestModeOn: doSPORtimer = 3
-            self.Print("Start thread(ThreadDoPowerOff) to do %s when writing time >= %s second"%(self.HighLightRed(porType), doSPORtimer))       
-        #doSPORtimer=19    #TODO
+            doSPORtimer = randint(1000, TimeOut)
+            if self.mTestModeOn: doSPORtimer = 3000 # if test mode, set 3 s
+            self.Print("Start thread(ThreadDoPowerOff) to do %s when writing time >= %s millisecond"%(self.HighLightRed(porType), doSPORtimer))       
+        #doSPORtimer=19   #TODO
         IssuedSPOR=False
-        self.timer.start()
+        self.timer.start("float")
         self.Running=True
         while True:
             if IssuedSPOR or not self.Running: # if IssuedSPOR or stop by other thread using self.Running=false
@@ -724,19 +697,26 @@ class SMI_SPOR(NVME):
             percent = self.per
             percent = int(percent*100) # make range 0 to 100
             # get current time usage
-            cTime = int(float(self.timer.time))
+            # round to millisecond        
+            cTime = int(self.timer.time*1000)
             
             if self.IssueSPORtimeBase:
                 # do spor
-                if not IssuedSPOR:
-                    self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %ss / 20s"%cTime, showPercent=False)                    
-                    if (doSPORtimer <= cTime):
+                if not IssuedSPOR:    
+                    timeDiv = float((doSPORtimer-cTime)/100)# where 100 means 0.1s for sleep(0.1) in this loop
+                    if (timeDiv>0.1): # if current time + 0.1s < doSPORtimer, means not time up
+                        self.PrintProgressBar(cTime, TimeOut, length = 20, suffix="Time: %ss / %s millisecond"%(cTime, TimeOut), showPercent=False) 
+                    else: # time up, power off/on
+                        #wait timeDiv second
+                        sleep(timeDiv)
+                        self.PrintProgressBar(doSPORtimer, TimeOut, length = 20, suffix="Time: %ss / %s millisecond"%(doSPORtimer, TimeOut), showPercent=False)                          
                         if porType=="spor" :
                             self.spor_reset(PowerOffDuration=self.PowerOffDuration) 
                         else: 
                             self.por_reset(PowerOffDuration=self.PowerOffDuration)
                         IssuedSPOR = True
-                        break
+                        break                                             
+                
                 if cTime>TimeOut+1:
                     break
             else:
@@ -746,7 +726,7 @@ class SMI_SPOR(NVME):
                     if (doSPORtimer < percent):
                         self.spor_reset(PowerOffDuration=self.PowerOffDuration)
                         IssuedSPOR = True                
-            sleep(0.1)
+            sleep(0.1)# where 100 means 0.1s for sleep(0.1) in this loop
             
             
         self.Print("")
@@ -841,14 +821,12 @@ class SMI_SPOR(NVME):
         self.LenContantList=0
         self.RandIndex=0
         
+        self.OneBlockSize = self.GetBlockSize()
+        
 
     # define pretest  
     def PreTest(self): 
-        OneBlockSize = self.GetBlockSize()
-        self.Print("Block size: %s"%OneBlockSize, "p")
-        if OneBlockSize!=512:
-            self.Print("This script support 512 block size only, skip", "w")
-            return 255 
+        self.Print("Block size: %s"%self.OneBlockSize, "p")
         
         return True            
 
