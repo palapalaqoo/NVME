@@ -14,8 +14,8 @@ import struct
 import subprocess
 import threading
 import linecache
-
-
+import ConfigParser
+import StringIO
 
 class TimedOutExc(Exception):
     pass
@@ -221,7 +221,7 @@ class NVMECom():
         self.LBARangeDataStructure=LBARangeDataStructure_(self)
         self.timer=timer_()
         self.timeEventTerminate = False
-    
+        
     def threadTimeEvent(self, seconds, eventFunc = None, printProgressBar = False, printProgressBarPeriod = 0.5):
     # ex. self.threadTimeEvent(seconds=10, eventFunc = myFunc, printProgressBar = True, printProgressBarPeriod = 0.5):
     # seconds: timer in seconds
@@ -627,10 +627,31 @@ class NVMECom():
         # writ to Log file    
         self.WriteLogFile(  mStr, mfile=mfile )
         
-    def SetDynamicArgs(self, optionName, optionNameFull, helpMsg, argType, default=None):
+    def SetDynamicArgs(self, optionName, optionNameFull, helpMsg, argType, default=None,\
+                        iniFileName=None, iniSectionName=None, iniOptionName=None):
         # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
         # ex.  self.AddParserArgs(optionName="x", optionNameFull="disablepwr", helpMsg="disable poweroff", argType=int) 
         #        self.DisablePwr = self.GetDynamicArgs(0)
+        # default value priority is iniFileName>default
+        
+        # if iniFileName!=None, using ini file to set default value and show in helpMsg
+        if iniFileName!=None:
+            config = self.getConfigParser(iniFileName)
+            SectionName = "None" if iniSectionName==None else iniSectionName # if iniSectionName=None, set SectionName = 'None' string
+            if config.has_option(SectionName, iniOptionName):    
+                if argType==int:
+                    default = config.getint(SectionName, iniOptionName) 
+                if argType==float:
+                    default = config.getfloat(SectionName, iniOptionName)           
+                if argType==str:
+                    default = config.get(SectionName, iniOptionName)
+                    
+                helpMsg += ", %s"%self.HighLightRed("Default value: %s"%default)
+            else:    
+                helpMsg += ", %s"%self.HighLightRed("option(%s) in %s is missing, set Default value: %s"%(iniOptionName, iniFileName, default))                     
+            
+                     
+        # set ScriptParserArgs
         self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType, default])
     def GetDynamicArgs(self, select):
     # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
@@ -1464,6 +1485,37 @@ class NVMECom():
         
     def HighLightRed(self, mStr):
         return self.UseStringStyle(mStr, mode="bold", fore = "red")
+
+    def getConfigParser(self, ini_path):
+    # config file must have section header, e.x. '[setup]' where section header is setup
+    # If no section header, set section header to [None]
+    # ini_path: ex. 'SMIPowerCycleTest.ini'
+    # example for get ENABLE_UGSD_IO_AMOUNT_MIN_MB in setup.ini of SMI_Power_Cycle_Test (window tool)
+    #     config = self.getConfigParser('Setup.ini')
+    #     config.get('Setup', 'ENABLE_UGSD_IO_AMOUNT_MIN_MB')
+    # example for get UGSDTimerMin in SMIPowerCycleTest.ini of SMI_Power_Cycle_Test (window tool)
+    #     config = self.getConfigParser('SMI_Power_Cycle_Test.ini')
+    #     config.get('None', 'UGSDTimerMin')  # SMIPowerCycleTest have no section header, so using None to get value
+    # refer to ConfigParser library
+    
+        config = ConfigParser.RawConfigParser()
+        try:
+            config.read(ini_path)    
+        except Exception, error:
+            # config file must have section header, e.x. '[setup]' where section header is setup
+            # If no section header, error string will be 'MissingSectionHeaderError: File contains no section headers.'
+            if type(error) == ConfigParser.MissingSectionHeaderError:
+                # if error type is MissingSectionHeaderError, try to add section header('None') and read again
+                ini_str = '[None]\n' + open(ini_path, 'r').read()
+                ini_fp = StringIO.StringIO(ini_str)
+                config = ConfigParser.RawConfigParser()
+                config.readfp(ini_fp)                             
+            else:
+                self.Print( "Exception occor for getConfigParser(), ini file may lose(%s)"%ini_path, "f" )
+                self.Print ("Exception info as below")
+                self.Print(str(error), "f" )
+        return config
+
             
 #== end NVMECom =================================================
 

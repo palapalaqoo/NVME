@@ -341,8 +341,15 @@ class NVME(object, NVMECom):
             return  getattr(self, "ScriptName")  
                 
     def CreateSubCaseListForParser(self):
-    # show case list for -h command
-        mStr="Case List:\n"
+        # show info
+        mStr="Script info:\n"
+        mStr += "  ScriptName : %s\n"%self.ScriptName
+        mStr += "  Author : %s\n"%self.Author
+        mStr += "  Version : %s\n"%self.Version   
+        mStr += "\n"
+        
+        # show case list for -h command
+        mStr +="Case List:\n"
 
         for SubCaseNum in range(1, self.SubCaseMaxNum+1):
             if self.IsMethodOverride("SubCase%s"%SubCaseNum):    

@@ -13,7 +13,7 @@ from lib_vct.NVME import NVME
 class SMI_Power_Cycle_Test(NVME):
     ScriptName = "SMI_Power_Cycle_Test.py"
     Author = "Sam"
-    Version = "20200914"
+    Version = "20200917"
     
             
     def GetNewPattern(self):
@@ -24,7 +24,7 @@ class SMI_Power_Cycle_Test(NVME):
         return VALUE
     
     def GSD(self):
-        Timer =  randint(self.paraPorOffTimer0, self.paraPorOffTimer1) # millisecond
+        Timer =  randint(self.paraUGSDTimerMin, self.paraUGSDTimerMax) # millisecond
         self.wPattern = self.GetNewPattern()
         
         LBAptr = 0          
@@ -45,13 +45,13 @@ class SMI_Power_Cycle_Test(NVME):
 
             if CurrTime > CurrTime_1+500: # show progress every 0.5 second
                 CurrTime_1 = CurrTime_1 + 500
-                self.PrintProgressBar(CurrTime, self.paraPorOffTimer1, length = 20, suffix="Time: %s ms / %s ms, LBAptr: %s"%(CurrTime, self.paraPorOffTimer1, LBAptr), showPercent=False)    
+                self.PrintProgressBar(CurrTime, self.paraUGSDTimerMax, length = 20, suffix="Time: %s ms / %s ms, LBAptr: %s"%(CurrTime, self.paraUGSDTimerMax, LBAptr), showPercent=False)    
                 
             if CurrTime > Timer: # time up
-                self.PrintProgressBar(Timer, self.paraPorOffTimer1, length = 20, suffix="Time: %s ms / %s ms, LBAptr: %s"%(Timer, self.paraPorOffTimer1, LBAptr), showPercent=False)
+                self.PrintProgressBar(Timer, self.paraUGSDTimerMax, length = 20, suffix="Time: %s ms / %s ms, LBAptr: %s"%(Timer, self.paraUGSDTimerMax, LBAptr), showPercent=False)
                 self.Print("")
                 self.Print("Do POR..")
-                if self.por_reset(showMsg=True, PowerOffDuration=self.paraPowerOffDuration):
+                if self.por_reset(showMsg=True, PowerOffDuration=self.paraPwrOffDuration):
                     self.Print("Do POR finish")
                     break
                 else:
@@ -77,7 +77,7 @@ class SMI_Power_Cycle_Test(NVME):
             return False            
     
     def DoSPOR(self):        
-        self.spor_reset(showMsg=True, PowerOffDuration=self.paraPowerOffDuration)
+        self.spor_reset(showMsg=True, PowerOffDuration=self.paraPwrOffDuration)
         
     def ThreadDoSPOR(self, timer):
         sleep(0.05)
@@ -124,7 +124,7 @@ class SMI_Power_Cycle_Test(NVME):
         self.Print("Done")
         
         
-        Timer =  randint(self.paraPorOffTimer0, self.paraPorOffTimer1) # millisecond
+        Timer =  randint(self.paraUGSDTimerMin, self.paraUGSDTimerMax) # millisecond
         Timer = float(Timer)/1000 # second
         self.Print("")
         self.Print("Create thread to do SPOR after %s seconds"%Timer)            
@@ -185,24 +185,27 @@ class SMI_Power_Cycle_Test(NVME):
     
     def __init__(self, argv):
         # initial parent class
-        self.SetDynamicArgs(optionName="l", optionNameFull="Loops", \
-                            helpMsg="number of loops, default = 1", argType=int, default=1)
-        self.SetDynamicArgs(optionName="pot0", optionNameFull="PorOffTimer0", \
-                            helpMsg="Power Off Timer minium in second, default = 2, e.x. '-pot0 1.5'", argType=float, default=2)
-        self.SetDynamicArgs(optionName="pot1", optionNameFull="PorOffTimer1", \
-                            helpMsg="Power Off Timer maxium in second, default = 4, e.x. '-pot1 3.5'", argType=float, default=4)
-        self.SetDynamicArgs(optionName="pod", optionNameFull="PowerOffDuration", \
-                            helpMsg="Power Off Duration in second, default = 5, e.x. '-pod 4.5'", argType=float, default=5)
+        self.SetDynamicArgs(optionName="l", optionNameFull="TestLoop", \
+                            helpMsg="number of loops, e.x. '--TestLoop 1'", argType=int, default=1,\
+                            iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="TestLoop")
+        self.SetDynamicArgs(optionName="pot0", optionNameFull="UGSDTimerMin", \
+                            helpMsg="Power Off Timer minium in minisecond, e.x. '--UGSDTimerMin 1000'", argType=int, default=1000,\
+                            iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="UGSDTimerMin")
+        self.SetDynamicArgs(optionName="pot1", optionNameFull="UGSDTimerMax", \
+                            helpMsg="Power Off Timer maxium in minisecond, e.x. '--UGSDTimerMax 4000'", argType=int, default=4000,\
+                            iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="UGSDTimerMax")
+        self.SetDynamicArgs(optionName="pod", optionNameFull="PwrOffDuration", \
+                            helpMsg="Power Off Duration in minisecond, e.x. '--PwrOffDuration 5000'", argType=int, default=5000,\
+                            iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="PwrOffDuration")
  
         super(SMI_Power_Cycle_Test, self).__init__(argv)
 
 
-        self.paraLoops = self.GetDynamicArgs(0) 
-        self.paraPorOffTimer0 = int(self.GetDynamicArgs(1) * 1000)# convert to minisecond
-
-        self.paraPorOffTimer1 = int(self.GetDynamicArgs(2) * 1000)# convert to minisecond
+        self.paraTestLoop = self.GetDynamicArgs(0) 
+        self.paraUGSDTimerMin = self.GetDynamicArgs(1)
+        self.paraUGSDTimerMax = self.GetDynamicArgs(2)
                  
-        self.paraPowerOffDuration = float(self.GetDynamicArgs(3) )# convert to float in second
+        self.paraPwrOffDuration = float(self.GetDynamicArgs(3))/1000 # convert int in minisecond to float in second
 
          
         
@@ -224,7 +227,7 @@ class SMI_Power_Cycle_Test(NVME):
     def SubCase1(self):
         ret_code=0
         
-        for loop in range(1, self.paraLoops+1):
+        for loop in range(1, self.paraTestLoop+1):
             self.PrintLoop = loop
             if not self.GSD(): 
                 ret_code=1
@@ -239,7 +242,7 @@ class SMI_Power_Cycle_Test(NVME):
     def SubCase2(self):
         ret_code=0
         
-        for loop in range(1, self.paraLoops+1):
+        for loop in range(1, self.paraTestLoop+1):
             self.PrintLoop = loop
             if not self.UGSD(): 
                 ret_code=1
@@ -253,7 +256,7 @@ class SMI_Power_Cycle_Test(NVME):
     def SubCase3(self):
         ret_code=0
         
-        for loop in range(1, self.paraLoops+1):
+        for loop in range(1, self.paraTestLoop+1):
             self.PrintLoop = loop
             if not self.GSD(): 
                 ret_code=1

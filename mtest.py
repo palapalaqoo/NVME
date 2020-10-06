@@ -21,6 +21,9 @@ import re
 import subprocess
 import random
 import logging
+import ConfigParser
+
+
 # Import VCT modules
 from lib_vct.NVME import NVME
 
@@ -41,7 +44,8 @@ class mtest1(NVME):
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
-        self.SetDynamicArgs(optionName="s1", optionNameFull="loops", helpMsg="number of loops, default = 1", argType=int)
+        self.SetDynamicArgs(optionName="s1", optionNameFull="loops", helpMsg="number of loops", argType=str, \
+                            iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="UGSDTimerMax")
         # initial parent class
         super(mtest1, self).__init__(argv)
         self.loops = self.GetDynamicArgs(0) 
@@ -145,9 +149,20 @@ class mtest1(NVME):
     def PreTest(self):
         return 0    
    
+
+
+            
     
     SubCase1TimeOut = 600
     def SubCase1(self):
+        return 0
+        config = self.getConfigParser('Setup.ini')
+        config1 = self.getConfigParser('SMIPowerCycleTest.ini')
+        
+        host =  config.getfloat('Setup', 'ENABLE_UGSD_IO_AMOUNT_MIN_MB')
+        user = config1.get('None', 'UGSDTimerMin')  
+        
+        
         self.OneBlockSize = self.GetBlockSize()
         self.NVMEwrite(0x55, 1, 1, OneBlockSize=self.OneBlockSize)
         self.NVMEwrite(0x66, 1, 1, OneBlockSize=self.OneBlockSize)
