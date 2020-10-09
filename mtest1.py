@@ -141,6 +141,8 @@ class mtest1(NVME):
                     self.Print("FIO %s %s: bw=%.1f MiB/s,  bandwidth (KB/s):%s"%("write", "VM1", speedInKbyte/float(1024), speedInKbyte), "f") 
                     return True
         return False     
+    def printaa(self):
+        self.Print("aaaaaa", "f")
         
     def DoVM_FIOtest0(self):   
         self.shell_cmd("fio --direct=0 --iodepth=128 --ioengine=libaio --bs=128k --rw=randwrite --numjobs=1 --offset=0 --filename=/dev/nvme0n2 --name=mdata --do_verify=0 -size=512M --output-format=terse,normal")

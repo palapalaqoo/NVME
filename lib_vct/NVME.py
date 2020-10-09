@@ -478,11 +478,16 @@ class NVME(object, NVMECom):
                             # check device is alive or not
                             #self.Running=False
                             if not self.dev_alive:
+                                self.Print("Device is power off, try to power on..", "w")
                                 self.spor_reset()
+                                if not self.dev_alive:
+                                    self.Print("Fail to power on", "f")
+                                else:
+                                    self.Print("Success to power on", "p")
                             # set self.UserSubItems = []  to skip all remain testcase
                             self.UserSubItems=[]
-                            # current case return 255
-                            Code = 255
+                            # current case return 0
+                            Code = 0
                         
                         #  prevent coding no return code, eg. 0/1/255
                         if Code ==None:
@@ -779,9 +784,19 @@ class NVME(object, NVMECom):
         else:
             return "0"
     
-    def fio_precondition(self, pattern, fio_direct=1, fio_bs="64k", showProgress=False):
-        CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=0 --name=mdata \
-        --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, self.dev, pattern)
+    def fio_precondition(self, pattern, fio_direct=1, fio_bs="64k", showProgress=False, slba=None, elba=None, OneBlockSize=None):
+    # for precondition whole disk, using pattern, fio_direct, fio_bs, showProgress
+    # for precondition with start lba to end lba, using all parameter, and set fio_bs  to OneBlockSize
+        if slba==None and elba==None and OneBlockSize==None:
+            CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=0 --name=mdata \
+            --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, self.dev, pattern)
+        else:
+            offset = slba*OneBlockSize
+            size = (elba-slba+1)*OneBlockSize
+            fio_bs = OneBlockSize
+            CMD = "fio --direct=%s --iodepth=16 --ioengine=libaio --bs=%s --rw=write --filename=%s --offset=%s --size=%s --name=mdata \
+            --do_verify=0 --verify=pattern --verify_pattern=%s" %(fio_direct, fio_bs, self.dev, offset, size, pattern)
+                        
         if not showProgress:
             mStr, SC = self.shell_cmd_with_sc(CMD)
             if SC!=0:

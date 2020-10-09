@@ -22,15 +22,15 @@ import subprocess
 import random
 import logging
 import ConfigParser
-
-
+import SMI_PLI
+import mtest1
 # Import VCT modules
 from lib_vct.NVME import NVME
 
 
-class mtest1(NVME):
+class mtest(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    ScriptName = "mtest1.py"
+    ScriptName = "mtest.py"
     Author = "Sam Chan"
     Version = "20191030"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -47,8 +47,17 @@ class mtest1(NVME):
         self.SetDynamicArgs(optionName="s1", optionNameFull="loops", helpMsg="number of loops", argType=str, \
                             iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="UGSDTimerMax")
         # initial parent class
-        super(mtest1, self).__init__(argv)
+        super(mtest, self).__init__(argv)
         self.loops = self.GetDynamicArgs(0) 
+        
+        #self.inst = mtest.mtest(sys.argv)
+        #self.inst.printaa()
+        
+        #self.instSMI_PLI = SMI_PLI.SMI_PLI(sys.argv)
+        
+        #self.instSMI_PLI.TimeUpFunc()
+        #self.SMI_PLI = SMI_PLI.SMI_PLI(argv)
+
 
         
     def VM_shell_cmd(self, IP, CMD):
@@ -155,12 +164,14 @@ class mtest1(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        return 0
-        config = self.getConfigParser('Setup.ini')
-        config1 = self.getConfigParser('SMIPowerCycleTest.ini')
         
-        host =  config.getfloat('Setup', 'ENABLE_UGSD_IO_AMOUNT_MIN_MB')
-        user = config1.get('None', 'UGSDTimerMin')  
+        #aa = SMI_PLI.SMI_PLI(sys.argv )
+        #aa.RandReadXminMixOfSectorSizes()        
+        OneBlockSize = self.GetBlockSize()
+        self.fio_precondition(pattern=0x5A, fio_direct=1, showProgress=True, slba=2, elba=7, OneBlockSize=OneBlockSize)
+        
+        
+                       
         
         
         self.OneBlockSize = self.GetBlockSize()
@@ -289,8 +300,9 @@ if __name__ == "__main__":
 
             
                        
+    print mtest
 
-    DUT = mtest1(sys.argv ) 
+    DUT = mtest(sys.argv ) 
     DUT.RunScript()
     DUT.Finish() 
 

@@ -607,7 +607,12 @@ class NVMECom():
         # case number
         Case="Case: %s"%self.SubCasePoint
         # Loop
-        Loop = "" if self.PrintLoop==None else "Loop: %s"%self.PrintLoop
+        
+        Loop = ""
+        if self.PrintLoop!=None:
+            Loop = "Loop: %s"%self.PrintLoop
+            if self.PrintLoop%2==0:
+                Loop = self.UseStringStyle(Loop, fore="white", back="black")
         
         return Ltime+" "+DT+" "+Case +" " +Loop+"| "
     
@@ -646,12 +651,13 @@ class NVMECom():
                 if argType==str:
                     default = config.get(SectionName, iniOptionName)
                     
-                helpMsg += ", %s"%self.HighLightRed("Default value: %s"%default)
+                helpMsg += "\n%s"%self.HighLightRed("Default(%s): %s"%(iniFileName, default))
             else:    
-                helpMsg += ", %s"%self.HighLightRed("option(%s) in %s is missing, set Default value: %s"%(iniOptionName, iniFileName, default))                     
+                helpMsg += "\n%s"%self.HighLightRed("option(%s) in %s is missing, set Default: %s"%(iniOptionName, iniFileName, default))                     
             
                      
         # set ScriptParserArgs
+        helpMsg += "\n "
         self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType, default])
     def GetDynamicArgs(self, select):
     # after SetDynamicArgs, using GetDynamicArgs to get arg if element exist, else return None
@@ -673,7 +679,7 @@ class NVMECom():
         parser.add_argument("-d", "--d", help="print script doc and flow if acceptable", action="store_true")        
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
         parser.add_argument("-p", "--p", help="log path that store logs, default='.\Log'", type=str, nargs='?')
-        parser.add_argument("-r", "--r", help="reboot parameters, please do not set it", type=int, nargs='?')
+        parser.add_argument("-r", "--r", help="reboot parameters, please do not set it\n ", type=int, nargs='?')
         #parser.add_argument("-checksmart", "--checksmart", help="check smart log using SMART.ini and SmartCheck module, e.x. '-checksmart'", action="store_true")
         
         # script arg define new args if overwrite in script
