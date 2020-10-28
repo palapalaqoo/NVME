@@ -25,7 +25,7 @@ class SMI_FeatureNumberofQueues(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_FeatureNumberofQueues.py"
     Author = "Sam Chan"
-    Version = "20181211"
+    Version = "20201027"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -33,7 +33,25 @@ class SMI_FeatureNumberofQueues(NVME):
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    
+    def GetFeatureValueWithSC(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
+    # get feature with status code
+        Value=0 
+        buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
+        mStr="0"
+        if sel==0:
+            mStr="Current value:(.+)"
+        if sel==1:
+            mStr="Default value:(.+)"
+        if sel==2:
+            mStr="Saved value:(.+)"
+        if sel==3:
+            mStr="capabilities value:(.+)"                
+            
+        if re.search(mStr, buf):
+            Value=int(re.search(mStr, buf).group(1),16)
+        else:
+            Value= buf
+        return Value, SC    
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
@@ -81,7 +99,7 @@ class SMI_FeatureNumberofQueues(NVME):
     def SubCase3(self): 
         ret_code=0
         mStr=self.shell_cmd(" nvme get-feature %s -f 7 2>&1"%(self.dev))
-        print mStr
+        self.Print( mStr )
         retCommandSueess=bool(re.search("Current value", mStr))
         if (retCommandSueess ==  True) :
             self.Print("PASS", "p")     
@@ -90,7 +108,41 @@ class SMI_FeatureNumberofQueues(NVME):
             ret_code=1        
         return ret_code
 
+    SubCase4TimeOut = 60
+    SubCase4Desc = "Test status code of Command Sequence Error"
+    def SubCase4(self): 
+        ret_code=0
+        self.Print ("If a Set Features command is issued for this feature after creation of any I/O Submission and/or I/O Completion Queues")
+        self.Print ("then the Set Features command shall fail with status code of Command Sequence Error.")
         
+        self.Print ("")
+        self.Print ("Issue command to get feature 0x7")
+        value, sc = self.GetFeatureValueWithSC(fid=0x7) 
+        if sc==0:
+            self.Print ("Current feature value: 0x%X"%value)
+        else:
+            self.Print ("Error, get feature command fail")
+            self.Print ("CMD: %s"%self.LastCmd)
+            return 1
+        
+        self.Print ("")
+        self.Print ("Issue below command to set feature 0x7 with value=0x%X"%value)
+        CMD = "nvme set-feature %s -f 7 -v 0x%X 2>&1"%(self.dev, value)
+        self.Print ("CMD: %s"%CMD)        
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        self.Print ("Return status: %s"%mStr)   
+        self.Print ("")
+        self.Print ("Check and expect status code = 0x7, 'Command Sequence Error'")
+        if sc==0xc:
+            self.Print ("Pass", "p")
+        else:
+            self.Print ("Fail", "f")
+            ret_code = 1
+        
+                
+            
+        return ret_code
+            
     # </sub item scripts>
     
     

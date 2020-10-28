@@ -667,7 +667,7 @@ class SMI_Power_Cycle_Test(NVME):
         self.SetDynamicArgs(optionName="prwsi", optionNameFull="PLI_ReadWrite_size", \
                             helpMsg="PwrCycleMode-> Intel PLI test: total size for step 'Read PLI' and 'Write PLI'"\
                             "\ne.x. '--PLI_ReadWrite_size 800M'"\
-                            "\ndefault = '800M' (800M will be read for step 'Read PLI' and write for step 'Write PLI')", argType=str, default="800M")            
+                            "\ndefault = '800M' (800M will be read/write for step 'Read PLI' and write for step 'Write PLI')", argType=str, default="800M")            
         # 9
         self.SetDynamicArgs(optionName="sipp", optionNameFull="SKIP_INTEL_PLI_PRECONDITION", \
                             helpMsg="SKIP_INTEL_PLI_PRECONDITION [Yes, No], "
@@ -680,7 +680,7 @@ class SMI_Power_Cycle_Test(NVME):
                              "\n'-smartdisplay newtab', display smart log in new tab"\
                              "\n'-smartdisplay newconsole', display smart log in new console"\
                              "\n'-smartdisplay gui', display smart log with GUI if tkinter was installed, else display smart log in new console"\
-                             "\n'-smartdisplay no', will hide smart log"\
+                             "\n'-smartdisplay no', will check smart log but hide log output"\
                              "\ndefault = 'console'"\
                              , argType=str, default="console")
                  

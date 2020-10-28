@@ -687,7 +687,7 @@ class SMI_SetGetFeatureCMD(NVME):
         INVALID_NS=0xB
         INVALID_FIELD=0x2
         CMD_SUCCESS=0x0
-        FEATURE_NOT_PER_NS=0x10F
+        FEATURE_NOT_PER_NS=0x0F
         rtSC = CMD_SUCCESS
         # Not NS Specific
         if not isNsSpecific:

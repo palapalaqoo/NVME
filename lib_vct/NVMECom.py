@@ -294,6 +294,7 @@ class NVMECom():
             if re.search(mStr, value, re.IGNORECASE):
                 SC = re.search(mStr, value, re.IGNORECASE).group(1)  
                 SC = int(SC, 16)
+                SC = SC&0xFF
         
         return value, SC
         

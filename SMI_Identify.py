@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20200527"
+    Version = "20201027"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -423,7 +423,78 @@ class SMI_IdentifyCommand(NVME):
                                                                   
         return True if subRt==0 else False
     
-
+    def CheckSanicap(self):
+        SANICAP = self.IdCtrl.SANICAP.int
+        
+        self.CryptoEraseSupport = True if (self.IdCtrl.SANICAP.bit(0) == "1") else False
+        self.BlockEraseSupport = True if (self.IdCtrl.SANICAP.bit(1) == "1") else False
+        self.OverwriteSupport = True if (self.IdCtrl.SANICAP.bit(2) == "1") else False
+                
+        if self.BlockEraseSupport:
+            self.SANACT=2
+        elif self.CryptoEraseSupport:
+            self.SANACT=4
+        elif self.OverwriteSupport:
+            self.SANACT=3
+        else:
+            self.SANACT=0
+                            
+        self.Print ("Current SANICAP: 0x%X"%SANICAP)
+        self.Print("Crypto Erase sanitize operation is Supported", "p")  if self.CryptoEraseSupport else self.Print("Crypto Erase sanitize operation is not Supported", "f") 
+        self.Print("Block Erase sanitize operation is Supported", "p")  if self.BlockEraseSupport else self.Print("Block Erase sanitize operation is not Supported", "f") 
+        self.Print("Overwrite sanitize operation is Supported", "p")  if self.OverwriteSupport else self.Print("Overwrite sanitize operation is not Supported", "f") 
+        self.Print ("")  
+                
+        if self.SANACT==0:
+            self.Print("All sanitize operation is not supported!")
+            
+            self.Print ("")           
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, 2)  
+            self.Print ("Issue sanitize command(BlockErase): %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print ("Return status: %s"%mStr)
+            self.Print("Check and expect command fail")
+            if sc==0:
+                self.Print ("Fail, return code=0", "f")
+                return False
+            else:
+                self.Print("Pass, return code !=0", "p")
+                
+            self.Print ("")           
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, 4)  
+            self.Print ("Issue sanitize command(CryptoErase): %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print ("Return status: %s"%mStr)
+            self.Print("Check and expect command fail")
+            if sc==0:
+                self.Print ("Fail, return code=0", "f")
+                return False
+            else:
+                self.Print("Pass, return code !=0", "p")            
+            
+            self.Print ("")           
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, 3)  
+            self.Print ("Issue sanitize command(Overwrite): %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print ("Return status: %s"%mStr)
+            self.Print("Check and expect command fail")
+            if sc==0:
+                self.Print ("Fail, return code=0", "f")
+                return False
+            else:
+                self.Print("Pass, return code !=0", "p")  
+                
+            self.Print ("")
+            self.Print ("keyword: If the Sanitize command is not supported, then this field shall be cleared to 0h")
+            self.Print ("Check if SANICAP = 0 ")
+            if SANICAP == 0:
+                self.Print("Pass" , "p")
+            else:
+                self.Print ("Fail, SANICAP!=0", "f")
+                return False
+        # end of self.SANACT==0, and verify sanitize support in tool SMI_Sanitize
+        return True
+    
     def GetFWVer(self):
         FirmwareSlotInformationLog = self.get_log2byte(3, 64)
         AFI=FirmwareSlotInformationLog[0]
@@ -520,6 +591,11 @@ class SMI_IdentifyCommand(NVME):
                 self.Print( "Pass !","p")
             else:            
                 self.Print( "Fail !","f")
+                subRt = False
+                
+            self.Print ("")    
+            self.Print ("Check SANICAP")     
+            if not self.CheckSanicap():
                 subRt = False
                         
         return subRt

@@ -977,6 +977,7 @@ class NVME(object, NVMECom):
             if re.search(mStr, value, re.IGNORECASE):
                 SC = re.search(mStr, value, re.IGNORECASE).group(1)  
                 SC = int(SC, 16)
+                SC = SC&0xFF
  
         return value, SC        
      
@@ -1016,6 +1017,25 @@ class NVME(object, NVMECom):
  
         return value, SC
 
+    def GetFeatureValueWithSC(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
+    # get feature with status code and return int value
+        Value=0 
+        buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
+        mStr="0"
+        if sel==0:
+            mStr="Current value:(.+)"
+        if sel==1:
+            mStr="Default value:(.+)"
+        if sel==2:
+            mStr="Saved value:(.+)"
+        if sel==3:
+            mStr="capabilities value:(.+)"                
+            
+        if re.search(mStr, buf):
+            Value=int(re.search(mStr, buf).group(1),16)
+        else:
+            Value= buf
+        return Value, SC
         
     def asynchronous_event_request(self): 
         # create thread for asynchronous_event_request_cmd        

@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+from random import randint
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -34,18 +35,24 @@ class SMI_FeatureTimeStamp(NVME):
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     
-    def SetTimeStamp(self, milliseconds):
+    def SetTimeStamp(self, milliseconds, SV=0):
         byte0='{:02x}'.format(milliseconds & 0x0000000000FF)
         byte1='{:02x}'.format((milliseconds & 0x00000000FF00) >>8)
         byte2='{:02x}'.format((milliseconds & 0x000000FF0000) >>16)
         byte3='{:02x}'.format((milliseconds & 0x0000FF000000) >>24)
         byte4='{:02x}'.format((milliseconds & 0x00FF00000000) >>32)
         byte5='{:02x}'.format((milliseconds & 0xFF0000000000) >>40)
+        
+        if SV==0:
+            dw10 = 0xE
+        else:
+            dw10 = 0xE| (0x1<<31)   # for set feature to saveable, set dw10 bit 31=1
     
-        self.shell_cmd("echo -n -e '\\x%s\\x%s\\x%s\\x%s\\x%s\\x%s' |nvme admin-passthru %s -o 0x9 -l 8 -w --cdw10=0xE 2>&1"%(byte0, byte1, byte2, byte3, byte4, byte5, self.dev))
+        self.shell_cmd("echo -n -e '\\x%s\\x%s\\x%s\\x%s\\x%s\\x%s' |nvme admin-passthru %s -o 0x9 -l 8 -w --cdw10=0x%X 2>&1"%(byte0, byte1, byte2, byte3, byte4, byte5, self.dev, dw10))
     
-    def PrintFormatedTime(self):
-        self.Refresh()
+    def PrintFormatedTime(self, sel=0):
+    # sel : sel in get feature command
+        self.Refresh(sel)
         Timestamp=self.Timestamp
         self.Print ("Timestampstamp = %s (%s milliseconds)"%(hex(self.Timestamp), self.Timestamp))
         #      localtime or gmtime
@@ -53,10 +60,13 @@ class SMI_FeatureTimeStamp(NVME):
         self.Print ("Formatted Timestamp(local time) = %s "%mStr)
         return  self.Timestamp
         
-    def GetDataStructure(self):
+    def GetDataStructure(self, sel=0):
+        # Select (SEL): This field specifies which value of the attributes to return in the provided data
         # get DataStructure of time stamp
         # return 8 bytes
-        mbuf=self.shell_cmd("nvme admin-passthru %s --opcode=0xA --data-len=8 -r --cdw10=0xE 2>&1"%self.dev)
+        dw10=0xE
+        dw10 = dw10 | (sel<<8)
+        mbuf=self.shell_cmd("nvme admin-passthru %s --opcode=0xA --data-len=8 -r --cdw10=0x%X 2>&1"%(self.dev, dw10))
         line="0"
         # if command success
         if re.search("NVMe command result:00000000", mbuf):
@@ -70,8 +80,9 @@ class SMI_FeatureTimeStamp(NVME):
         else:
             return [0]   
     
-    def Refresh(self):
-        self.DS=self.GetDataStructure()
+    def Refresh(self, sel=0):
+    # sel : sel in get feature command
+        self.DS=self.GetDataStructure(sel)
         if not len(self.DS)==8:
             self.Print("Get feature fail", "f")
 
@@ -257,8 +268,85 @@ class SMI_FeatureTimeStamp(NVME):
 
     # </sub item scripts>
     
-    
-    
+    SubCase4TimeOut = 60
+    SubCase4Desc = "Test feature saveable value"
+    SubCase4KeyWord ="If the Timestamp feature supports a saveable value\n"\
+    "then the timestamp value restored after a subsequent power on or reset event is the value that was saved"
+    def SubCase4(self):
+        self.Print ("")
+        ret_code = 0
+        
+        self.Print("Check if feature is saveable or not", "b")
+        SELSupport = True if self.IdCtrl.ONCS.bit(4)=="1" else False
+        if SELSupport:
+            self.Print("Get feature with sel option is supported")
+        else:
+            self.Print("Get feature with sel option is not supported, skip test case.")
+            return 0
+
+        self.Print("Issue get feature with sel = 3 for feature capabilities")
+        capabilities , SC=self.GetFeatureValueWithSC(fid=0xE, sel=3)
+        if SC!=0:
+            self.Print("Command fail(get feature with sel = 3)", "f")
+            self.Print("CMD: %s"%self.LastCmd, "f")
+            return 1
+        else:
+            self.Print("Capabilities: 0x%X"%capabilities)
+            
+        saveable=True if capabilities&0b001 > 0 else False 
+        if saveable:#saveable
+            self.Print("feature is saveable")
+        else:
+            self.Print("feature is not saveable, skip test case")
+            return 0
+        
+        self.Print ("")
+        self.Print ("Setting Current Timestamp=0", "b")
+        self.SetTimeStamp(0)  
+        self.Print ("Get Current Timestamp")
+        Timestamp = self.PrintFormatedTime()         
+        self.Print ("Check if Current Timestamp was set to 0x0(e.g. Timestamp <= 100 milliseconds)")
+        if Timestamp<=100:
+            self.Print("PASS", "p")
+        else:
+            self.Print("Fail", "f")
+            return 1        
+        
+        self.Print ("")
+        saveValue = randint(1, 0xFF) 
+        saveValue = saveValue << 16 # shift 0x10000
+        self.Print ("Setting saved Timestamp=0x%X(%d milliseconds) with save=1 in cdw10"%(saveValue, saveValue), "b")
+        self.SetTimeStamp(saveValue, SV=1) 
+        self.Print("Done")
+        
+        self.Print ("")
+        self.Print ("Do nvme reset", "b") 
+        self.nvme_reset()        
+        self.Print ("nvme reset finish")
+                                 
+        self.Print ("")
+        self.Print ("Get and verify Current Timestamp", "b")
+        self.Print ("Read Current Timestamp")
+        Timestamp = self.PrintFormatedTime()
+        self.Print ("Check if Current Timestamp was the same as saved value (e.g. Timestamp <= (0x%X + 0x7D0) milliseconds, where 0x7D0 is 2S tolerance)"%saveValue)
+        if Timestamp<= saveValue+2000:
+            self.Print("PASS", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code=1
+            
+        self.Print ("")
+        self.Print ("Get and verify saved Timestamp", "b")
+        self.Print ("Read saved Timestamp")
+        Timestamp = self.PrintFormatedTime(sel=0x2)
+        self.Print ("Check if Timestamp was the same as saved value (e.g. Timestamp =  0x%X)"%saveValue)
+        if Timestamp==saveValue:
+            self.Print("PASS", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code=1  
+            
+        return ret_code
     
 if __name__ == "__main__":
     DUT = SMI_FeatureTimeStamp(sys.argv ) 
