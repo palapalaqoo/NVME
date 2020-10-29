@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+from random import randint
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -25,7 +26,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20200902"
+    Version = "20201029"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -81,6 +82,19 @@ class SMI_Format(NVME):
     def FormatNSID_01(self):
         self.Print( self.Format(0x1, 0, 0) )
         
+    def ThreadFIOwriteForCase17(self):
+        CMD = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --numjobs=1"\
+        " --filename=%s --name=mdata --runtime=60"%self.dev
+        self.Print("Thread msg-> issue fio cmd: %s"%CMD)
+        self.shell_cmd(CMD)
+
+    def ThreadFormatCmdForCase17(self):
+        CMD = "nvme format %s -n 1 -l 0"%self.dev_port
+        self.Print("Thread msg-> issue format cmd: %s"%CMD)
+        self.threadFlag=True
+        self.shell_cmd(CMD)
+        self.threadFlag=False
+                
     def FormatNSID(self, nsid):
         self.Format(nsid, 0, 0)    
         
@@ -273,7 +287,9 @@ class SMI_Format(NVME):
         
         
         self.NsReady=True
-        self.StopNs=1                  
+        self.StopNs=1     
+        
+        self.threadFlag=False             
         
     # =======================================================================================    
     # override pretest  
@@ -882,6 +898,66 @@ class SMI_Format(NVME):
                 self.Print("FAIL", "f")
                 ret_code=1 
         return ret_code
+
+    SubCase17TimeOut = 3600
+    SubCase17Desc = "Spec1.4, Verify status code of Format in Progress"
+    SubCase17KeyWord = "I/O commands for a namespace that has a Format NVM command in progress may be aborted and if aborted"\
+    "\n the controller should return a status code of Format in Progress."
+    def SubCase17(self): 
+        ret_code = 0
+        self.Print ("")
+        loopTotal = 10
+        self.Print ("Test loop total = %s"%loopTotal)
+        CMDwrite = "dd if=/dev/zero bs=4096 count=1 2>&1 |nvme write %s --data-size=4096  2>&1"%self.dev
+        self.Print ("Write command: %s"%CMDwrite)
+
+        loop =0
+        
+        while True:
+            loop +=1
+            if loop>10:
+                break
+
+            self.Print ("")            
+            self.Print ("Loop: %s"%loop, "b" )
+            '''
+            self.Print ("Do precondition") 
+            CMDprecon = "fio --direct=1 --iodepth=16 --ioengine=libaio --bs=64k --rw=write --numjobs=1 "\
+            "--filename=%s --name=mdata --runtime=5"%self.dev
+            self.shell_cmd(CMDprecon)
+            self.Print ("Done") 
+            '''
+            
+            waitTimeInMs = randint(1, 0xFF) 
+            waitTimeInS = float(waitTimeInMs)/1000
+            self.Print ("Create thread to issue format command and wait %s ms(%s S), then send write command"%(waitTimeInMs, waitTimeInS))
+            self.threadFlag=False # true while thread sending command, else false
+            t = threading.Thread(target = self.ThreadFormatCmdForCase17)
+            t.start()   
+
+            while True:            
+                if self.threadFlag:
+                    sleep(waitTimeInS)
+                    mStr, sc = self.shell_cmd_with_sc(CMDwrite)
+                    self.Print("After sending write command, return status: %s"%mStr)
+                    if sc==0:
+                        self.Print("I/O commands was not aborted, Status code = 0")
+                    elif sc==0x84:                        
+                        self.Print("I/O commands was aborted, Status code == 0x84(Format in Progress)", "p")
+                    else:
+                        self.Print("I/O commands was aborted, Status code != 0x84, fail the test and quit", "f")
+                        ret_code = 1
+                        
+                    self.Print("Wait for thread finish(timout 10s)")
+                    t.join(timeout=10)
+                    sleep(1)
+                    
+                    if ret_code!=0:
+                        return 1
+                    
+                    self.Print("Loop ending")
+                    break
+                    
 
     # </sub item scripts>
     
