@@ -1813,7 +1813,10 @@ class SmartCheck_():
         self.root = None  
         #self.tkLlistbox = None 
         # check if module exist, if exist, load module, else all smart log will not be checked
-        self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False    
+        self.SmartCheckModuleExist  = True if (self.isfileExist(self.pathSmartIni) and self.isfileExist(self.pathSmartModule)) else False  
+        # if is isSubCaseOBJ, ex. SubDUT = NVME(['/dev/nvme1n1']) , then no need to check smart
+        self.SmartCheckModuleExist = False if self._NVME.isSubCaseOBJ else self.SmartCheckModuleExist
+            
         if self.SmartCheckModuleExist: # load module for isRunOncePass()
             modulePath = "SMI_SmartCheck.SMI_SmartCheck.SMI_SmartCheck"
             try:
@@ -2135,14 +2138,26 @@ class DevWakeUpAllTheTime():
 #    DWUATT.Start()  
 #    DWUATT.Stop()  
 
-    def __init__(self, nvme):
+    def __init__(self, nvme, showMsg=True, RecordCmdToLogFile=True):
         self._NVME = nvme
-        self._Start = 0
+        self._Start = 0        
+        self._ShowMsg = showMsg
+        self._RecordCmdToLogFile = RecordCmdToLogFile        
         
     def _Read(self):
-        while self._Start == 1:
-            CMD="nvme read %s -s 0 -z 256000 -c 499  2>&1 >/dev/null "%self._NVME.dev         
-            self._NVME.shell_cmd(CMD)    
+        OneBlockSize = self._NVME.GetBlockSize()
+        readBlockSize = 16
+        readBlockSizeInByte = readBlockSize*OneBlockSize
+        # ex. nvme read /dev/nvme0n1 -s 0 -z 256000 -c 499  2>&1 >/dev/null 
+        CMD="nvme read %s -s 0 -z %s -c %s  2>&1 >/dev/null "%(self._NVME.dev, readBlockSizeInByte, readBlockSize-1)
+        if self._ShowMsg:
+            self._NVME.Print("DevWakeUpAllTheTime-> read cmd: %s"%CMD)
+            
+        SubDUT = NVME([self._NVME.dev]) # create new instant to send read command
+        SubDUT.RecordCmdToLogFile = self._RecordCmdToLogFile
+            
+        while self._Start == 1:            
+            SubDUT.shell_cmd(CMD)    
             
             '''
             # if not MainThreadAlive, quit

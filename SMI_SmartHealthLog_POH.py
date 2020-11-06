@@ -11,7 +11,7 @@ from lib_vct.NVME import DevWakeUpAllTheTime
 class SMI_SmartHealthLog_POH(NVME):
     ScriptName = "SMI_SmartHealthLog_POH.py"
     Author = "Sam chan"
-    Version = "20191004"
+    Version = "20201105"
     
     
     def DoTest(self, ExpectPlusOne = False, OperationalPowerState = False, CheckTimerAccuracy = False):
@@ -29,7 +29,7 @@ class SMI_SmartHealthLog_POH(NVME):
         self.timer.start()
         if BusyMode:
             self.Print("Start to issue nvme read command to keep controller in the operational power state")        
-            DWUATT=DevWakeUpAllTheTime(self)
+            DWUATT=DevWakeUpAllTheTime(nvme = self, RecordCmdToLogFile=False)
             DWUATT.Start()  
         POH=0
         timeout = 3720 #3720

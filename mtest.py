@@ -164,15 +164,7 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        value = randint(1, 0xFF)
-        self.Print("write 0x%X"%value)
-        mmax = 128*64
-        for i in range(mmax):
-            self.NVMEwrite(value = value, slba=i, SectorCnt=1)
-        self.spor_reset(showMsg=True)
-        CMD = "hexdump /dev/nvme0n1 -n %s"%(512*mmax)
-        for line in self.yield_shell_cmd(CMD):
-            self.Print( line)
+        aa = self.IdCtrl.LPA.bit(2)
         
         
         self.Print("Wait")

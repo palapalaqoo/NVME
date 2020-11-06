@@ -361,24 +361,26 @@ class NVMECom():
 
     def str_reverse(self, mstr):
         return mstr[::-1]
-    def get_log(self, log_id, size, StartByte=-1, StopByte=-1, NVMEobj=None):
+    def get_log(self, log_id, size, StartByte=-1, StopByte=-1, NVMEobj=None, Offset=0):
     #-- return string byte[0]+byte[1]+byte[2]+ ...
     #-- ex. return string "0123" where byte[0] = 0x01, byte[1] = 0x23
     #-- size, size in bytes
         self.device = NVMEobj.device if NVMEobj!= None else self.device
         if (StartByte==-1 and StopByte==-1):
-            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size))
+            return  self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b -o %s 2>&1"\
+                                   "|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size, Offset))
         else:
-            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b 2>&1|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size))
+            mStr=self.shell_cmd(" nvme get-log %s --log-id=%s --log-len=%s -b -o %s  2>&1"\
+                                "|xxd -ps |cut -d ':' -f 2|tr '\n' ' '|sed 's/[^0-9a-zA-Z]*//g'" %(self.device, log_id, size, Offset))
             return mStr[StartByte*2:(StopByte+1)*2]
 
 
-    def get_log2byte(self, log_id, size):
+    def get_log2byte(self, log_id, size, offset=0):
     #-- return list [ byte[0], byte[1], byte[2], ... ]
     #-- size, size in bytes
     #-- usage: mStr=get_log2byte(7, 512)=[01, 23, 45, 67, 89]
     #-- mStr[0]='01' , mStr[1]='23'  
-        line = self.get_log(log_id, size)
+        line = self.get_log(log_id=log_id, size=size, Offset=offset)
         n=2
         return [line[i:i+n] for i in range(0, len(line), n)]       
     
