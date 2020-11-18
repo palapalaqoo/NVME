@@ -418,53 +418,17 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
         if self.specVer!="1.4":
             self.Print( "Current target spec version = %s, please rerun with '-v 1.4' for NVMe Spec1.4"%self.specVer,"w")
             return 0
-        
+
         supportsExtendedEata = True if self.IdCtrl.LPA.bit(2)=="1" else False
         if supportsExtendedEata:
             self.Print( "Controller supports the Log Page Offset in IdCtrl.LPA.bit(2)", "p")
         else:
             self.Print( "Controller don't supports the Log Page Offset in IdCtrl.LPA.bit(2), skip", "w")
             return 0
+                
+        ret_code = 0 if self.VerifyGetLogWithOffset(LogID=0x5 , ByteOffset=64) else 1
         
-        self.Print("")
-        self.Print("Issue get log with size=128byte and Log Page Offset=0 for ACS0 to ACS31(4bytes per ACS)")
-        DS=self.get_log(log_id=0x5, size=128, Offset=0)
-        self.Print("CMD: %s"%self.LastCmd)
-        self.Print("")
-        if len(DS)!= 128*2:
-            self.Print("Fail, return length is not correct!", "f")
-            self.Print(DS)
-            return 1        
-        self.Print("Print data from get log command where 1th raw is ACS0 to ACS15, 2th raw is  ACS16 to ACS31")
-        # print every 64 byte where 2 char = 1byte
-        n = 64*2
-        chunks = [DS[i:i+n] for i in range(0, len(DS), n)]     
-        self.Print(chunks[0])
-        self.Print(chunks[1], "b")
-        
-        self.Print("")
-        self.Print("Issue get log with size=64byte and Log Page Offset=64 for ACS16 to ACS31(4bytes per ACS)")
-        DS=self.get_log(log_id=0x5, size=64, Offset=64)
-        self.Print("CMD: %s"%self.LastCmd)
-        self.Print("")
-        self.Print("Print data from get log command")
-        self.Print(DS, "b")     
-        
-        self.Print("") 
-        self.Print("Check if above raw data is ACS16 to ACS31")
-        if chunks[1]==DS:
-            self.Print( "Pass !","p")
-        else:            
-            self.Print( "Fail !","f")
-            ret_code=1
-            
-        CMD = "nvme get-log %s --log-id=5 --log-len=128"%self.dev
-        self.Print("") 
-        self.Print("Note: if want to check raw data for ACS0 to ACS31") 
-        self.Print("CMD: %s"%CMD) 
-        
-
-        return ret_code
+        return ret_code 
             
     
     

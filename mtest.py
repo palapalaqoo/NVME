@@ -164,18 +164,18 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        aa = self.IdCtrl.LPA.bit(2)
+        kk=2
         
-        
-        self.Print("Wait")
-
-                   
-        
-        
-        
-        
-        
-
+        mList = [['a', 'b', 'c'], ['aaaaaaaaaa', 'b', 'c'], ['a', 'bbbbbbbbbb', 'c']]
+        aa = self.GetAutoAlignStringFromList(mList, padding=kk) 
+        self.Print(aa)
+        kk+=1
+        aa = self.GetAutoAlignStringFromList(mList, padding=kk) 
+        self.Print(aa)
+        kk+=1
+        aa = self.GetAutoAlignStringFromList(mList, padding=kk) 
+        self.Print(aa)
+        kk+=1
         
         
         

@@ -405,8 +405,11 @@ class NVMECom():
         #cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=0x007F0008 -l 512 2>&1 "%mNVME.dev
         self.device = NVMEobj.device if NVMEobj!= None else self.device
         cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(self.device, CDW10, NUMDU, LPOL, LPOU, size)
-        mbuf=self.shell_cmd(cmd)
-        return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType, BytesOfElement)
+        mbuf, sc=self.shell_cmd_with_sc(cmd)
+        if sc!=0: # cmd fail
+            return None
+        else:
+            return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType, BytesOfElement)
             
     def AdminCMDDataStrucToListOrString(self, strIn, ReturnType=0, BytesOfElement=1):
     # input admin-passthru command Returned Data Structure, not that command must have '2>&1' to check if command success or not
@@ -1524,9 +1527,37 @@ class NVMECom():
                 self.Print ("Exception info as below")
                 self.Print(str(error), "f" )
         return config
+    
+    def GetAutoAlignStringFromList(self, mList, padding=2):
+        # ex, mList = [['a', 'b', 'c'], ['aaaaaaaaaa', 'b', 'c'], ['a', 'bbbbbbbbbb', 'c']]
+        mStr=""
+        col_width = max(len(word) for row in mList for word in row) + padding  # padding
+        for row in mList:
+            mStr += "".join(word.ljust(col_width) for word in row) + "\n"       
+        return mStr
+    
+    def GetAlignString(self,S0="", S0length=40, S0alignType="left", S1="", S1length=40, S1alignType="left"):    
+    # S0/S1: string 0, string 1
+    # S0alignType/S1alignType: align to left or right
+    # S0length/S1length: offset for strings
+        # mStr = "{:<25}{:<40}".format(S0, S1)
+        S0type = "<" if S0alignType=="left" else ">"
+        S1type = "<" if S1alignType=="left" else ">"
+        mStr = "{:%s%ss}{:%s%ss}"%(S0type, S0length, S1type, S1length)
+        mStr = mStr.format("%s"%S0, "%s"%S1)
+        return mStr
 
-            
-#== end NVMECom =================================================
+    def PrintClass(self, mClass, S0length=40, S1length=40):
+    # print class with it's attributes name and it's value
+        attrs = vars(mClass)
+        for item in attrs.items():
+            mList = list(item)
+            if mList[0][0] =="_": continue  # if is buildin name, skip it, ex. '__module__': '__main__'
+            # align and print it
+            mStr = self.GetAlignString(S0=mList[0], S0length=S0length, S1=mList[1], S1length=S1length)
+            self.Print(mStr)
+                        
+#== end of NVMECom =================================================
 
 class timer_():
 # use: start() and time

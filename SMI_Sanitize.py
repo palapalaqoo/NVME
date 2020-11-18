@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20200618"
+    Version = "20201110"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -510,56 +510,6 @@ class SMI_Sanitize(NVME):
         else:
             self.Print("Time out!, exit all test ", "f")  
             return False
-
-    def VerifyGetLogWithOffset(self, LogID, ByteOffset):
-    # LogID
-    # ByteOfSize, ex, ByteOfSize=64,  1th cmd read 64*2 byte, 2th cmd read 64 byte
-        # 1th cmd, issue with start byte=0, size=ByteOffset*2 to get 1th and 2th part of log
-        # 2th cmd, issue with start byte=ByteOffset, size=ByteOffset to get 2th part of log
-        # the check if all the 2th part is the same
-        rtCode = True
-        Size1ThAnd2Th = ByteOffset*2
-        
-        self.Print("")
-        self.Print("Issue get log with size=%s byte and Log Page Offset=0"%Size1ThAnd2Th) # 1th and 2the part of log
-        DS=self.get_log(log_id=LogID, size=Size1ThAnd2Th, Offset=0)
-        self.Print("CMD: %s"%self.LastCmd)
-        self.Print("")
-        if len(DS)!= Size1ThAnd2Th*2:
-            self.Print("Fail, return length is not correct!", "f")
-            self.Print(DS)
-            return False        
-        self.Print("Print data from get log command where 1th raw are byte 0 to byte %s,"\
-                   " 2th raw are byte %s to byte %s"%(ByteOffset-1, ByteOffset, Size1ThAnd2Th-1))
-        # print 2 raw, every raw have ByteOffset byte,  note that 2 char means 1byte
-        n = ByteOffset*2
-        chunks = [DS[i:i+n] for i in range(0, len(DS), n)]     
-        self.Print(chunks[0])
-        self.Print(chunks[1], "b")
-        
-        self.Print("")
-        self.Print("Issue get log with size=%s byte and Log Page Offset=%s for get log byte %s to byte %s"\
-                   %(ByteOffset, ByteOffset, ByteOffset, Size1ThAnd2Th-1))
-        DS=self.get_log(log_id=LogID, size=ByteOffset, Offset=ByteOffset)
-        self.Print("CMD: %s"%self.LastCmd)
-        self.Print("")
-        self.Print("Print data from get log command")
-        self.Print(DS, "b")     
-        
-        self.Print("") 
-        self.Print("Check if above raw data are byte %s to byte %s"%(ByteOffset, Size1ThAnd2Th-1))
-        if chunks[1]==DS:
-            self.Print( "Pass !","p")
-        else:            
-            self.Print( "Fail !","f")
-            rtCode=False
-            
-        CMD = "nvme get-log %s --log-id=%s --log-len=%s"%(self.dev, LogID, Size1ThAnd2Th)
-        self.Print("") 
-        self.Print("Check raw data for first %s bytes, CMD: %s"%(Size1ThAnd2Th, CMD)) 
-        mStr = self.shell_cmd(CMD)
-        self.Print(mStr)
-        return rtCode    
         
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
