@@ -385,7 +385,7 @@ class NVMECom():
         return [line[i:i+n] for i in range(0, len(line), n)]       
     
     def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1, NVMEobj=None):
-    #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0
+    #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0, ex, byte[0]=0x89, byte[1]=0xab, return ["89", "ab"]
     #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] ,if ReturnType=0
     #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1   
     #-- size, size in bytes
@@ -1546,6 +1546,23 @@ class NVMECom():
         mStr = "{:%s%ss}{:%s%ss}"%(S0type, S0length, S1type, S1length)
         mStr = mStr.format("%s"%S0, "%s"%S1)
         return mStr
+
+    def GetBytesFromList(self, listRawData, stopByteOffet, startByteOffet, isString=False):
+    # return value of specific offset in listRawData
+    # ex, listRawData = [1, 2, 3, 4, 5, 6], GetBytes(listRawData, 3, 1), return 2<<0 + 3<<8 + 4<<(8*2)
+    # if isString, return string
+        if not isString:
+            value = 0
+            x256 = 0
+            for i in range(startByteOffet, stopByteOffet+1):
+                value = value + (int(listRawData[i])<<(x256 * 8))
+                x256 += 1
+            return value
+        else:
+            value = ""
+            for i in range(startByteOffet, stopByteOffet+1):
+                value = value + chr(listRawData[i])
+            return value   
 
     def PrintClass(self, mClass, S0length=40, S1length=40):
     # print class with it's attributes name and it's value

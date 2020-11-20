@@ -166,19 +166,17 @@ class mtest(NVME):
     def SubCase1(self):
         kk=2
         
-        mList = [['a', 'b', 'c'], ['aaaaaaaaaa', 'b', 'c'], ['a', 'bbbbbbbbbb', 'c']]
-        aa = self.GetAutoAlignStringFromList(mList, padding=kk) 
-        self.Print(aa)
-        kk+=1
-        aa = self.GetAutoAlignStringFromList(mList, padding=kk) 
-        self.Print(aa)
-        kk+=1
-        aa = self.GetAutoAlignStringFromList(mList, padding=kk) 
-        self.Print(aa)
-        kk+=1
+        my_dict = {}
+        my_dict.update(aa=10)
+        my_dict.update(bb=15)
+        my_dict.update(cc=17)
+        print my_dict["aa"]
+        print my_dict["cc"]
+        print my_dict["bb"]
         
-        
-        
+        Z = [0,1,2,3,4,5,6,7,8,9]
+        b = Z[3:6]
+        print b
         
         
         return 0        
