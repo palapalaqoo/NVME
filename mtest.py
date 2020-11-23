@@ -27,6 +27,7 @@ import mtest1
 # Import VCT modules
 from lib_vct.NVME import NVME
 
+from lib_vct.NVMECom import OrderedAttributeClass
 
 class mtest(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -161,24 +162,46 @@ class mtest(NVME):
 
 
             
+ 
+    class Ordered(OrderedAttributeClass):
+
+        
+        LogIdentifier = OrderedAttributeClass.MyOrderedField()
+        TNEV = OrderedAttributeClass.MyOrderedField()
+        TLL = OrderedAttributeClass.MyOrderedField()
+        LogRevision = OrderedAttributeClass.MyOrderedField()
+        LogHeaderLength = OrderedAttributeClass.MyOrderedField()
+        Timestamp = OrderedAttributeClass.MyOrderedField()
+        POH = OrderedAttributeClass.MyOrderedField()
+        PowerCycleCount = OrderedAttributeClass.MyOrderedField()
+        VID = OrderedAttributeClass.MyOrderedField()  
+        def XXXX(self):
+            print "XXXX here"
+
+    
     
     SubCase1TimeOut = 600
     def SubCase1(self):
         kk=2
+
+        ordered = self.Ordered()
+        ordered.TNEV = 456
+        '''
+        aa= dir(ordered)
+        print aa
+        bb = ordered.__dict__.items()
+        print bb
+        ordered.TNEV = 456
+        kk = ordered.getList()
+        '''
+        bb= ordered.ordered_fields
+        print bb
         
-        my_dict = {}
-        my_dict.update(aa=10)
-        my_dict.update(bb=15)
-        my_dict.update(cc=17)
-        print my_dict["aa"]
-        print my_dict["cc"]
-        print my_dict["bb"]
-        
-        Z = [0,1,2,3,4,5,6,7,8,9]
-        b = Z[3:6]
-        print b
-        
-        
+        bb= ordered.getOrderedAttributesList()
+        print bb     
+        print ordered.TNEV   
+        print getattr(ordered, "TNEV")
+
         return 0        
         
         

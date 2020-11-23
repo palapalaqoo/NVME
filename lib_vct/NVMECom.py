@@ -1573,7 +1573,13 @@ class NVMECom():
             # align and print it
             mStr = self.GetAlignString(S0=mList[0], S0length=S0length, S1=mList[1], S1length=S1length)
             self.Print(mStr)
-                        
+            
+    def PrintListWithAlign(self, List, S0length=40, S1length=40):
+    # print list that is similar to [[A, B], [C, D], ..]
+        for mList in List:
+            mStr = self.GetAlignString(S0=mList[0], S0length=S0length, S1=mList[1], S1length=S1length)
+            self.Print(mStr)
+                                    
 #== end of NVMECom =================================================
 
 class timer_():
@@ -1659,3 +1665,62 @@ class LBARangeDataStructure_():
         
         self.Pattern=Pat
         
+
+# below for create ordered attribute in a class
+''' usage: 
+    from lib_vct.NVMECom import OrderedAttributeClass
+    class Ordered(OrderedAttributeClass):
+        x = OrderedAttributeClass.MyOrderedField()
+        z = OrderedAttributeClass.MyOrderedField()
+        b = OrderedAttributeClass.MyOrderedField()
+        a = OrderedAttributeClass.MyOrderedField()
+
+    ordered = Ordered()
+    allList = ordered.ordered_fields    # here allList will be [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
+    note that ordered_fields will not show value correctly, must using getOrderedAttributesList to get current value!
+    
+    if need to print, can use PrintListWithAlign(), e.x
+    self.PrintListWithAlign(self.PELHs.getOrderedAttributesList)
+
+'''
+
+
+class BaseWithOrderedFields(type):
+    """ Metaclass, which provides an attribute "ordered_fields", being an ordered
+          list of class attributes that have a "creation_counter" attribute. """
+
+    def __new__(cls, name, bases, attrs):
+        new_class = super(BaseWithOrderedFields, cls).__new__(cls, name, bases, attrs)
+        # Add an attribute to access ordered, orderable fields
+        new_class.ordered_fields = [[name, attrs.pop(name)] for name, obj in attrs.items()
+                                        if hasattr(obj, "creation_counter")]
+        new_class.ordered_fields.sort(key=lambda item: item[1].creation_counter)
+        return new_class
+
+        
+class OrderedAttributeClass(object): # snchan       
+    __metaclass__ = BaseWithOrderedFields
+
+    class MyOrderedField(int):
+        creation_counter = 0
+        
+        def __init__(self):
+            # Set the instance's counter, to keep track of ordering
+            self.creation_counter = OrderedAttributeClass.MyOrderedField.creation_counter
+            # Increment the class's counter for future instances
+            OrderedAttributeClass.MyOrderedField.creation_counter += 1
+
+
+    def getOrderedAttributesList(self):
+        # read name and value
+        listBuf = []
+        for mList in self.ordered_fields: # ordered_fields = [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
+            name = mList[0]
+            listBuf.append([name, getattr(self, "%s"%name)])
+        
+        return listBuf
+    
+    
+    
+    
+    

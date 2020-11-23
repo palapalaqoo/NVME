@@ -5,14 +5,33 @@
 import sys
 # Import VCT modules
 from lib_vct.NVME import NVME
+from lib_vct.NVMECom import OrderedAttributeClass
 
+    
 class SMI_PersistentEventLog(NVME):
     ScriptName = "SMI_PersistentEventLog.py"
     Author = ""
     Version = "20201118"
     
-      
-
+    def getPELHvalue(self, name):
+        for i in range(len(self.PELH)):
+            if name == self.PELH[i][0]:
+                return self.PELH[i][1]
+        return None
+    
+    class PELH_(OrderedAttributeClass):
+        
+        LogIdentifier = OrderedAttributeClass.MyOrderedField()
+        TNEV = OrderedAttributeClass.MyOrderedField()
+        TLL = OrderedAttributeClass.MyOrderedField()
+        LogRevision = OrderedAttributeClass.MyOrderedField()
+        LogHeaderLength = OrderedAttributeClass.MyOrderedField()
+        Timestamp = OrderedAttributeClass.MyOrderedField()
+        POH = OrderedAttributeClass.MyOrderedField()
+        PowerCycleCount = OrderedAttributeClass.MyOrderedField()
+        VID = OrderedAttributeClass.MyOrderedField()
+         
+    
     def ParserPersistentEventLogHeader(self, listRawData):
     # note: listRawData is list type with int element, ex [0x15, 0x26]
         mLen = len(listRawData)
@@ -35,6 +54,14 @@ class SMI_PersistentEventLog(NVME):
         self.PELH.append(["SUBNQN", self.GetBytesFromList(listRawData, 371, 116, isString=True)])
         self.PELH.append(["SupportedEventsBitmap", self.GetBytesFromList(listRawData, 511, 480)])
         
+        self.PELHs.LogIdentifier = self.GetBytesFromList(listRawData, 0, 0)
+        self.PELHs.TNEV = self.GetBytesFromList(listRawData, 7, 4)
+        self.PELHs.TLL = self.GetBytesFromList(listRawData, 15, 8)
+        self.PELHs.LogRevision = self.GetBytesFromList(listRawData, 16, 16)
+        self.PELHs.LogHeaderLength = self.GetBytesFromList(listRawData, 19, 18)
+        self.PELHs.POH = self.GetBytesFromList(listRawData, 27, 20)
+        self.PELHs.PowerCycleCount = self.GetBytesFromList(listRawData, 43, 28)        
+        
         # Supported Events Bitmap
         SEB = self.GetBytesFromList(listRawData, 511, 480)
         self.PELH.append(["VendorSpecificEventSupported", True if SEB&(1<<222)>0 else False])
@@ -51,11 +78,14 @@ class SMI_PersistentEventLog(NVME):
         self.PELH.append(["TimestampChangeEventSupported", True if SEB&(1<<3)>0 else False])
         self.PELH.append(["FirmwareCommitEventSupported", True if SEB&(1<<2)>0 else False])
         self.PELH.append(["SMARTHealthLogSnapshotEventSupported", True if SEB&(1<<1)>0 else False])            
+        return True
 
+    def ParserPersistentEventLogEvents(self, listRawData, TLL):
+        
         TNEV=self.GetBytesFromList(listRawData, 7, 4)
         offset = 512 # start from offset 512
         for i in range(TNEV):
-            self.GetPersistentEventN(listRawData, offset)
+            offset = self.GetPersistentEventN(listRawData, offset)
 
 
         return True
@@ -86,6 +116,7 @@ class SMI_PersistentEventLog(NVME):
         
         if EventType==0x1:
             self.ParserEventDataType1(EventData)
+            self.PersistentEventN
         
         return offset+EHLplus3plusVSIL #return next offset
     
@@ -141,6 +172,7 @@ class SMI_PersistentEventLog(NVME):
         self.LSF_ReleaseContext = 2 <<8
         
         self.PELH=[]
+        self.PELHs = self.PELH_()
         self.PersistentEventN=[]
         
         
@@ -165,17 +197,18 @@ class SMI_PersistentEventLog(NVME):
         
         self.Print("Issue cmd with ReleaseContext=1 in Log Specific Field(cdw10) to clear current Persistent Event log")
         LSF = self.LSF_ReleaseContext
-        result = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        # 0xD TODO
+        result = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=512, LSP=LSF, LPO=0)    
         if result==None:
             self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
             mStr = self.shell_cmd(self.LastCmd)
             self.Print(mStr)
             return 1
 
-        self.Print("Issue cmd with EstablishContextAndReadLogData=1 in Log Specific Field to create context and get log data")
+        self.Print("")
+        self.Print("Issue cmd with EstablishContextAndReadLogData=1 in Log Specific Field to create context and get Persistent Event Log Header(512bytes)")
         LSF = self.LSF_EstablishContextAndReadLogData
         resultStrList = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        # 0xD TODO
-        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string "ab" to 0xab
+        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
         if resultStrList==None:
             self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
             mStr = self.shell_cmd(self.LastCmd)
@@ -187,7 +220,29 @@ class SMI_PersistentEventLog(NVME):
         for mList in self.PELH:            
             self.Print(self.GetAlignString(S0="%s"%mList[0], S1="%s"%mList[1]))
 
+        self.Print("")
+        TT= self.PELHs.getOrderedAttributesList()
+        self.PrintListWithAlign(TT)
+
         
+        
+        self.Print("")
+        TLL = self.getPELHvalue("TLL")
+        self.Print("Total Log Length (TLL): %s"%TLL)
+        self.Print("Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
+        self.Print("i.e. cmd with size = 'Total Log Length', offset = 0")
+        
+        LSF = self.LSF_ReadLogData
+        resultStrList = self.get_log_passthru(LID=0x2, size=1024, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=TLL, LSP=LSF, LPO=0)   
+        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
+        if resultStrList==None:
+            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
+            mStr = self.shell_cmd(self.LastCmd)
+            self.Print(mStr)
+            return 1
+        
+        self.ParserPersistentEventLogEvents(resultStrList)
+                
         return ret_code
 
     # </define sub item scripts>
