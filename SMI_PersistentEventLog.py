@@ -19,8 +19,8 @@ class SMI_PersistentEventLog(NVME):
                 return self.PELH[i][1]
         return None
     
-    class PELH_(OrderedAttributeClass):
-        
+    # class inherit from OrderedAttributeClass that can print ordered attributes
+    class PELH(OrderedAttributeClass):        
         LogIdentifier = OrderedAttributeClass.MyOrderedField()
         TNEV = OrderedAttributeClass.MyOrderedField()
         TLL = OrderedAttributeClass.MyOrderedField()
@@ -30,7 +30,97 @@ class SMI_PersistentEventLog(NVME):
         POH = OrderedAttributeClass.MyOrderedField()
         PowerCycleCount = OrderedAttributeClass.MyOrderedField()
         VID = OrderedAttributeClass.MyOrderedField()
-         
+        SSVID = OrderedAttributeClass.MyOrderedField()
+        SN = OrderedAttributeClass.MyOrderedField()
+        MN = OrderedAttributeClass.MyOrderedField()
+        SUBNQN = OrderedAttributeClass.MyOrderedField()
+        #SupportedEventsBitmap = OrderedAttributeClass.MyOrderedField()
+        
+        class SupportedEventsBitmap(OrderedAttributeClass):
+            VendorSpecificEventSupported = OrderedAttributeClass.MyOrderedField()
+            ThermalExcursionEventSupport = OrderedAttributeClass.MyOrderedField()
+            TelemetryLogCreateEventSupport = OrderedAttributeClass.MyOrderedField()
+            SetFeatureEventSupport = OrderedAttributeClass.MyOrderedField()
+            SanitizeCompletionEventSupport = OrderedAttributeClass.MyOrderedField()
+            SanitizeStartEventSupport = OrderedAttributeClass.MyOrderedField()
+            FormatNVMCompletionEvenSupport = OrderedAttributeClass.MyOrderedField()
+            FormatNVMStartEventSupport = OrderedAttributeClass.MyOrderedField()
+            ChangeNamespaceEventSupport = OrderedAttributeClass.MyOrderedField()
+            NVMSubsystemHardwareErrorEventSupport = OrderedAttributeClass.MyOrderedField()
+            PowerOnOrResetEventSupported = OrderedAttributeClass.MyOrderedField()
+            TimestampChangeEventSupported = OrderedAttributeClass.MyOrderedField()
+            FirmwareCommitEventSupported = OrderedAttributeClass.MyOrderedField()
+            SMARTHealthLogSnapshotEventSupported = OrderedAttributeClass.MyOrderedField   
+        
+        '''PersistentEventN include PersistentEventFormat and 
+        SMARTHealthLogSnapshot
+        FirmwareCommit
+        TimestampChange
+        Power-onorReset
+        NVMSubsystemHardwareError
+        ChangeNamespace
+        FormatNVMStart
+        FormatNVMCompletion
+        SanitizeStart
+        SanitizeCompletion
+        SetFeature
+        TelemetryLogCreated
+        ThermalExcursion      
+        '''  
+        PersistentEventN=[] 
+        
+        class PersistentEventFormat(OrderedAttributeClass):
+            EventType = OrderedAttributeClass.MyOrderedField()
+            EventTypeRevision = OrderedAttributeClass.MyOrderedField()
+            EHL = OrderedAttributeClass.MyOrderedField()
+            ControllerIdentifier = OrderedAttributeClass.MyOrderedField()
+            EventTimestamp = OrderedAttributeClass.MyOrderedField()
+            VSIL = OrderedAttributeClass.MyOrderedField()
+            EL = OrderedAttributeClass.MyOrderedField()
+            VendorSpecificInformation = OrderedAttributeClass.MyOrderedField()
+            EventData = None        
+            
+        class SMARTHealthLogSnapshot(OrderedAttributeClass):
+            CriticalWarning = OrderedAttributeClass.MyOrderedField()
+            CompositeTemperature = OrderedAttributeClass.MyOrderedField()
+            AvailableSpare = OrderedAttributeClass.MyOrderedField()
+            AvailableSpareThreshold = OrderedAttributeClass.MyOrderedField()
+            PercentageUsed = OrderedAttributeClass.MyOrderedField()
+            EnduranceGroupCriticalWarningSummary = OrderedAttributeClass.MyOrderedField()
+            DataUnitsRead = OrderedAttributeClass.MyOrderedField()
+            DataUnitsWritten = OrderedAttributeClass.MyOrderedField()
+            HostReadCommands = OrderedAttributeClass.MyOrderedField()
+            HostWriteCommands = OrderedAttributeClass.MyOrderedField()
+            ControllerBusyTime = OrderedAttributeClass.MyOrderedField()
+            PowerCycles = OrderedAttributeClass.MyOrderedField()
+            PowerOnHours = OrderedAttributeClass.MyOrderedField()
+            UnsafeShutdowns = OrderedAttributeClass.MyOrderedField()
+            MediaandDataIntegrityErrors = OrderedAttributeClass.MyOrderedField()
+            NumberofErrorInformationLogEntries = OrderedAttributeClass.MyOrderedField()
+            WarningCompositeTemperatureTime = OrderedAttributeClass.MyOrderedField()
+            CriticalCompositeTemperatureTime = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor1 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor2 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor3 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor4 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor5 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor6 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor7 = OrderedAttributeClass.MyOrderedField()
+            TemperatureSensor8 = OrderedAttributeClass.MyOrderedField()
+            ThermalManagementTemperature1TransitionCount = OrderedAttributeClass.MyOrderedField()
+            ThermalManagementTemperature2TransitionCount = OrderedAttributeClass.MyOrderedField()
+            TotalTimeForThermalManagementTemperature1 = OrderedAttributeClass.MyOrderedField()
+            TotalTimeForThermalManagementTemperature2 = OrderedAttributeClass.MyOrderedField()
+    
+        class FirmwareCommit(OrderedAttributeClass):
+            OldFirmwareRevision = OrderedAttributeClass.MyOrderedField()
+            NewFirmwareRevision = OrderedAttributeClass.MyOrderedField()
+            FirmwareCommitAction = OrderedAttributeClass.MyOrderedField()
+            FirmwareSlot = OrderedAttributeClass.MyOrderedField()
+            StatusCodeTypeforFirmwareCommitCommand = OrderedAttributeClass.MyOrderedField()
+            StatusReturnedforFirmwareCommitCommand = OrderedAttributeClass.MyOrderedField()
+            VendorAssignedFirmwareCommitResultCode = OrderedAttributeClass.MyOrderedField()    
+    
     
     def ParserPersistentEventLogHeader(self, listRawData):
     # note: listRawData is list type with int element, ex [0x15, 0x26]
@@ -39,126 +129,132 @@ class SMI_PersistentEventLog(NVME):
             self.Print("ParserPersistentEventLogHeader: header size not correct, expect 512byte, current = %s"%len)
             return False
         # if is string , set isSting=True
-        self.PELH.append(["LogIdentifier", self.GetBytesFromList(listRawData, 0, 0)])
-        self.PELH.append(["TNEV", self.GetBytesFromList(listRawData, 7, 4)])
-        self.PELH.append(["TLL", self.GetBytesFromList(listRawData, 15, 8)])
-        self.PELH.append(["LogRevision", self.GetBytesFromList(listRawData, 16, 16)])
-        self.PELH.append(["LogHeaderLength", self.GetBytesFromList(listRawData, 19, 18)])
-        self.PELH.append(["Timestamp", self.GetBytesFromList(listRawData, 27, 20)])
-        self.PELH.append(["POH", self.GetBytesFromList(listRawData, 43, 28)])
-        self.PELH.append(["PowerCycleCount", self.GetBytesFromList(listRawData, 51, 44)])
-        self.PELH.append(["VID", self.GetBytesFromList(listRawData, 53, 52)])
-        self.PELH.append(["SSVID", self.GetBytesFromList(listRawData, 55, 54)])
-        self.PELH.append(["SN", self.GetBytesFromList(listRawData, 75, 56, isString=True)])
-        self.PELH.append(["MN", self.GetBytesFromList(listRawData, 115, 76, isString=True)])
-        self.PELH.append(["SUBNQN", self.GetBytesFromList(listRawData, 371, 116, isString=True)])
-        self.PELH.append(["SupportedEventsBitmap", self.GetBytesFromList(listRawData, 511, 480)])
-        
-        self.PELHs.LogIdentifier = self.GetBytesFromList(listRawData, 0, 0)
-        self.PELHs.TNEV = self.GetBytesFromList(listRawData, 7, 4)
-        self.PELHs.TLL = self.GetBytesFromList(listRawData, 15, 8)
-        self.PELHs.LogRevision = self.GetBytesFromList(listRawData, 16, 16)
-        self.PELHs.LogHeaderLength = self.GetBytesFromList(listRawData, 19, 18)
-        self.PELHs.POH = self.GetBytesFromList(listRawData, 27, 20)
-        self.PELHs.PowerCycleCount = self.GetBytesFromList(listRawData, 43, 28)        
+        self.PELH.LogIdentifier = self.GetBytesFromList(listRawData, 0, 0)
+        self.PELH.TNEV = self.GetBytesFromList(listRawData, 7, 4)
+        self.PELH.TLL = self.GetBytesFromList(listRawData, 15, 8)
+        self.PELH.LogRevision = self.GetBytesFromList(listRawData, 16, 16)
+        self.PELH.LogHeaderLength = self.GetBytesFromList(listRawData, 19, 18)
+        self.PELH.POH = self.GetBytesFromList(listRawData, 27, 20)
+        self.PELH.PowerCycleCount = self.GetBytesFromList(listRawData, 43, 28)  
+        self.PELH.VID = self.GetBytesFromList(listRawData, 53, 52)
+        self.PELH.SSVID = self.GetBytesFromList(listRawData, 55, 54)
+        self.PELH.SN = self.GetBytesFromList(listRawData, 75, 56, isString=True)
+        self.PELH.MN = self.GetBytesFromList(listRawData, 115, 76, isString=True)
+        self.PELH.SUBNQN = self.GetBytesFromList(listRawData, 371, 116, isString=True)
+        #self.PELH.SupportedEventsBitmap = self.GetBytesFromList(listRawData, 511, 480)   
         
         # Supported Events Bitmap
         SEB = self.GetBytesFromList(listRawData, 511, 480)
-        self.PELH.append(["VendorSpecificEventSupported", True if SEB&(1<<222)>0 else False])
-        self.PELH.append(["ThermalExcursionEventSupport", True if SEB&(1<<13)>0 else False])
-        self.PELH.append(["TelemetryLogCreateEventSupport", True if SEB&(1<<12)>0 else False])
-        self.PELH.append(["SetFeatureEventSupport", True if SEB&(1<<11)>0 else False])
-        self.PELH.append(["SanitizeCompletionEventSupport", True if SEB&(1<<10)>0 else False])
-        self.PELH.append(["SanitizeStartEventSupport", True if SEB&(1<<9)>0 else False])
-        self.PELH.append(["FormatNVMCompletionEvenSupport", True if SEB&(1<<8)>0 else False])
-        self.PELH.append(["FormatNVMStartEventSupport", True if SEB&(1<<7)>0 else False])
-        self.PELH.append(["ChangeNamespaceEventSupport", True if SEB&(1<<6)>0 else False])
-        self.PELH.append(["NVMSubsystemHardwareErrorEventSupport", True if SEB&(1<<5)>0 else False])
-        self.PELH.append(["PowerOnOrResetEventSupported", True if SEB&(1<<4)>0 else False])
-        self.PELH.append(["TimestampChangeEventSupported", True if SEB&(1<<3)>0 else False])
-        self.PELH.append(["FirmwareCommitEventSupported", True if SEB&(1<<2)>0 else False])
-        self.PELH.append(["SMARTHealthLogSnapshotEventSupported", True if SEB&(1<<1)>0 else False])            
+        self.PELH.SupportedEventsBitmap.VendorSpecificEventSupported = True if SEB&(1<<222)>0 else False
+        self.PELH.SupportedEventsBitmap.ThermalExcursionEventSupport = True if SEB&(1<<13)>0 else False
+        self.PELH.SupportedEventsBitmap.TelemetryLogCreateEventSupport = True if SEB&(1<<12)>0 else False
+        self.PELH.SupportedEventsBitmap.SetFeatureEventSupport = True if SEB&(1<<11)>0 else False
+        self.PELH.SupportedEventsBitmap.SanitizeCompletionEventSupport = True if SEB&(1<<10)>0 else False
+        self.PELH.SupportedEventsBitmap.SanitizeStartEventSupport = True if SEB&(1<<9)>0 else False
+        self.PELH.SupportedEventsBitmap.FormatNVMCompletionEvenSupport = True if SEB&(1<<8)>0 else False
+        self.PELH.SupportedEventsBitmap.FormatNVMStartEventSupport = True if SEB&(1<<7)>0 else False
+        self.PELH.SupportedEventsBitmap.ChangeNamespaceEventSupport = True if SEB&(1<<6)>0 else False
+        self.PELH.SupportedEventsBitmap.NVMSubsystemHardwareErrorEventSupport = True if SEB&(1<<5)>0 else False
+        self.PELH.SupportedEventsBitmap.PowerOnOrResetEventSupported = True if SEB&(1<<4)>0 else False
+        self.PELH.SupportedEventsBitmap.TimestampChangeEventSupported = True if SEB&(1<<3)>0 else False
+        self.PELH.SupportedEventsBitmap.FirmwareCommitEventSupported = True if SEB&(1<<2)>0 else False
+        self.PELH.SupportedEventsBitmap.SMARTHealthLogSnapshotEventSupported = True if SEB&(1<<1)>0 else False         
+
         return True
 
-    def ParserPersistentEventLogEvents(self, listRawData, TLL):
-        
-        TNEV=self.GetBytesFromList(listRawData, 7, 4)
-        offset = 512 # start from offset 512
+    def ParserPersistentEventLogEvents(self, listRawData):
+        TNEV= self.PELH.TNEV
+        TNEV = 2 # TODO 
+        offsetS = 512 # start from offset 512
         for i in range(TNEV):
-            offset = self.GetPersistentEventN(listRawData, offset)
-
+            #return PersistentEventFormat and end offset
+            PersistentEventFormat, offsetE = self.GetPersistentEventN(listRawData, offsetS)
+            self.PELH.PersistentEventN.append(PersistentEventFormat)
+            if offsetS == offsetE:
+                self.Print("Error!, current PersistentEvent start at offset: %s, end at offset: %s(EHLplus3plusVSIL=0), stop parsing.."%(offsetS, offsetE), "f")    
+                return False        
+                
+        if self.PELH.TLL!=offsetE:
+            self.Print("Error!, Total Log Length(%s) in Persistent Event Log Header is not equal to the last byte address(%s) of last PersistentEvent"\
+                       %(self.PELH.TLL, offsetE), "f")            
+            return False
 
         return True
 
     def GetPersistentEventN(self, listRawData, offset):
-        listTemp = []
-        listTemp.append["EventType", self.GetBytesFromList(listRawData, offset+0, offset+0)]
-        listTemp.append["EventTypeRevision", self.GetBytesFromList(listRawData, offset+1, offset+1)]
-        listTemp.append["EHL", self.GetBytesFromList(listRawData, offset+2, offset+2)]
-        listTemp.append["ControllerIdentifier", self.GetBytesFromList(listRawData, offset+5, offset+4)]
-        listTemp.append["EventTimestamp", self.GetBytesFromList(listRawData, offset+13, offset+6)]
-        listTemp.append["VSIL", self.GetBytesFromList(listRawData, offset+21, offset+20)]
-        listTemp.append["EL", self.GetBytesFromList(listRawData, offset+23, offset+22)]
+        # PersistentEventFormatInst template
+        rtInst = self.PELH.PersistentEventFormat
+        rtInst.EventType = self.GetBytesFromList(listRawData, offset+0, offset+0)
+        rtInst.EventTypeRevision = self.GetBytesFromList(listRawData, offset+1, offset+1)
+        rtInst.EHL = self.GetBytesFromList(listRawData, offset+2, offset+2)
+        rtInst.ControllerIdentifier = self.GetBytesFromList(listRawData, offset+5, offset+4)
+        rtInst.EventTimestamp = self.GetBytesFromList(listRawData, offset+13, offset+6)
+        rtInst.VSIL = self.GetBytesFromList(listRawData, offset+21, offset+20)
+        rtInst.EL = self.GetBytesFromList(listRawData, offset+23, offset+22)
         
-        EHL = self.GetBytesFromList(listRawData, offset+2, offset+2)
-        VSIL = self.GetBytesFromList(listRawData, offset+21, offset+20)
+        
+        EHL = rtInst.EHL
+        VSIL = rtInst.VSIL
         EHLplus3 = EHL+3
         EHLplus2plusVSIL = EHL+2+VSIL
-        listTemp.append["VendorSpecificInformation", listRawData[offset+EHLplus3, offset+EHLplus2plusVSIL+1]]
+        VendSpecInfo = listRawData[offset+EHLplus3: offset+EHLplus2plusVSIL+1]
+        rtInst.VendorSpecificInformation = VendSpecInfo
         
-        EL = self.GetBytesFromList(listRawData, offset+23, offset+22)
+        EL = rtInst.EL
         EHLplusELplus2 = EHL+EL+2
         EHLplus3plusVSIL = EHL+3+VSIL
-        EventData = listRawData[offset+EHLplusELplus2, offset+EHLplus3plusVSIL +1]
-        listTemp.append["EventData", listRawData[offset+EHLplusELplus2, offset+EHLplus3plusVSIL +1]]
+        EventData = listRawData[offset+EHLplusELplus2: offset+EHLplus3plusVSIL +1]
+        EventData = listRawData[0: 512] # TODO
         
-        EventType= self.GetBytesFromList(listRawData, offset+0, offset+0)
+        EventType= rtInst.EventType        
+        #parset raw data to structure
+        if EventType==0x0:
+            rtInst.EventData = self.ParserEventDataType1(EventData)
+        else:
+            self.Print("Error!, EventType undefined: %s"%EventType, "f")
         
-        if EventType==0x1:
-            self.ParserEventDataType1(EventData)
-            self.PersistentEventN
-        
-        return offset+EHLplus3plusVSIL #return next offset
+        return rtInst, offset+EHLplus3plusVSIL #return next offset
     
     def ParserEventDataType1(self, EventData):
         # SMART
-        listTemp = []
         if len(EventData)!=512:
             self.Print("Error, EventData!=512", "f")
-            return listTemp
+            return None
         
-        listTemp.append(["CriticalWarning", self.GetBytesFromList(EventData, 0, 0)])        
-        listTemp.append(["CompositeTemperature", self.GetBytesFromList(EventData, 2, 1)])
-        listTemp.append(["AvailableSpare", self.GetBytesFromList(EventData, 3, 3)])
-        listTemp.append(["AvailableSpareThreshold", self.GetBytesFromList(EventData, 4, 4)])
-        listTemp.append(["PercentageUsed", self.GetBytesFromList(EventData, 5, 5)])
-        listTemp.append(["EnduranceGroupCriticalWarningSummary", self.GetBytesFromList(EventData, 6, 6)])
-        listTemp.append(["DataUnitsRead", self.GetBytesFromList(EventData, 47, 32)])
-        listTemp.append(["DataUnitsWritten", self.GetBytesFromList(EventData, 63, 48)])
-        listTemp.append(["HostReadCommands", self.GetBytesFromList(EventData, 79, 64)])
-        listTemp.append(["HostWriteCommands", self.GetBytesFromList(EventData, 95, 80)])
-        listTemp.append(["ControllerBusyTime", self.GetBytesFromList(EventData, 111, 96)])
-        listTemp.append(["PowerCycles", self.GetBytesFromList(EventData, 127, 112)])
-        listTemp.append(["PowerOnHours", self.GetBytesFromList(EventData, 143, 128)])
-        listTemp.append(["UnsafeShutdowns", self.GetBytesFromList(EventData, 159, 144)])
-        listTemp.append(["MediaandDataIntegrityErrors", self.GetBytesFromList(EventData, 175, 160)])
-        listTemp.append(["NumberofErrorInformationLogEntries", self.GetBytesFromList(EventData, 191, 176)])
-        listTemp.append(["WarningCompositeTemperatureTime", self.GetBytesFromList(EventData, 195, 192)])
-        listTemp.append(["CriticalCompositeTemperatureTime", self.GetBytesFromList(EventData, 199, 196)])
-        listTemp.append(["TemperatureSensor1", self.GetBytesFromList(EventData, 201, 200)])
-        listTemp.append(["TemperatureSensor2", self.GetBytesFromList(EventData, 203, 202)])
-        listTemp.append(["TemperatureSensor3", self.GetBytesFromList(EventData, 205, 204)])
-        listTemp.append(["TemperatureSensor4", self.GetBytesFromList(EventData, 207, 206)])
-        listTemp.append(["TemperatureSensor5", self.GetBytesFromList(EventData, 209, 208)])
-        listTemp.append(["TemperatureSensor6", self.GetBytesFromList(EventData, 211, 210)])
-        listTemp.append(["TemperatureSensor7", self.GetBytesFromList(EventData, 213, 212)])
-        listTemp.append(["TemperatureSensor8", self.GetBytesFromList(EventData, 215, 214)])
-        listTemp.append(["ThermalManagementTemperature1TransitionCount", self.GetBytesFromList(EventData, 219, 216)])
-        listTemp.append(["ThermalManagementTemperature2TransitionCount", self.GetBytesFromList(EventData, 223, 220)])
-        listTemp.append(["TotalTimeForThermalManagementTemperature1", self.GetBytesFromList(EventData, 227, 224)])
-        listTemp.append(["TotalTimeForThermalManagementTemperature2", self.GetBytesFromList(EventData, 231, 228)])
+        rtInst = self.PELH.SMARTHealthLogSnapshot
         
-        return listTemp        
+        rtInst.CriticalWarning = self.GetBytesFromList(EventData, 0, 0)        
+        rtInst.CompositeTemperature = self.GetBytesFromList(EventData, 2, 1)
+        rtInst.AvailableSpare = self.GetBytesFromList(EventData, 3, 3)
+        rtInst.AvailableSpareThreshold = self.GetBytesFromList(EventData, 4, 4)
+        rtInst.PercentageUsed = self.GetBytesFromList(EventData, 5, 5)
+        rtInst.EnduranceGroupCriticalWarningSummary = self.GetBytesFromList(EventData, 6, 6)
+        rtInst.DataUnitsRead = self.GetBytesFromList(EventData, 47, 32)
+        rtInst.DataUnitsWritten = self.GetBytesFromList(EventData, 63, 48)
+        rtInst.HostReadCommands = self.GetBytesFromList(EventData, 79, 64)
+        rtInst.HostWriteCommands = self.GetBytesFromList(EventData, 95, 80)
+        rtInst.ControllerBusyTime = self.GetBytesFromList(EventData, 111, 96)
+        rtInst.PowerCycles = self.GetBytesFromList(EventData, 127, 112)
+        rtInst.PowerOnHours = self.GetBytesFromList(EventData, 143, 128)
+        rtInst.UnsafeShutdowns = self.GetBytesFromList(EventData, 159, 144)
+        rtInst.MediaandDataIntegrityErrors = self.GetBytesFromList(EventData, 175, 160)
+        rtInst.NumberofErrorInformationLogEntries = self.GetBytesFromList(EventData, 191, 176)
+        rtInst.WarningCompositeTemperatureTime = self.GetBytesFromList(EventData, 195, 192)
+        rtInst.CriticalCompositeTemperatureTime = self.GetBytesFromList(EventData, 199, 196)
+        rtInst.TemperatureSensor1 = self.GetBytesFromList(EventData, 201, 200)
+        rtInst.TemperatureSensor2 = self.GetBytesFromList(EventData, 203, 202)
+        rtInst.TemperatureSensor3 = self.GetBytesFromList(EventData, 205, 204)
+        rtInst.TemperatureSensor4 = self.GetBytesFromList(EventData, 207, 206)
+        rtInst.TemperatureSensor5 = self.GetBytesFromList(EventData, 209, 208)
+        rtInst.TemperatureSensor6 = self.GetBytesFromList(EventData, 211, 210)
+        rtInst.TemperatureSensor7 = self.GetBytesFromList(EventData, 213, 212)
+        rtInst.TemperatureSensor8 = self.GetBytesFromList(EventData, 215, 214)
+        rtInst.ThermalManagementTemperature1TransitionCount = self.GetBytesFromList(EventData, 219, 216)
+        rtInst.ThermalManagementTemperature2TransitionCount = self.GetBytesFromList(EventData, 223, 220)
+        rtInst.TotalTimeForThermalManagementTemperature1 = self.GetBytesFromList(EventData, 227, 224)
+        rtInst.TotalTimeForThermalManagementTemperature2 = self.GetBytesFromList(EventData, 231, 228)
+        
+        return rtInst        
         
     
     def __init__(self, argv):
@@ -171,9 +267,8 @@ class SMI_PersistentEventLog(NVME):
         self.LSF_EstablishContextAndReadLogData = 1 <<8
         self.LSF_ReleaseContext = 2 <<8
         
-        self.PELH=[]
-        self.PELHs = self.PELH_()
-        self.PersistentEventN=[]
+
+        
         
         
         
@@ -195,7 +290,7 @@ class SMI_PersistentEventLog(NVME):
     def SubCase1(self):
         ret_code=0
         
-        self.Print("Issue cmd with ReleaseContext=1 in Log Specific Field(cdw10) to clear current Persistent Event log")
+        self.Print("1) Issue cmd with ReleaseContext=1 in Log Specific Field(cdw10) to clear current Persistent Event log")
         LSF = self.LSF_ReleaseContext
         result = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=512, LSP=LSF, LPO=0)    
         if result==None:
@@ -205,7 +300,7 @@ class SMI_PersistentEventLog(NVME):
             return 1
 
         self.Print("")
-        self.Print("Issue cmd with EstablishContextAndReadLogData=1 in Log Specific Field to create context and get Persistent Event Log Header(512bytes)")
+        self.Print("2) Issue cmd with EstablishContextAndReadLogData=1 in Log Specific Field to create context and get Persistent Event Log Header(512bytes)")
         LSF = self.LSF_EstablishContextAndReadLogData
         resultStrList = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        # 0xD TODO
         resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
@@ -214,35 +309,67 @@ class SMI_PersistentEventLog(NVME):
             mStr = self.shell_cmd(self.LastCmd)
             self.Print(mStr)
             return 1
-
-        self.ParserPersistentEventLogHeader(resultStrList)
-        
-        for mList in self.PELH:            
-            self.Print(self.GetAlignString(S0="%s"%mList[0], S1="%s"%mList[1]))
-
-        self.Print("")
-        TT= self.PELHs.getOrderedAttributesList()
-        self.PrintListWithAlign(TT)
-
-        
         
         self.Print("")
-        TLL = self.getPELHvalue("TLL")
-        self.Print("Total Log Length (TLL): %s"%TLL)
-        self.Print("Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
-        self.Print("i.e. cmd with size = 'Total Log Length', offset = 0")
+        self.Print("3) Parser Persistent Event Log Header")
+        if not self.ParserPersistentEventLogHeader(resultStrList):
+            self.Print("ParserPersistentEventLogHeader fail", "f")
+            return 1
+        
+        self.Print("")
+        self.Print("4) Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
+        self.Print("    i.e. cmd with size = 'Total Log Length', offset = 0")        
         
         LSF = self.LSF_ReadLogData
+        TLL = 1024 #  TODO delete it
         resultStrList = self.get_log_passthru(LID=0x2, size=1024, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=TLL, LSP=LSF, LPO=0)   
         resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
         if resultStrList==None:
             self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
             mStr = self.shell_cmd(self.LastCmd)
             self.Print(mStr)
-            return 1
-        
-        self.ParserPersistentEventLogEvents(resultStrList)
+            return 1        
                 
+        
+     
+
+        self.Print("")
+        self.Print("5) Parser Persistent Events")
+        
+        if not self.ParserPersistentEventLogEvents(resultStrList):
+            ret_code = 1
+            
+        
+        self.Print("")
+        self.Print("6) Show Log")
+        self.Print("Persistent Event Log Header", "b")          
+        allAttrList= self.PELH.getOrderedAttributesList()
+        self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)  
+                         
+        allAttrList= self.PELH.SupportedEventsBitmap.getOrderedAttributesList()
+        self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)             
+
+        self.Print("")
+        self.Print("Persistent Event Log Events", "b")   
+        cnt=0
+        for PersistentEventFormat in self.PELH.PersistentEventN:
+            allAttrList= PersistentEventFormat.getOrderedAttributesList()
+            self.Print("---------------------------------------")
+            self.Print("Persistent Event %s"%cnt, "b")
+            self.Print("Persistent Event Log Event Header", "b")
+            self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
+            self.Print("Persistent Event Log Event Data", "b")
+            allAttrList= PersistentEventFormat.EventData.getOrderedAttributesList()
+            self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
+            cnt+=1
+            
+            
+
+
+
+
+
+
         return ret_code
 
     # </define sub item scripts>

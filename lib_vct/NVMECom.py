@@ -1670,17 +1670,18 @@ class LBARangeDataStructure_():
 ''' usage: 
     from lib_vct.NVMECom import OrderedAttributeClass
     class Ordered(OrderedAttributeClass):
-        x = OrderedAttributeClass.MyOrderedField()
-        z = OrderedAttributeClass.MyOrderedField()
-        b = OrderedAttributeClass.MyOrderedField()
-        a = OrderedAttributeClass.MyOrderedField()
+        x = OrderedAttributeClass.MyOrderedField((1, 2))    # where (1, 2) is tuple that you can use later(any value, if not used, () instead )
+        z = OrderedAttributeClass.MyOrderedField((3, 4, 5))
+        b = OrderedAttributeClass.MyOrderedField(())        # not used,
+        a = OrderedAttributeClass.MyOrderedField(())
 
     ordered = Ordered()
-    allList = ordered.ordered_fields    # here allList will be [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
-    note that ordered_fields will not show value correctly, must using getOrderedAttributesList to get current value!
+    allList = ordered.ordered_fields    # here allList will be [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
+    note using getOrderedAttrAndArgList to get ordered_fields    
+    note using getOrderedAttributesList to get current value!, e.g. [[name, value of name].......]
     
     if need to print, can use PrintListWithAlign(), e.x
-    self.PrintListWithAlign(self.PELHs.getOrderedAttributesList)
+    self.PrintListWithAlign(Ordered.getOrderedAttributesList())
 
 '''
 
@@ -1695,32 +1696,41 @@ class BaseWithOrderedFields(type):
         new_class.ordered_fields = [[name, attrs.pop(name)] for name, obj in attrs.items()
                                         if hasattr(obj, "creation_counter")]
         new_class.ordered_fields.sort(key=lambda item: item[1].creation_counter)
+        
         return new_class
 
         
 class OrderedAttributeClass(object): # snchan       
     __metaclass__ = BaseWithOrderedFields
 
-    class MyOrderedField(int):
+    class MyOrderedField(tuple): # input parameter must list
         creation_counter = 0
         
-        def __init__(self):
+        def __init__(self, ArgTuple):
             # Set the instance's counter, to keep track of ordering
             self.creation_counter = OrderedAttributeClass.MyOrderedField.creation_counter
             # Increment the class's counter for future instances
             OrderedAttributeClass.MyOrderedField.creation_counter += 1
 
-
-    def getOrderedAttributesList(self):
-        # read name and value
+    @classmethod
+    def getOrderedAttributesList(cls):
+        # read name and value, return [[A, 0x1], [C, 0x2], ..]
         listBuf = []
-        for mList in self.ordered_fields: # ordered_fields = [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
+        for mList in cls.ordered_fields: # ordered_fields = [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
             name = mList[0]
-            listBuf.append([name, getattr(self, "%s"%name)])
+            listBuf.append([name, getattr(cls, "%s"%name)])
         
         return listBuf
     
-    
+    @classmethod
+    def getOrderedArgList(cls):
+        # read ArgTuple and value, return [[A, 0x1], [C, 0x2], ..]
+        listBuf = []
+        for mList in cls.ordered_fields: # ordered_fields = [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
+            ArgTuple = mList[1]
+            listBuf.append(ArgTuple)
+        
+        return listBuf    
     
     
     

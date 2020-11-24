@@ -166,15 +166,17 @@ class mtest(NVME):
     class Ordered(OrderedAttributeClass):
 
         
-        LogIdentifier = OrderedAttributeClass.MyOrderedField()
-        TNEV = OrderedAttributeClass.MyOrderedField()
-        TLL = OrderedAttributeClass.MyOrderedField()
-        LogRevision = OrderedAttributeClass.MyOrderedField()
-        LogHeaderLength = OrderedAttributeClass.MyOrderedField()
-        Timestamp = OrderedAttributeClass.MyOrderedField()
-        POH = OrderedAttributeClass.MyOrderedField()
-        PowerCycleCount = OrderedAttributeClass.MyOrderedField()
-        VID = OrderedAttributeClass.MyOrderedField()  
+        LogIdentifier = OrderedAttributeClass.MyOrderedField((2,3,4))
+        TNEV = OrderedAttributeClass.MyOrderedField((2,3,4))
+        TLL = OrderedAttributeClass.MyOrderedField((2,3,4))
+        '''
+        LogRevision = OrderedAttributeClass.MyOrderedField([5,6])
+        LogHeaderLength = OrderedAttributeClass.MyOrderedField([5,6])
+        Timestamp = OrderedAttributeClass.MyOrderedField([5,6])
+        POH = OrderedAttributeClass.MyOrderedField([5,6])
+        PowerCycleCount = OrderedAttributeClass.MyOrderedField([5,6])
+        VID = OrderedAttributeClass.MyOrderedField([5,6])  
+        '''
         def XXXX(self):
             print "XXXX here"
 
@@ -185,7 +187,9 @@ class mtest(NVME):
         kk=2
 
         ordered = self.Ordered()
+        ss=ordered.getOrderedArgList()
         ordered.TNEV = 456
+        bb = ordered.creation_counter
         '''
         aa= dir(ordered)
         print aa
