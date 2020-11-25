@@ -1672,12 +1672,12 @@ class LBARangeDataStructure_():
     class Ordered(OrderedAttributeClass):
         x = OrderedAttributeClass.MyOrderedField((1, 2))    # where (1, 2) is tuple that you can use later(any value, if not used, () instead )
         z = OrderedAttributeClass.MyOrderedField((3, 4, 5))
-        b = OrderedAttributeClass.MyOrderedField(())        # not used,
+        b = OrderedAttributeClass.MyOrderedField(())        # not use tuple
         a = OrderedAttributeClass.MyOrderedField(())
 
     ordered = Ordered()
     allList = ordered.ordered_fields    # here allList will be [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
-    note using getOrderedAttrAndArgList to get ordered_fields    
+    note using getOrderedAttributesList_initt to get allList(ordered_fields)
     note using getOrderedAttributesList to get current value!, e.g. [[name, value of name].......]
     
     if need to print, can use PrintListWithAlign(), e.x
@@ -1703,7 +1703,7 @@ class BaseWithOrderedFields(type):
 class OrderedAttributeClass(object): # snchan       
     __metaclass__ = BaseWithOrderedFields
 
-    class MyOrderedField(tuple): # input parameter must list
+    class MyOrderedField(tuple): # input parameter must tuple
         creation_counter = 0
         
         def __init__(self, ArgTuple):
@@ -1712,25 +1712,19 @@ class OrderedAttributeClass(object): # snchan
             # Increment the class's counter for future instances
             OrderedAttributeClass.MyOrderedField.creation_counter += 1
 
-    @classmethod
-    def getOrderedAttributesList(cls):
-        # read name and value, return [[A, 0x1], [C, 0x2], ..]
+    def getOrderedAttributesList_curr(self):
+        # read name and current value, ex, if after setting A=0x1, B=0x2, return [[A, 0x1], [C, 0x2], ..]
         listBuf = []
-        for mList in cls.ordered_fields: # ordered_fields = [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
+        for mList in self.ordered_fields: # ordered_fields is initial value = [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
             name = mList[0]
-            listBuf.append([name, getattr(cls, "%s"%name)])
-        
+            listBuf.append([name, getattr(self, name)])
         return listBuf
     
     @classmethod
-    def getOrderedArgList(cls):
-        # read ArgTuple and value, return [[A, 0x1], [C, 0x2], ..]
-        listBuf = []
-        for mList in cls.ordered_fields: # ordered_fields = [['x', 0], ['z', 0], ('b', 0), ('a', 0)]
-            ArgTuple = mList[1]
-            listBuf.append(ArgTuple)
-        
-        return listBuf    
+    def getOrderedAttributesList_init(cls):
+        # read name and initial value , return [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
+        return cls.ordered_fields
+   
     
     
     

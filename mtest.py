@@ -167,8 +167,8 @@ class mtest(NVME):
 
         
         LogIdentifier = OrderedAttributeClass.MyOrderedField((2,3,4))
-        TNEV = OrderedAttributeClass.MyOrderedField((2,3,4))
-        TLL = OrderedAttributeClass.MyOrderedField((2,3,4))
+        TNEV = OrderedAttributeClass.MyOrderedField((3,3,4))
+        TLL = OrderedAttributeClass.MyOrderedField((4,3,4))
         '''
         LogRevision = OrderedAttributeClass.MyOrderedField([5,6])
         LogHeaderLength = OrderedAttributeClass.MyOrderedField([5,6])
@@ -187,9 +187,12 @@ class mtest(NVME):
         kk=2
 
         ordered = self.Ordered()
-        ss=ordered.getOrderedArgList()
+        ss=ordered.getOrderedAttributesList_init()
+        ss = ordered.getOrderedAttributesList_curr()
+        print ordered.TNEV 
         ordered.TNEV = 456
-        bb = ordered.creation_counter
+        kk = getattr(ordered, "TNEV")
+        bb= ordered.getOrderedAttributesList_curr()
         '''
         aa= dir(ordered)
         print aa
@@ -201,7 +204,7 @@ class mtest(NVME):
         bb= ordered.ordered_fields
         print bb
         
-        bb= ordered.getOrderedAttributesList()
+        bb= ordered.getOrderedAttributesList_curr()
         print bb     
         print ordered.TNEV   
         print getattr(ordered, "TNEV")
