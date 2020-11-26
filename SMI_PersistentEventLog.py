@@ -54,10 +54,11 @@ class SMI_PersistentEventLog(NVME):
             SMARTHealthLogSnapshotEventSupported = OrderedAttributeClass.MyOrderedField   
         
         '''PersistentEventN include PersistentEventFormat and 
+        EventNotDefine #          
         SMARTHealthLogSnapshot
         FirmwareCommit
         TimestampChange
-        Power-onorReset
+        Power_onorReset
         NVMSubsystemHardwareError
         ChangeNamespace
         FormatNVMStart
@@ -66,14 +67,18 @@ class SMI_PersistentEventLog(NVME):
         SanitizeCompletion
         SetFeature
         TelemetryLogCreated
-        ThermalExcursion      
+        ThermalExcursion    
         '''  
         def __init__(self):
-            self.PersistentEventN=[] 
             self.SupportedEventsBitmap = self.SupportedEventsBitmap_()
+                        
+            self.PersistentEventN=[]             
             self.PersistentEventFormat = self.PersistentEventFormat_()
+            self.EventNotDefine = self.EventNotDefine_()
             self.SMARTHealthLogSnapshot = self.SMARTHealthLogSnapshot_()
             self.FirmwareCommit = self.FirmwareCommit_()
+            self.TimestampChange = self.TimestampChange_()
+            self.Power_onorReset = self.Power_onorReset_()
 
         class PersistentEventFormat_(OrderedAttributeClass):
             EventType = OrderedAttributeClass.MyOrderedField((0, 0, 0))
@@ -85,6 +90,9 @@ class SMI_PersistentEventLog(NVME):
             EL = OrderedAttributeClass.MyOrderedField((23, 22, 0))
             VendorSpecificInformation = OrderedAttributeClass.MyOrderedField((0, 0, 2))
             EventData = None        
+            
+        class EventNotDefine_(OrderedAttributeClass):
+            NotDefine = OrderedAttributeClass.MyOrderedField((0, 0, 0))        
             
         class SMARTHealthLogSnapshot_(OrderedAttributeClass):
             CriticalWarning = OrderedAttributeClass.MyOrderedField((0, 0, 0))        
@@ -125,7 +133,27 @@ class SMI_PersistentEventLog(NVME):
             FirmwareSlot = OrderedAttributeClass.MyOrderedField((17 ,17, 0))
             StatusCodeTypeforFirmwareCommitCommand = OrderedAttributeClass.MyOrderedField((18, 18, 0))
             StatusReturnedforFirmwareCommitCommand = OrderedAttributeClass.MyOrderedField((19, 19, 0))
-            VendorAssignedFirmwareCommitResultCode = OrderedAttributeClass.MyOrderedField((21, 20, 0))    
+            VendorAssignedFirmwareCommitResultCode = OrderedAttributeClass.MyOrderedField((21, 20, 0))  
+            
+        class TimestampChange_(OrderedAttributeClass):
+            PreviousTimestamp = OrderedAttributeClass.MyOrderedField((7, 0, 0))
+            MillisecondsSinceReset = OrderedAttributeClass.MyOrderedField((15, 8, 0))         
+
+        class Power_onorReset_(OrderedAttributeClass):
+            FirmwareRevision = OrderedAttributeClass.MyOrderedField((7, 0, 0))
+            
+            def __init__(self):
+                ResetInformationList = [] #OrderedAttributeClass.MyOrderedField((0, 0, 0))    
+                self.ControllerResetInformationdescriptor = self.ControllerResetInformationdescriptor_()
+
+            class ControllerResetInformationdescriptor_(OrderedAttributeClass):
+                ControllerID = OrderedAttributeClass.MyOrderedField((1, 0, 0))
+                FirmwareActivation = OrderedAttributeClass.MyOrderedField((2, 2, 0))
+                OperationinProgress = OrderedAttributeClass.MyOrderedField((3, 3, 0))
+                ControllerPowerCycle = OrderedAttributeClass.MyOrderedField((19, 16, 0))
+                Poweronmilliseconds = OrderedAttributeClass.MyOrderedField((27, 20, 0))
+                ControllerTimestamp = OrderedAttributeClass.MyOrderedField((35, 28, 0))                
+
     
     # not used
     def SetPELHwithRawData(self, classIn, listRawData, offset):
@@ -215,28 +243,30 @@ class SMI_PersistentEventLog(NVME):
         rtInst = self.PELH.PersistentEventFormat
         self.SetPELHwithRawData(rtInst, listRawData, offset)# PersistentEventFormat start from offset of  listRawData
         
-        EHL = rtInst.EHL
-        VSIL = rtInst.VSIL
+        EHL = rtInst.EHL # Event Header Length = EHL+3
+        VSIL = rtInst.VSIL # Vendor Specific Information Length
         EHLplus3 = EHL+3
-        EHLplus2plusVSIL = EHL+2+VSIL
+        EHLplus2plusVSIL = EHL+2+VSIL # also = EHL+3 + VSIL -1
         VendSpecInfo = listRawData[offset+EHLplus3: offset+EHLplus2plusVSIL+1]
         rtInst.VendorSpecificInformation = VendSpecInfo
         
-        EL = rtInst.EL
-        EHLplusELplus2 = EHL+EL+2
-        EHLplus3plusVSIL = EHL+3+VSIL
+        EL = rtInst.EL # Event Length =  Vendor Specific Information Length +  Event Data length
+        EHLplusELplus2 = EHL+EL+2 # also = EHL+3 + EL -1
+        EHLplus3plusVSIL = EHL+3+VSIL # also = EHL+3 + VSIL -1 +1
         EventData = listRawData[offset+EHLplusELplus2: offset+EHLplus3plusVSIL +1]
         EventData = listRawData[0: 512] # TODO
         
         EventType= rtInst.EventType       
-        EventType=0x1 # TODO 
+        EventType=0x4 # TODO 
+        self.Print("Offset: %s, EventType: %s"%(offset, EventType))
         #parset raw data to structure
-        rtInst.EventData = self.ParserEventData(EventData, EventType)
+        rtInst.EventData = self.ParserEventData(EventData, EventType, rtInst)
         
         return rtInst, offset+EHLplus3plusVSIL #return next offset
             
     
-    def ParserEventData(self, EventData, EventType):
+    def ParserEventData(self, EventData, EventType, rtInst):
+    # rtInst = self.PELH.PersistentEventFormat
         expectSize=0
         if EventType==0x1:
             expectSize = 512 #according to spec, size=512byte
@@ -245,15 +275,39 @@ class SMI_PersistentEventLog(NVME):
         elif EventType==0x2:
             expectSize = 22
             rtInst = self.PELH.FirmwareCommit 
+        elif EventType==0x3:
+            expectSize = 16
+            rtInst = self.PELH.TimestampChange
+        elif EventType==0x4:
+            EL_VSIL_1 = rtInst.EL - rtInst.VSIL - 1
+            expectSize = EL_VSIL_1 +1 # Figure 217: Power-on or Reset Event (Event Type 04h)
+            rtInst = self.PELH.Power_onorReset   
         else:
             self.Print("Error!, EventType undefined: %s"%EventType, "f")   
+            rtInst = self.PELH.EventNotDefine
             return rtInst     
         
         if len(EventData)!=expectSize:
             self.Print("Error, EventType=%s, EventData expect size: %s, current size: %s"%(EventType, expectSize, len(EventData)), "f")
             return rtInst        
 
-        self.SetPELHwithRawData(rtInst, EventData, 0) # class inst data start from offset 0 of  EventData       
+        self.SetPELHwithRawData(rtInst, EventData, 0) # class inst data start from offset 0 of  EventData
+        if EventType==0x4:
+            descriptorSize = EL_VSIL_1 -8+1
+            ControllerResetInformationdescriptorSize = 36 # spec is 36 for every scriptor
+            if descriptorSize%ControllerResetInformationdescriptorSize!=0:
+                self.Print("Error, EventType==0x4, parsered descriptorSize(EL_VSIL_1 - 8 +1) = %s, not multiple of %s(ControllerResetInformationdescriptorSize)"\
+                           (descriptorSize, ControllerResetInformationdescriptorSize))
+                return rtInst
+                        
+            # parser ControllerResetInformationdescriptor_
+            loop = descriptorSize/ControllerResetInformationdescriptorSize
+            offset = 8 # start for offset = 8
+            for i in range(loop):
+                scripterInst = rtInst.ControllerResetInformationdescriptor
+                self.SetPELHwithRawData(scripterInst, EventData, offset) 
+                rtInst.ResetInformationList.append(scripterInst)
+                offset+=ControllerResetInformationdescriptorSize
         
         return rtInst        
         

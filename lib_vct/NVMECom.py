@@ -1575,9 +1575,9 @@ class NVMECom():
             self.Print(mStr)
             
     def PrintListWithAlign(self, List, S0length=40, S1length=40):
-    # print list that is similar to [[A, B], [C, D], ..]
+    # print list that is similar to [[A, B], [C, D], ..], that will force A/B/C/D to str type
         for mList in List:
-            mStr = self.GetAlignString(S0=mList[0], S0length=S0length, S1=mList[1], S1length=S1length)
+            mStr = self.GetAlignString(S0=str(mList[0]), S0length=S0length, S1=str(mList[1]), S1length=S1length)
             self.Print(mStr)
                                     
 #== end of NVMECom =================================================
@@ -1676,9 +1676,11 @@ class LBARangeDataStructure_():
         a = OrderedAttributeClass.MyOrderedField(())
 
     ordered = Ordered()
-    allList = ordered.ordered_fields    # here allList will be [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
-    note using getOrderedAttributesList_initt to get allList(ordered_fields)
-    note using getOrderedAttributesList to get current value!, e.g. [[name, value of name].......]
+    allList = ordered.ordered_fields    # here allList is initial list that will be [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
+    note using getOrderedAttributesList_init to get allList(ordered_fields)
+    note using getOrderedAttributesList to get current value after modify it!, e.g. [[name, value of name].......]
+    note using setOrderedAttributesList_init to set initial list(), ex, ordered.setOrderedAttributesList_init("TNEV", 88888) and data will change in
+            getOrderedAttributesList_init()
     
     if need to print, can use PrintListWithAlign(), e.x
     self.PrintListWithAlign(Ordered.getOrderedAttributesList())
@@ -1724,7 +1726,13 @@ class OrderedAttributeClass(object): # snchan
     def getOrderedAttributesList_init(cls):
         # read name and initial value , return [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
         return cls.ordered_fields
-   
+    
+    @classmethod
+    def setOrderedAttributesList_init(cls, name, newValue):
+    # find element in cls.ordered_fields and set it
+        for n, nameAndValue in enumerate(cls.ordered_fields):
+            if nameAndValue[0] == name: # nameAndValue[0] is name
+                nameAndValue[1] = newValue # nameAndValue[1] is value, set it to new one
     
     
     

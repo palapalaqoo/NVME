@@ -169,6 +169,11 @@ class mtest(NVME):
         LogIdentifier = OrderedAttributeClass.MyOrderedField((2,3,4))
         TNEV = OrderedAttributeClass.MyOrderedField((3,3,4))
         TLL = OrderedAttributeClass.MyOrderedField((4,3,4))
+        
+        def __init__(self):
+            self.LogRevision = OrderedAttributeClass.MyOrderedField([5,6])
+            self.LogHeaderLength = OrderedAttributeClass.MyOrderedField([5,6])
+            self.Timestamp = OrderedAttributeClass.MyOrderedField([5,6])
         '''
         LogRevision = OrderedAttributeClass.MyOrderedField([5,6])
         LogHeaderLength = OrderedAttributeClass.MyOrderedField([5,6])
@@ -188,6 +193,14 @@ class mtest(NVME):
 
         ordered = self.Ordered()
         ss=ordered.getOrderedAttributesList_init()
+
+        #self.Ordered.ordered_fields = ["aaaaa", "ss5555"]
+        ss=ordered.getOrderedAttributesList_init()
+        ordered.setOrderedAttributesList_init("TNEV", 88888)
+        ss=ordered.getOrderedAttributesList_init()
+        
+        ss=self.Ordered.getOrderedAttributesList_init()
+        
         ss = ordered.getOrderedAttributesList_curr()
         print ordered.TNEV 
         ordered.TNEV = 456
