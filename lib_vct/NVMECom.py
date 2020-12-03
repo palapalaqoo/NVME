@@ -1548,7 +1548,7 @@ class NVMECom():
         return mStr
 
     def GetBytesFromList(self, listRawData, stopByteOffet, startByteOffet, isString=False):
-    # return value of specific offset in listRawData
+    # return value of specific offset in listRawData, note, refer to self.convert
     # ex, listRawData = [1, 2, 3, 4, 5, 6], GetBytes(listRawData, 3, 1), return 2<<0 + 3<<8 + 4<<(8*2)
     # if isString, return string
         if not isString:

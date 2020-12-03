@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20201027"
+    Version = "20201201"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -929,14 +929,19 @@ class SMI_IdentifyCommand(NVME):
                 
                     
                     if NIDT==0x1:
-                        EUI64 = self.IdNs.EUI64.int
+                        #EUI64 = self.IdNs.EUI64.int
+                        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=128 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
+                        mStr = self.shell_cmd(CMD)
+                        rtList = self.AdminCMDDataStrucToListOrString(strIn = mStr)
+                        EUI64 = int(self.convert(lists=rtList, stopByte=127, startByte=120, mtype=self.TypeInt, endian="big-endian"), 16)
+                        
                         self.Print( "")
                         self.Print( "EUI64 from Identify Namespace structure: %s"%hex(EUI64))
                         self.Print( "Check if NID = EUI64 from Identify Namespace structure")
                         self.Print("Pass", "p") if (NID==EUI64) else self.Print("Fail", "f")
                         subRt = subRt if (NID==EUI64) else False
                                                                
-                        self.Print( "Check if the EUI64 field of the Identify Namespace structure is supported")
+                        self.Print( "Check if the EUI64 field of the Identify Namespace structure is supported(pass if EUI64!=0)")
                         self.Print("Pass", "p") if (EUI64!=0) else self.Print("Fail", "f")
                         subRt = subRt if (EUI64!=0) else False
                                             
@@ -945,14 +950,19 @@ class SMI_IdentifyCommand(NVME):
                         subRt = subRt if (NIDL==0x8) else False       
                         
                     if NIDT==0x2:
-                        NGUID = self.IdNs.NGUID.int
+                        #NGUID = self.IdNs.NGUID.int
+                        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=128 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
+                        mStr = self.shell_cmd(CMD)
+                        rtList = self.AdminCMDDataStrucToListOrString(strIn = mStr)
+                        NGUID = int(self.convert(lists=rtList, stopByte=119, startByte=104, mtype=self.TypeInt, endian="big-endian"), 16)                        
+                        
                         self.Print( "")
                         self.Print( "NGUID from Identify Namespace structure: %s"%hex(NGUID))
                         self.Print( "Check if NID = NGUID from Identify Namespace structure")
                         self.Print("Pass", "p") if (NID==NGUID) else self.Print("Fail", "f")
                         subRt = subRt if (NID==NGUID) else False
                                                                
-                        self.Print( "Check if the NGUID field of the Identify Namespace structure is supported")
+                        self.Print( "Check if the NGUID field of the Identify Namespace structure is supported(pass if NGUID!=0)")
                         self.Print("Pass", "p") if (NGUID!=0) else self.Print("Fail", "f")
                         subRt = subRt if (NGUID!=0) else False
                                             

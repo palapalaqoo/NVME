@@ -47,7 +47,7 @@ class SMI_PersistentEventLog(NVME):
             FormatNVMCompletionEvenSupport = OrderedAttributeClass.MyOrderedField(())
             FormatNVMStartEventSupport = OrderedAttributeClass.MyOrderedField(())
             ChangeNamespaceEventSupport = OrderedAttributeClass.MyOrderedField(())
-            NVMSubsystemHardwareErrorEventSupport = OrderedAttributeClass.MyOrderedField(())
+            NVMSubsystemHardwareError = OrderedAttributeClass.MyOrderedField(())
             PowerOnOrResetEventSupported = OrderedAttributeClass.MyOrderedField(())
             TimestampChangeEventSupported = OrderedAttributeClass.MyOrderedField(())
             FirmwareCommitEventSupported = OrderedAttributeClass.MyOrderedField(())
@@ -79,6 +79,16 @@ class SMI_PersistentEventLog(NVME):
             self.FirmwareCommit = self.FirmwareCommit_()
             self.TimestampChange = self.TimestampChange_()
             self.Power_onorReset = self.Power_onorReset_()
+            self.NVMSubsystemHardwareError = self.NVMSubsystemHardwareError_()
+            self.ChangeNamespace = self.ChangeNamespace_
+            self.FormatNVMStart = self.FormatNVMStart_
+            self.FormatNVMCompletion = self.FormatNVMCompletion_            
+            self.SanitizeStart = self.SanitizeStart_           
+            self.SanitizeCompletion = self.SanitizeCompletion_            
+            self.SetFeature = self.SetFeature_
+            
+            self.TelemetryLogCreated = self.TelemetryLogCreated_
+            self.ThermalExcursion = self.ThermalExcursion_            
 
         class PersistentEventFormat_(OrderedAttributeClass):
             EventType = OrderedAttributeClass.MyOrderedField((0, 0, 0))
@@ -154,8 +164,52 @@ class SMI_PersistentEventLog(NVME):
                 Poweronmilliseconds = OrderedAttributeClass.MyOrderedField((27, 20, 0))
                 ControllerTimestamp = OrderedAttributeClass.MyOrderedField((35, 28, 0))                
 
-    
-    # not used
+        class NVMSubsystemHardwareError_(OrderedAttributeClass):
+            NVMSubsystemHardwareErrorEventCode = OrderedAttributeClass.MyOrderedField((1, 0, 0))
+            AdditionalHardwareErrorInformation = OrderedAttributeClass.MyOrderedField((0, 0, 0))
+
+        class ChangeNamespace_(OrderedAttributeClass):
+            NamespaceManagementCDW10 = OrderedAttributeClass.MyOrderedField((3, 0, 0))
+            NamespaceSize = OrderedAttributeClass.MyOrderedField((15, 8, 0))
+            NamespaceCapacity = OrderedAttributeClass.MyOrderedField((31, 24, 0))
+            FormattedLBASize = OrderedAttributeClass.MyOrderedField((32, 32, 0))
+            End_to_endDataProtectionTypeSettings = OrderedAttributeClass.MyOrderedField((33, 33, 0))
+            NamespaceMulti_pathIOandNamespaceSharingCapabilities = OrderedAttributeClass.MyOrderedField((34, 34, 0))
+            ANAGroupIdentifier = OrderedAttributeClass.MyOrderedField((39, 36, 0))
+            NVMSetIdentifier = OrderedAttributeClass.MyOrderedField((41, 40, 0))
+            NamespaceID = OrderedAttributeClass.MyOrderedField((47, 44, 0))
+
+        class FormatNVMStart_(OrderedAttributeClass):
+            NamespaceIdentifier = OrderedAttributeClass.MyOrderedField((3, 0, 0))
+            FormatNVMAttributes = OrderedAttributeClass.MyOrderedField((4, 4, 0))
+            FormatNVMCDW10 = OrderedAttributeClass.MyOrderedField((11, 8, 0))
+            
+        class FormatNVMCompletion_(OrderedAttributeClass):
+            NamespaceIdentifier = OrderedAttributeClass.MyOrderedField((3, 0, 0))
+            SmallestFormatProgressIndicator = OrderedAttributeClass.MyOrderedField((4, 4, 0))
+            FormatNVMStatus = OrderedAttributeClass.MyOrderedField((5, 5, 0))
+            CompletionInformation = OrderedAttributeClass.MyOrderedField((7, 6, 0))
+            StatusField = OrderedAttributeClass.MyOrderedField((11, 8, 0))    
+
+        class SanitizeStart_(OrderedAttributeClass):
+            SANICAP = OrderedAttributeClass.MyOrderedField((3, 0, 0))
+            SanitizeCDW10 = OrderedAttributeClass.MyOrderedField((7, 4, 0))
+            SanitizeCDW11 = OrderedAttributeClass.MyOrderedField((11, 8, 0))
+
+        class SanitizeCompletion_(OrderedAttributeClass):
+            SanitizeProgress = OrderedAttributeClass.MyOrderedField((1, 0, 0))
+            SanitizeStatus = OrderedAttributeClass.MyOrderedField((3, 2, 0))
+            CompletionInformation = OrderedAttributeClass.MyOrderedField((5, 4, 0))
+
+        class SetFeature_(OrderedAttributeClass):
+            SetFeatureEventLayout = OrderedAttributeClass.MyOrderedField((3, 0, 0))
+            CommandDwords = OrderedAttributeClass.MyOrderedField((0, 0, 0))
+            MemoryBuffer = OrderedAttributeClass.MyOrderedField((0, 0, 0))            
+            CommandCompletionDword0 = OrderedAttributeClass.MyOrderedField((0, 0, 0))
+
+
+            
+    # not used    
     def SetPELHwithRawData(self, classIn, listRawData, offset):
         # classIn, ex, self.PELH
         allList = classIn.getOrderedAttributesList_init() # self.PELH.getOrderedAttributesList_init()
@@ -209,7 +263,7 @@ class SMI_PersistentEventLog(NVME):
         self.PELH.SupportedEventsBitmap.FormatNVMCompletionEvenSupport = True if SEB&(1<<8)>0 else False
         self.PELH.SupportedEventsBitmap.FormatNVMStartEventSupport = True if SEB&(1<<7)>0 else False
         self.PELH.SupportedEventsBitmap.ChangeNamespaceEventSupport = True if SEB&(1<<6)>0 else False
-        self.PELH.SupportedEventsBitmap.NVMSubsystemHardwareErrorEventSupport = True if SEB&(1<<5)>0 else False
+        self.PELH.SupportedEventsBitmap.NVMSubsystemHardwareError = True if SEB&(1<<5)>0 else False
         self.PELH.SupportedEventsBitmap.PowerOnOrResetEventSupported = True if SEB&(1<<4)>0 else False
         self.PELH.SupportedEventsBitmap.TimestampChangeEventSupported = True if SEB&(1<<3)>0 else False
         self.PELH.SupportedEventsBitmap.FirmwareCommitEventSupported = True if SEB&(1<<2)>0 else False
@@ -267,7 +321,7 @@ class SMI_PersistentEventLog(NVME):
     
     def ParserEventData(self, EventData, EventType, rtInst):
     # rtInst = self.PELH.PersistentEventFormat
-        expectSize=0
+        expectSize=None
         if EventType==0x1:
             expectSize = 512 #according to spec, size=512byte
             # class inst
@@ -281,7 +335,38 @@ class SMI_PersistentEventLog(NVME):
         elif EventType==0x4:
             EL_VSIL_1 = rtInst.EL - rtInst.VSIL - 1
             expectSize = EL_VSIL_1 +1 # Figure 217: Power-on or Reset Event (Event Type 04h)
-            rtInst = self.PELH.Power_onorReset   
+            rtInst = self.PELH.Power_onorReset
+        elif EventType==0x5:
+            expectSize=len(EventData) # will not check size, so all data as expect
+            rtInst = self.PELH.NVMSubsystemHardwareError
+            # EventData from byte 4  to last byte is AdditionalHardwareErrorInformation
+            rtInst.setOrderedAttributesList_init("AdditionalHardwareErrorInformation", (expectSize-1, 4, 0))
+        elif EventType==0x6:
+            expectSize = 48
+            rtInst = self.PELH.ChangeNamespace           
+        elif EventType==0x7:
+            expectSize = 12
+            rtInst = self.PELH.FormatNVMStart  
+        elif EventType==0x8:
+            expectSize = 12
+            rtInst = self.PELH.FormatNVMCompletion                          
+        elif EventType==0x9:
+            expectSize = 12
+            rtInst = self.PELH.SanitizeStart 
+        elif EventType==0xA:
+            expectSize = 8
+            rtInst = self.PELH.SanitizeCompletion                                             
+        elif EventType==0xB:
+            expectSize=len(EventData)
+            rtInst = self.PELH.SetFeature 
+            
+        elif EventType==0xC:
+            expectSize = 12
+            rtInst = self.PELH.TelemetryLogCreated   
+        elif EventType==0xD:
+            expectSize = 12
+            rtInst = self.PELH.ThermalExcursion                                  
+            
         else:
             self.Print("Error!, EventType undefined: %s"%EventType, "f")   
             rtInst = self.PELH.EventNotDefine
@@ -296,19 +381,49 @@ class SMI_PersistentEventLog(NVME):
             descriptorSize = EL_VSIL_1 -8+1
             ControllerResetInformationdescriptorSize = 36 # spec is 36 for every scriptor
             if descriptorSize%ControllerResetInformationdescriptorSize!=0:
-                self.Print("Error, EventType==0x4, parsered descriptorSize(EL_VSIL_1 - 8 +1) = %s, not multiple of %s(ControllerResetInformationdescriptorSize)"\
+                self.Print("Error, EventType==0x4, parsered descriptorSize(EL_VSIL_1 - 8 +1) = %s"\
+                           ", not multiple of %s(ControllerResetInformationdescriptorSize)"\
                            (descriptorSize, ControllerResetInformationdescriptorSize))
                 return rtInst
                         
             # parser ControllerResetInformationdescriptor_
             loop = descriptorSize/ControllerResetInformationdescriptorSize
             offset = 8 # start for offset = 8
-            for i in range(loop):
-                scripterInst = rtInst.ControllerResetInformationdescriptor
+            scripterInst = rtInst.ControllerResetInformationdescriptor
+            for i in range(loop):                
                 self.SetPELHwithRawData(scripterInst, EventData, offset) 
                 rtInst.ResetInformationList.append(scripterInst)
                 offset+=ControllerResetInformationdescriptorSize
-        
+
+        if EventType==0xB:
+            # after SetPELHwithRawData, SetFeatureEventLayout value is get, others must calcute by SetFeatureEventLayout
+            SetFeatureEventLayout = rtInst.SetFeatureEventLayout
+            MemoryBufferCount = SetFeatureEventLayout | 7 # bit 2:0
+            LoggedCommandCompletionDword0 = SetFeatureEventLayout | 8 # bit 3
+            DwordCount = SetFeatureEventLayout | (0xFFFF<<16) # bit 31:16
+                        
+            stopByte = DwordCount*4+3 # spec
+            startByte = 4            
+            rtInst.setOrderedAttributesList_init("CommandDwords", (stopByte, startByte, 0))
+            
+            stopByte = MemoryBufferCount + DwordCount*4+4 # MemoryBufferCount in spec is 'Data Buffer Count'
+            startByte = DwordCount*4+4
+            if MemoryBufferCount==0: # if==0, then this field does not exist in the logged event
+                rtInst.setOrderedAttributesList_init("MemoryBuffer", (stopByte, startByte, 2)) # set 2 to skip
+            else:
+                rtInst.setOrderedAttributesList_init("MemoryBuffer", (stopByte, startByte, 0))
+                
+            stopByte = MemoryBufferCount + DwordCount*4+8
+            startByte = MemoryBufferCount + DwordCount*4+5                
+            if LoggedCommandCompletionDword0==0: # if==0, then this field is not logged
+                rtInst.setOrderedAttributesList_init("CommandCompletionDword0", (stopByte, startByte, 2)) # set 2 to skip
+            else:
+                rtInst.setOrderedAttributesList_init("CommandCompletionDword0", (stopByte, startByte, 0))
+            
+            # parser again to get CommandDwords, MemoryBuffer, CommandCompletionDword0
+            self.SetPELHwithRawData(rtInst, EventData, 0)
+            
+            
         return rtInst        
         
     
