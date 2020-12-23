@@ -13,7 +13,7 @@ from lib_vct.NVME import NVME
 class SMI_Power_Cycle_Test(NVME):
     ScriptName = "SMI_Power_Cycle_Test.py"
     Author = "Sam"
-    Version = "20200917"
+    Version = "20201223"
     
             
     def GetNewPattern(self):

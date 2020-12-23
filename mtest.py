@@ -190,7 +190,7 @@ class mtest(NVME):
     SubCase1TimeOut = 600
     def SubCase1(self):
         kk=2
-
+        aa = self.AdminCMDDataStrucToListOrString(strIn, ReturnType, BytesOfElement)
         ordered = self.Ordered()
         ss=ordered.getOrderedAttributesList_init()
 
