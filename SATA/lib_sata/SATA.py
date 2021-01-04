@@ -122,7 +122,7 @@ class SATA_c(object):
                 ATADescriptor.ResponseCode = int(SenseData[0],16)
                 ATADescriptor.LBA_High = int(SenseData[19],16)
                 ATADescriptor.Device = int(SenseData[20],16)
-                ATADescriptor.DeviceStatus = int(SenseData[21],16)
+                ATADescriptor.Status = int(SenseData[21],16)
             
 
         return ATADescriptor
@@ -205,6 +205,56 @@ class SATA_c(object):
         # set ScriptParserArgs
         helpMsg += "\n "
         self.ScriptParserArgs.append([optionName, optionNameFull, helpMsg, argType, default])
+
+    def PrintProgressBar(self, iteration, total, prefix = '', suffix = '', decimals = 1, length = 50, fill = 'x', showPercent=True):
+    # Print iterations progress
+    # Usage:  mNVME.PrintProgressBar(i + 1, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        """
+        Call in a loop to create terminal progress bar
+        @params:
+            iteration   - Required  : current iteration (Int)
+            total       - Required  : total iterations (Int)
+            prefix      - Optional  : prefix string (Str)
+            suffix      - Optional  : suffix string (Str)
+            decimals    - Optional  : positive number of decimals in percent complete (Int)
+            length      - Optional  : character length of bar (Int)
+            fill        - Optional  : bar fill character (Str)
+        """
+
+        
+        percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+        filledLength = int(length * iteration // total)
+        bar = fill * filledLength + '-' * (length - filledLength)
+        if showPercent:
+            mstr = '%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        else:
+            mstr = '%s |%s| %s' % (prefix, bar, suffix)
+        #mstr = '\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix)
+        '''
+        sys.stdout.write(u"\033[1000D" + self.PrefixString()+mstr)
+        sys.stdout.flush() 
+        self.stdoutBk.write(u"\033[1000D" + self.PrefixString()+mstr)
+        self.stdoutBk.flush()         
+        '''
+        # remove string  > console width
+        try: # if using eclipse to debug, then set col to 40
+            self.RecordCmdToLogFile = False # no need to record command
+            columns = self.shell_cmd("tput cols")
+            self.RecordCmdToLogFile = True
+        except:
+            columns = 40
+        mStr = mstr
+        
+        sys.stdout.write(u"\u001b[s") # saves the current cursor position
+        sys.stdout.write(u"\033[0J") # clear all string after courser
+        sys.stdout.write(mStr) # write
+        sys.stdout.flush() 
+        sys.stdout.write(u"\u001b[u") # restores the cursor to the last saved position
+   
+        # Print New Line on Complete
+
+        if iteration == total: 
+            print "\r"
         
     
 class ATADescriptorReturn_c():
@@ -227,7 +277,7 @@ class ATADescriptorReturn_c():
     LBA_Mid = None #16,17
     LBA_High = None #18,19
     Device = None #20
-    DeviceStatus = None    #21
+    Status = None    #21
     
     
     

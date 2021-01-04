@@ -30,7 +30,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_FeatureHCTM.py"
     Author = "Sam Chan"
-    Version = "20190410"
+    Version = "20210104"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     SubCase1TimeOut = 60
@@ -206,7 +206,9 @@ class SMI_SmartHealthLog(NVME):
     def PreTest(self):
         if self.HCTMA==1:
             self.Print( "Controller support HCTM", "p")
-            self.Print ("Current TMT1, TMT2 value is : %s, %s "%(self.TMT1bk, self.TMT2bk))            
+            self.Print ("Current TMT1, TMT2 value is : %s, %s "%(self.TMT1bk, self.TMT2bk))  
+            self.Print ("Minimum Thermal Management Temperature(MNTMT): %s "%self.MNTMT)
+            self.Print ("Maximum Thermal Management Temperature(MXTMT): %s "%self.MXTMT)                            
             return True
         else:
             self.Print( "Controller do not support HCTM", "w")
@@ -214,20 +216,27 @@ class SMI_SmartHealthLog(NVME):
         
     # <override sub item scripts>        
     def SubCase1(self):  
+        rtCode = 0
         self.Print ("Test if controller accept TMT1 and TMT2 value is zero or not, expected result: Accept")
         self.Print ("Keyword: A value cleared to zero, specifies that this part of the feature shall be disabled.")
         # all=0
+        if self.TMT2bk>self.MXTMT:
+            self.Print ("Warnning!, current TMT2>MXTMT", "w")  
+            rtCode = 255
+        if self.TMT1bk<self.MNTMT and self.TMT1bk!=0:
+            self.Print ("Warnning!, current TMT1<MNTMT", "w")
+            rtCode = 255
+                    
         if self.TestValueClearToZero(TMT1=0, TMT2=0)==False:
             return 1
         # TMT1=0          
-        if self.TestValueClearToZero(TMT1=0, TMT2=self.TMT2bk)==False:
+        if self.TestValueClearToZero(TMT1=0, TMT2=self.MXTMT)==False:
             return 1          
         # TMT2=0
-        if self.TestValueClearToZero(TMT1=self.TMT1bk, TMT2=0)==False:
+        if self.TestValueClearToZero(TMT1=self.MNTMT, TMT2=0)==False:
             return 1       
-      
-        
-        return 0
+              
+        return rtCode
 
     
     def SubCase2(self):

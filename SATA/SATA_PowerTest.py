@@ -17,6 +17,69 @@ import threading
 # Import VCT modules
 from lib_sata.SATA import SATA_c
 
+
+def ParserPS(PS):
+    if PS == 0x0:
+        mStr = "00h Device is in the PM2:Standby state or Device is in the PM2:Standby state and the"\
+        "Extended Power Conditions feature set is supported and enabled, and the device is"\
+        "in the Standby_z power condition."
+    elif PS == 0x1:
+        mStr = "01h Device is in the PM2:Standby state and the Extended Power Conditions feature set is"\
+        "supported and enabled, and the device is in the Standby_y power condition."
+    elif PS == 0x40: 
+        mStr = "40h Device is in the PM0:Active state, and the NV Cache power mode is enabled and the"\
+        "spindle is spun down or spinning down."
+    elif PS == 0x41:
+        mStr = "41h Device is in the PM0:Active state and the NV Cache power mode is enabled and the"\
+        "spindle is spun up or spinning up."
+    elif PS == 0x80:
+        "80h Device is in the PM1:Idle state and Extended Power Conditions feature set is not"\
+        "supported or not enabled."
+    elif PS == 0x81:
+        mStr = "81h Device is in the PM1:Idle State, and Extended Power Conditions feature set is"\
+        "supported and enabled, and the device is in the Idle_a power condition."
+    elif PS == 0x82:
+        mStr = "82h Device is in the PM1:Idle State, and Extended Power Conditions feature set is"\
+        "supported and enabled, and the device is in the Idle_b power condition."
+    elif PS == 0x83:
+        mStr = "83h Device is in the PM1:Idle State, and Extended Power Conditions feature set is"\
+        "supported and enabled, and the device is in the Idle_c power condition."
+    elif PS == 0xFF:        
+        mStr = "FFh Device is in the PM0:Active state or PM1:Idle State."
+    else:
+        mStr = "undefined(%s)"%PS
+    return mStr
+
+def VerifyPS(msg, cmd, expectMsg=None, expectList=None):
+    sleep(0.1)    
+    print ""
+    CMD = cmd
+    print msg
+    print "cmd: %s"%CMD
+    rt = Inst.ata_cmd(CMD)
+    if rt.Error!=0:
+        print "Error in ATA Descriptor Return is not 0x0"
+        print rt.CmdRtStr
+        rtCode = 1
+        sys.exit(rtCode)     
+    
+    if expectMsg!=None and expectList!=None:
+        print "Check Power Mode Normal Output"    
+        print ParserPS(rt.SecotrCount)                
+        print expectMsg
+        if rt.SecotrCount in expectList:
+            print "pass"
+        else:
+            print "fail"
+            rtCode = 1
+            sys.exit(rtCode) 
+            
+    return rt
+
+
+
+# start ---------------------------------------------------------------------
+rtCode = 0
 Inst = SATA_c(sys.argv)
 
 print "Device: %s"%Inst.dev
@@ -25,21 +88,84 @@ print ""
 
 print "Power test"
 
-CMD = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
-print "Issue cmd to check current power status"
-print "cmd: %s"%CMD
-rt = Inst.ata_cmd(CMD)
-
-if rt.SecotrCount==255:
-    print "active/standby"
 
 
+print "== standby immediate test ========================="
+msg = "Issue cmd to make current power status to active state"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
 
 
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is active state(0xFF)"
+expectList=[0xFF]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd 'standby immediate'"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e0 0 -R"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="Check if Power Mode = standby or not, i.e. 00h/01h"
+expectList=[0x0, 0x1]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+print "== standby after 5s test ========================="
+msg = "Issue cmd to set standby timer after 5s "
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 1 0 0 0 0 0 0 40 e2 0"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to make current power status to active state"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is active state(0xFF)"
+expectList=[0xFF]
+VerifyPS(msg, cmd, expectMsg, expectList)
 
 
+print ""
+print "sleep 7s"
+sleep(7)
+
+print ""
+print "check if device enter the Standby mode after 7 second"
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="Check if Power Mode = standby or not, i.e. 00h/01h"
+expectList=[0x0, 0x1]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to disable standby timer"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e2 0"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
 
 
+print ""
+print "sleep 7s"
+sleep(7)
+
+print ""
+print "check if device is active after 7 second"
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is active state(0xFF)"
+expectList=[0xFF]
+VerifyPS(msg, cmd, expectMsg, expectList)
 
 
 

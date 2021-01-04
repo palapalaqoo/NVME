@@ -24,7 +24,7 @@ class SMI_Read(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Read.py"
     Author = "Sam Chan"
-    Version = "20190819"
+    Version = "20201231"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -210,8 +210,8 @@ class SMI_Read(NVME):
         self.Print ("End-to-end Data Protection Capabilities (DPC): 0x%X"%DPC)
         self.Print ("End-to-end Data Protection supported") if DataProtectionsupported else self.Print ("End-to-end Data Protection not supported") 
 
-
-        if (DataProtectionsupported):
+        
+        if (True): # if (DataProtectionsupported): TODO
             self.Print ("set  cdw[31:26] from 0x0 to 0x3F and check if read command success(expected result: command success) ")
             for i in range(0x40):          
                 bit26to31=i
