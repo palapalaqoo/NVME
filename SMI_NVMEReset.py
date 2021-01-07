@@ -27,7 +27,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20200902"
+    Version = "20210107"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -141,10 +141,10 @@ class SMI_NVMeReset(NVME):
         self.TestItems.append([self.FunctionLevelReset, self.FunctionLevel_reset, True])
         
     def StartDstAndGetStatus(self, triggerFunc):
-        self.Flow.DST.EventTriggeredMessage="Send format command as DST execution >= 1% "
+        self.Flow.DST.EventTriggeredMessage="Tool will trigger '%s' command as DST execution >= 1%% "%triggerFunc.__name__
         #print progress
         self.Flow.DST.ShowProgress=True   
-        self.Flow.DST.ShowMessage=False
+        self.Flow.DST.ShowMessage=True
         # set DST command nsid
         self.Flow.DST.SetNSID(0xFFFFFFFF)#0x1
         # set DST type : 1= Short device self-test operation, 2= extended device self-test operation

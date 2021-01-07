@@ -4,7 +4,7 @@ Created on Oct 5, 2018
 @author: root
 '''
 import sys
-
+import datetime
 
 from time import sleep
 
@@ -54,21 +54,25 @@ class DST_():
         if self._mNVME.GetLog.DeviceSelfTest.CDSTO!=0:
             self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=0xF -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID))
             
-        if self.ShowMessage:    
-            self._mNVME.Print ("Starting DST .."  )
-            self._mNVME.Print( self.EventTriggeredMessage )
         event_trigged=0
         error=0
         DST_per_old=0
         # self test command
+        if self.ShowMessage:    
+            self._mNVME.Print ("Starting DST .."  ) 
+        if self.ShowMessage:   
+            self._mNVME.Print("Timestamp: %s, Issue DST cmd"%datetime.datetime.now(), "w" )       
         self._mNVME.shell_cmd("LOG_BUF=$(nvme admin-passthru %s --opcode=0x14 --namespace-id=%s --data-len=0 --cdw10=%s -r -s 2>&1 > /dev/null)"%(self._mNVME.dev_port, self._NSID, self._DstType))
-        # print Progress with 0% 
-        if self.ShowProgress:
-            self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)
-        
+        if self.ShowMessage:   
+            self._mNVME.Print("Timestamp: %s, issue DST cmd finished"%datetime.datetime.now(), "w"  )           
+                
         cnt = 0    
+        if self.ShowMessage: 
+            self._mNVME.Print("wait for Current Device Self-Test Operation!=0, i.e. DST operation in progress")
         while True:
             if self._mNVME.GetLog.DeviceSelfTest.CDSTO!=0:
+                if self.ShowMessage:   
+                    self._mNVME.Print("Timestamp: %s, detect CDSTO!=0, i.e. controller is doing DST now"%datetime.datetime.now(), "w"  )                   
                 break;
             else:
                 cnt = cnt +1
@@ -76,7 +80,14 @@ class DST_():
             if cnt==100:
                 self._mNVME.Print ("Can't detect 'Current Device Self-Test Operation' !=0 after read it for 100 times, i.e. alwasy is 0" )
                 return -1
-        
+
+        triggeredTimeS = 0
+        triggeredTimeT = 0
+        if self.ShowMessage: 
+                self._mNVME.Print( self.EventTriggeredMessage )   
+        # print Progress with 0% 
+        if self.ShowProgress:
+            self._mNVME.PrintProgressBar(0, 100, prefix = 'Progress:', length = 50)        
         while True:            
             # if DST_per value changed, then print DST_per
             DST_per=self._mNVME.GetLog.DeviceSelfTest.CDSTC
@@ -91,10 +102,12 @@ class DST_():
             if DST_per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
                 # excute event  
                 try:  
+                    triggeredTimeS = datetime.datetime.now()
                     if self._args==None:
                         self._EventTrigger()
                     else:
                         self._EventTrigger(self._args)
+                    triggeredTimeT = datetime.datetime.now()
                 except Exception as e:
                     self._mNVME.Print(e, "f")
                     error=1
@@ -110,6 +123,10 @@ class DST_():
                     self._mNVME.PrintProgressBar(100, 100, prefix = 'Progress:', length = 50)
                 else:                
                     self._mNVME.Print ("")
+                    
+                if self.ShowMessage:   
+                    self._mNVME.Print("Timestamp: %s, event '%s' was started"%(triggeredTimeS, self._EventTrigger.__name__), "w"  )
+                    self._mNVME.Print("Timestamp: %s, event '%s' was finished"%(triggeredTimeT, self._EventTrigger.__name__), "w"  )                       
                 break
             sleep (0.02)
         # end while

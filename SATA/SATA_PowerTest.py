@@ -33,7 +33,7 @@ def ParserPS(PS):
         mStr = "41h Device is in the PM0:Active state and the NV Cache power mode is enabled and the"\
         "spindle is spun up or spinning up."
     elif PS == 0x80:
-        "80h Device is in the PM1:Idle state and Extended Power Conditions feature set is not"\
+        mStr = "80h Device is in the PM1:Idle state and Extended Power Conditions feature set is not"\
         "supported or not enabled."
     elif PS == 0x81:
         mStr = "81h Device is in the PM1:Idle State, and Extended Power Conditions feature set is"\
@@ -88,21 +88,21 @@ print ""
 
 print "Power test"
 
-
-
-print "== standby immediate test ========================="
+print "== prcondition ====================================="
 msg = "Issue cmd to make current power status to active state"
 cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0"%Inst.dev
 expectMsg=None
 expectList=None
 VerifyPS(msg, cmd, expectMsg, expectList)
 
-
 msg = "Issue cmd to check current power status"
 cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
-expectMsg="expect current is active state(0xFF)"
+expectMsg="expect current is active mode(0xFF)"
 expectList=[0xFF]
 VerifyPS(msg, cmd, expectMsg, expectList)
+
+print "== STANDBY IMMEDIATE - E0h, Non-Data ====================================="
+print "This command causes the device to immediately enter the Standby mode."
 
 msg = "Issue cmd 'standby immediate'"
 cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e0 0 -R"%Inst.dev
@@ -116,7 +116,8 @@ expectMsg="Check if Power Mode = standby or not, i.e. 00h/01h"
 expectList=[0x0, 0x1]
 VerifyPS(msg, cmd, expectMsg, expectList)
 
-print "== standby after 5s test ========================="
+print "== STANDBY - E2h, Non-Data ====================================="
+print "This command causes the device to enter the Standby mode."
 msg = "Issue cmd to set standby timer after 5s "
 cmd = "sg_raw -v  %s  85 6 20 0 0 0 1 0 0 0 0 0 0 40 e2 0"%Inst.dev
 expectMsg=None
@@ -131,7 +132,7 @@ VerifyPS(msg, cmd, expectMsg, expectList)
 
 msg = "Issue cmd to check current power status"
 cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
-expectMsg="expect current is active state(0xFF)"
+expectMsg="expect current is active mode(0xFF)"
 expectList=[0xFF]
 VerifyPS(msg, cmd, expectMsg, expectList)
 
@@ -163,9 +164,84 @@ print ""
 print "check if device is active after 7 second"
 msg = "Issue cmd to check current power status"
 cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
-expectMsg="expect current is active state(0xFF)"
+expectMsg="expect current is active mode(0xFF)"
 expectList=[0xFF]
 VerifyPS(msg, cmd, expectMsg, expectList)
 
 
+# // idle immediate
+print "== IDLE IMMEDIATE - E1h, Non-Data ====================================="
+print "The IDLE IMMEDIATE command allows the host to immediately place the device in the Idle mode."
+msg = "Issue idle immediate cmd"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e1 0 -R"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+print ""
+print "check if device is in idle mode"
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is idle mode([0x80, 0x81, 0x82, 0x83])"
+expectList=[0x80, 0x81, 0x82, 0x83]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to make current power status to active state"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is active mode(0xFF)"
+expectList=[0xFF]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+print "== IDLE - E3h, Non-Data ====================================="
+print "The IDLE command allows the host to place the device in the Idle mode and also set the Standby timer."
+msg = "Issue idle cmd and set Standby timer = 5s"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 1 0 0 0 0 0 0 40 e3 0 -R"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+print ""
+print "check if device is in idle mode"
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is idle mode([0x80, 0x81, 0x82, 0x83])"
+expectList=[0x80, 0x81, 0x82, 0x83]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+
+print ""
+print "sleep 7s"
+sleep(7)
+
+print ""
+print "check if device enter the Standby mode after 7 second"
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="Check if Power Mode = standby or not, i.e. 00h/01h"
+expectList=[0x0, 0x1]
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+msg = "Issue cmd to disable standby timer"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e2 0"%Inst.dev
+expectMsg=None
+expectList=None
+VerifyPS(msg, cmd, expectMsg, expectList)
+
+print ""
+print "sleep 7s"
+sleep(7)
+
+print ""
+print "check if device is active after 7 second"
+msg = "Issue cmd to check current power status"
+cmd = "sg_raw -v  %s  85 6 20 0 0 0 0 0 0 0 0 0 0 40 e5 0 -R"%Inst.dev
+expectMsg="expect current is active mode(0xFF)"
+expectList=[0xFF]
+VerifyPS(msg, cmd, expectMsg, expectList)
 
