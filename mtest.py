@@ -185,42 +185,55 @@ class mtest(NVME):
         def XXXX(self):
             print "XXXX here"
 
-    
+    def GetHMBAttributesDataStructure(self, cdw11=0, sel=0, nsid=1, nsSpec=True):
+    # get feature with status code
+        fid = 13
+        Value=0 
+        AttributesDataStructure=[]
+        SC = 0
+        buf = "get-feature:0xd (Host Memory Buffer), Current value:0x000003" +\
+        "       0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f" + \
+        "0000: 00 40 00 00 00 70 6a 3d 02 00 00 00 10 00 00 00 "  +\
+        "0010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " 
+
+
+        mStr="Current value:(\w+)"
+              
+            
+        if re.search(mStr, buf):
+            Value=int(re.search(mStr, buf).group(1),16)
+            # Host Memory Buffer – Attributes Data Structure
+            AttributesDataStructure=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", buf)
+            if len(AttributesDataStructure)==0:
+                self.Print("Error, cant find AttributesDataStructure, raw data: %s"%buf, "f")
+            AttributesDataStructure = AttributesDataStructure[0]   # find first only
+            patten1 = AttributesDataStructure
+            line=patten1.replace(" ", "")         
+            # return list
+            # put patten in to list type
+            n=2
+            AttributesDataStructure= [line[i:i+n] for i in range(0, len(line), n)] 
+            AttributesDataStructure = [int(i, 16) for i in AttributesDataStructure]
+            if len(AttributesDataStructure)==16:
+                self.Print("Error, AttributesDataStructure size incorrect, raw data: %s"%AttributesDataStructure, "f")   
+                
+            HSIZE = self.GetBytesFromList(AttributesDataStructure, 3, 0)
+            HMDLAL = self.GetBytesFromList(AttributesDataStructure, 7, 4)  
+            HMDLAU = self.GetBytesFromList(AttributesDataStructure, 11, 8)
+            AttributesDataStructure = [HSIZE, HMDLAL, HMDLAU]
+            
+        return AttributesDataStructure    
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        kk=2
-        aa = self.AdminCMDDataStrucToListOrString(strIn, ReturnType, BytesOfElement)
-        ordered = self.Ordered()
-        ss=ordered.getOrderedAttributesList_init()
+        reset_value = 0x1
+        self.GetHMBAttributesDataStructure()
+        if reset_value&0x1 >=1:
+            aa=2
+             
+        
+        
 
-        #self.Ordered.ordered_fields = ["aaaaa", "ss5555"]
-        ss=ordered.getOrderedAttributesList_init()
-        ordered.setOrderedAttributesList_init("TNEV", 88888)
-        ss=ordered.getOrderedAttributesList_init()
-        
-        ss=self.Ordered.getOrderedAttributesList_init()
-        
-        ss = ordered.getOrderedAttributesList_curr()
-        print ordered.TNEV 
-        ordered.TNEV = 456
-        kk = getattr(ordered, "TNEV")
-        bb= ordered.getOrderedAttributesList_curr()
-        '''
-        aa= dir(ordered)
-        print aa
-        bb = ordered.__dict__.items()
-        print bb
-        ordered.TNEV = 456
-        kk = ordered.getList()
-        '''
-        bb= ordered.ordered_fields
-        print bb
-        
-        bb= ordered.getOrderedAttributesList_curr()
-        print bb     
-        print ordered.TNEV   
-        print getattr(ordered, "TNEV")
 
         return 0        
         
