@@ -191,9 +191,9 @@ class mtest(NVME):
         Value=0 
         AttributesDataStructure=[]
         SC = 0
-        buf = "get-feature:0xd (Host Memory Buffer), Current value:0x000003" +\
+        buf = "get-feature:0xd (Host Memory Buffer), Current value:0x000001" +\
         "       0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f" + \
-        "0000: 00 40 00 00 00 70 6a 3d 02 00 00 00 10 00 00 00 "  +\
+        "0000: 00 40 00 00 00 a0 6f 5d 01 00 00 00 10 00 00 00 "  +\
         "0010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 " 
 
 
@@ -214,13 +214,15 @@ class mtest(NVME):
             n=2
             AttributesDataStructure= [line[i:i+n] for i in range(0, len(line), n)] 
             AttributesDataStructure = [int(i, 16) for i in AttributesDataStructure]
-            if len(AttributesDataStructure)==16:
+            if len(AttributesDataStructure)!=16:
                 self.Print("Error, AttributesDataStructure size incorrect, raw data: %s"%AttributesDataStructure, "f")   
                 
             HSIZE = self.GetBytesFromList(AttributesDataStructure, 3, 0)
             HMDLAL = self.GetBytesFromList(AttributesDataStructure, 7, 4)  
             HMDLAU = self.GetBytesFromList(AttributesDataStructure, 11, 8)
-            AttributesDataStructure = [HSIZE, HMDLAL, HMDLAU]
+            HMDLEC = self.GetBytesFromList(AttributesDataStructure, 15, 12)
+            AttributesDataStructure = [HSIZE, HMDLAL, HMDLAU, HMDLEC]
+            print AttributesDataStructure
             
         return AttributesDataStructure    
     

@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20210113A"
+    Version = "20210115"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -188,7 +188,10 @@ class SMI_SetGetFeatureCMD(NVME):
         supported = True if self.IdCtrl.HMPRE.int != 0 else False
         if not supported:
             self.TestItems.append([description, fid, 0, 0, 0, supported])
-        else:         
+        else:
+            self.HMB_AttributesData = self.GetHMBAttributesDataStructure()
+            if len(self.HMB_AttributesData)!=4:              
+                self.Print("Readed HMBAttributesDataStructure Error!, %s"%self.HMB_AttributesData, "f")                   
             capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
             if SC!=0:
                 self.Print("Fail to GetFeatureSupportedCapabilities for %s, rtCode: %s, rtStr: %s"%(description, SC, capabilities), "f")
@@ -358,7 +361,17 @@ class SMI_SetGetFeatureCMD(NVME):
         elif fid==0xC:
             #DS='\\x0\\x0\\x0\\x0\\x0\\x0\\x0\\x0'
             DS=''.join(["\\x0" for i in range(8*32)]) # set 32 power states to 0x0, i.e. 64bit * 32 power states
-            mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS)            
+            mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid, Data=DS) 
+        elif fid == 0xD: #HMB
+            HSIZE = self.HMB_AttributesData[0]
+            HMDLAL = self.HMB_AttributesData[1]  
+            HMDLAU = self.HMB_AttributesData[2]    
+            HMDLEC = self.HMB_AttributesData[3]
+            CMD = "nvme admin-passthru /dev/nvme0 --opcode=0x9 --cdw10=0xD "\
+            "--cdw11=%s --cdw12=%s --cdw13=%s --cdw14=%s  --cdw15=%s"\
+            %(value, hex(HSIZE), hex(HMDLAL), hex(HMDLAU), hex(HMDLEC))
+            mStr, SC = self.shell_cmd_with_sc(CMD)
+                      
         else:
             mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid)
             
@@ -1014,13 +1027,14 @@ class SMI_SetGetFeatureCMD(NVME):
             n=2
             AttributesDataStructure= [line[i:i+n] for i in range(0, len(line), n)] 
             AttributesDataStructure = [int(i, 16) for i in AttributesDataStructure]
-            if len(AttributesDataStructure)==16:
+            if len(AttributesDataStructure)!=16:
                 self.Print("Error, AttributesDataStructure size incorrect, raw data: %s"%AttributesDataStructure, "f")   
                 
             HSIZE = self.GetBytesFromList(AttributesDataStructure, 3, 0)
             HMDLAL = self.GetBytesFromList(AttributesDataStructure, 7, 4)  
             HMDLAU = self.GetBytesFromList(AttributesDataStructure, 11, 8)
-            AttributesDataStructure = [HSIZE, HMDLAL, HMDLAU]
+            HMDLEC = self.GetBytesFromList(AttributesDataStructure, 15, 12)
+            AttributesDataStructure = [HSIZE, HMDLAL, HMDLAU, HMDLEC]
             
         return AttributesDataStructure    
     
@@ -1038,14 +1052,13 @@ class SMI_SetGetFeatureCMD(NVME):
                 reset_value , SC=self.GetFeature(fid = fid)
                 self.Print("Start to verify set feature command ------------", "b")
                 self.Print("")
-                self.Print("Issue cmd to get current HMB AttributesData")
-                self.HMB_AttributesData = self.GetHMBAttributesDataStructure()
-                if len(self.HMB_AttributesData)!=3:
-                    self.Print("Read HMBAttributesDataStructure fail!", "f")
+                if len(self.HMB_AttributesData)!=4:
+                    self.Print("HMBAttributesDataStructure fail!, %s"%self.HMB_AttributesData, "f")
                     return False
                 self.Print("Host Memory Buffer Size (HSIZE): %s"%self.HMB_AttributesData[0])
                 self.Print("Host Memory Descriptor List Address Lower (HMDLAL): %s"%hex(self.HMB_AttributesData[1]))
                 self.Print("Host Memory Descriptor List Address Upper (HMDLAU): %s"%hex(self.HMB_AttributesData[2]))
+                self.Print("Host Memory Descriptor List Entry Count (HMDLEC): %s"%hex(self.HMB_AttributesData[3]))
                 
                 self.Print("")
                 self.Print("Issue cmd to get current feature value=%s"%(reset_value), "b")
