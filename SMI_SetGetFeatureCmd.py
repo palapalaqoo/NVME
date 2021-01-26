@@ -33,7 +33,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20210115"
+    Version = "20210125"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -189,21 +189,28 @@ class SMI_SetGetFeatureCMD(NVME):
         if not supported:
             self.TestItems.append([description, fid, 0, 0, 0, supported])
         else:
+            self.Print("Host Memory Buffer supported", "b")
             self.HMB_AttributesData = self.GetHMBAttributesDataStructure()
             if len(self.HMB_AttributesData)!=4:              
-                self.Print("Readed HMBAttributesDataStructure Error!, %s"%self.HMB_AttributesData, "f")                   
+                self.Print("Readed HMBAttributesDataStructure Error!, %s"%self.HMB_AttributesData, "f")
+            else:                
+                self.Print("Host Memory Buffer Size (HSIZE): %s"%self.HMB_AttributesData[0])
+                self.Print("Host Memory Descriptor List Address Lower (HMDLAL): %s"%hex(self.HMB_AttributesData[1]))
+                self.Print("Host Memory Descriptor List Address Upper (HMDLAU): %s"%hex(self.HMB_AttributesData[2]))
+                self.Print("Host Memory Descriptor List Entry Count (HMDLEC): %s"%hex(self.HMB_AttributesData[3]))
+                                                
             capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
             if SC!=0:
                 self.Print("Fail to GetFeatureSupportedCapabilities for %s, rtCode: %s, rtStr: %s"%(description, SC, capabilities), "f")
             reset_value , SC=self.GetFeature(fid = fid)
-            # set value with Memory Return (MR) = 1, ie no need to provide Host Memory Descriptor List
             if reset_value&0x1 >=1: # current is enabled
-                reset_value = 0x3
+                reset_value = 0x1
                 valid_value = 0x0                        
             else:
                 reset_value = 0x0
-                valid_value = 0x3
-            self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])         
+                valid_value = 0x1
+            self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])    
+                           
     
         description = "Host Controlled Thermal Management"
         fid = 0x10
@@ -268,10 +275,9 @@ class SMI_SetGetFeatureCMD(NVME):
             valid_value=1 if reset_value==0 else 0
             self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported]) 
 
-    def DisableHMB(self):
+    def SetHMB(self, value):
     # return true/false and current value
         fid = 0xD
-        value = 0
         nsSpec = False
         self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
         CMD = self.LastCmd
@@ -284,23 +290,14 @@ class SMI_SetGetFeatureCMD(NVME):
             return False, original1
         else:
             return True, original1
+        
+    def DisableHMB(self):
+    # return true/false and current value
+        return self.SetHMB(0)
 
     def EnableHMB(self):
     # return true/false and current value
-        fid = 0xD
-        value = 0x3
-        nsSpec = False
-        self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
-        CMD = self.LastCmd
-        # read again
-        original1  ,SC_w= self.GetFeature(fid, sel=0, nsid=1)
-        if original1 !=value: # must = 0x3,  original1&0x1 ==0: # current is disable
-            self.Print("  Fail to set feature value = 0x%X, current get feature value = 0x%X "%(value, original1), "f")                              
-            self.Print("issue set feature CMD and print: %s"%CMD)
-            self.Print("%s"%self.shell_cmd(CMD))
-            return False, original1
-        else:
-            return True, original1
+        return self.SetHMB(1)
                     
     def CreateLBARangeDataStructure(self, NumOfEntrys):
         # create multi entry of LBARangeDataStructure
@@ -367,9 +364,13 @@ class SMI_SetGetFeatureCMD(NVME):
             HMDLAL = self.HMB_AttributesData[1]  
             HMDLAU = self.HMB_AttributesData[2]    
             HMDLEC = self.HMB_AttributesData[3]
-            CMD = "nvme admin-passthru /dev/nvme0 --opcode=0x9 --cdw10=0xD "\
-            "--cdw11=%s --cdw12=%s --cdw13=%s --cdw14=%s  --cdw15=%s"\
-            %(value, hex(HSIZE), hex(HMDLAL), hex(HMDLAU), hex(HMDLEC))
+            if sv!=0:
+                CDW10=0xD | 1<<31
+            else:
+                CDW10=0xD
+            CMD = "nvme admin-passthru %s --opcode=0x9 --cdw10=%s "\
+            "--cdw11=%s --cdw12=%s --cdw13=%s --cdw14=%s  --cdw15=%s -n %s 2>&1"\
+            %(self.dev_port, CDW10, value, hex(HSIZE), hex(HMDLAL), hex(HMDLAU), hex(HMDLEC), nsid)
             mStr, SC = self.shell_cmd_with_sc(CMD)
                       
         else:
@@ -1053,7 +1054,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.Print("Start to verify set feature command ------------", "b")
                 self.Print("")
                 if len(self.HMB_AttributesData)!=4:
-                    self.Print("HMBAttributesDataStructure fail!, %s"%self.HMB_AttributesData, "f")
+                    self.Print("HMBAttributesDataStructure Incorrect!, %s"%self.HMB_AttributesData, "f")
                     return False
                 self.Print("Host Memory Buffer Size (HSIZE): %s"%self.HMB_AttributesData[0])
                 self.Print("Host Memory Descriptor List Address Lower (HMDLAL): %s"%hex(self.HMB_AttributesData[1]))
@@ -1063,9 +1064,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 self.Print("")
                 self.Print("Issue cmd to get current feature value=%s"%(reset_value), "b")
                 # set value with Memory Return (MR) = 1, ie no need to provide Host Memory Descriptor List
-                if reset_value&0x1 >=1: # current is enabled
-                    reset_value = 0x3
-                    valid_value = 0x0     
+                if reset_value==1: # current is enabled
                     self.Print("Current is enabled")                                       
                     self.Print("Start to disable and enable..", "b")
                     self.Print("Try to disable..")
@@ -1082,9 +1081,7 @@ class SMI_SetGetFeatureCMD(NVME):
                     else:
                         self.Print("Can not disable!, current value = %s"%currentValue, "f")  
                         return False
-                else:
-                    reset_value = 0x0
-                    valid_value = 0x3    
+                elif reset_value==0:  
                     self.Print("Current is disable")                    
                     self.Print("Start to enable and disable..", "b")
                     self.Print("Try to enable..")
@@ -1101,6 +1098,9 @@ class SMI_SetGetFeatureCMD(NVME):
                     else:
                         self.Print("Can not enable!, current value = %s"%currentValue, "f")       
                         return False 
+                else:
+                    self.Print("current value = %s, not = 0x1 or 0x0, invalid value!!"%reset_value, "f")       
+                    return False                     
                 self.Print("End of verify set feature command ------------", "b")
             self.Print("")             
             return True                

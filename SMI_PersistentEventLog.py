@@ -85,9 +85,8 @@ class SMI_PersistentEventLog(NVME):
             self.FormatNVMCompletion = self.FormatNVMCompletion_            
             self.SanitizeStart = self.SanitizeStart_           
             self.SanitizeCompletion = self.SanitizeCompletion_            
-            self.SetFeature = self.SetFeature_
-            
-            self.TelemetryLogCreated = self.TelemetryLogCreated_
+            self.SetFeature = self.SetFeature_            
+            self.TelemetryLogCreated = self.TelemetryLogCreated_            
             self.ThermalExcursion = self.ThermalExcursion_            
 
         class PersistentEventFormat_(OrderedAttributeClass):
@@ -206,7 +205,12 @@ class SMI_PersistentEventLog(NVME):
             CommandDwords = OrderedAttributeClass.MyOrderedField((0, 0, 0))
             MemoryBuffer = OrderedAttributeClass.MyOrderedField((0, 0, 0))            
             CommandCompletionDword0 = OrderedAttributeClass.MyOrderedField((0, 0, 0))
-
+            
+        class TelemetryLogCreated_(OrderedAttributeClass):
+            TelemetryInitiatedLog = OrderedAttributeClass.MyOrderedField((511, 0, 0))
+            
+        class ThermalExcursion_(OrderedAttributeClass):
+            OverTemperature = OrderedAttributeClass.MyOrderedField((0, 0, 0))
 
             
     # not used    
@@ -358,13 +362,12 @@ class SMI_PersistentEventLog(NVME):
             rtInst = self.PELH.SanitizeCompletion                                             
         elif EventType==0xB:
             expectSize=len(EventData)
-            rtInst = self.PELH.SetFeature 
-            
+            rtInst = self.PELH.SetFeature             
         elif EventType==0xC:
-            expectSize = 12
+            expectSize = 512
             rtInst = self.PELH.TelemetryLogCreated   
         elif EventType==0xD:
-            expectSize = 12
+            expectSize = 1
             rtInst = self.PELH.ThermalExcursion                                  
             
         else:
@@ -456,8 +459,8 @@ class SMI_PersistentEventLog(NVME):
 
     # <define sub item scripts>
     SubCase1TimeOut = 600
-    SubCase1Desc = ""   
-    SubCase1KeyWord = "Parser Current Persistent Event log"
+    SubCase1Desc = "Parser Current Persistent Event log"   
+    SubCase1KeyWord = ""
     def SubCase1(self):
         ret_code=0
         

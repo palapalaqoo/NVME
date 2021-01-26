@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20201110"
+    Version = "20210125"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1064,7 +1064,76 @@ class SMI_Sanitize(NVME):
 
         return ret_code 
 
-                    
+    SubCase15TimeOut = 800
+    SubCase15Desc = "Compare command with block sanitize"        
+    def SubCase15(self):
+        self.Print ("1.    Get and check Identify Controller Data Structure info", "b")
+        self.Print ("Check if the controller supports the Compare command or not in identify - ONCS")   
+        CMDSupported=self.IdCtrl.ONCS.bit(0)    
+        CMDSupported=True if CMDSupported=="1" else False
+        self.Print ("Compare command supported") if CMDSupported else self.Print ("Compare command not supported, skip")
+        
+        if not CMDSupported: 
+            return 0
+        
+        
+        if self.SANACT!=2:
+            self.Print ("Block Erase sanitize not supported, skip!")
+            return 0
+        else:
+            self.Print ("Block Erase sanitize supported")
+            
+        
+        self.Print ("")
+        self.Print ("Write 0x5A to first 10M data")
+        self.fio_write(offset = 0, size = "10M", pattern = 0x5A)
+        if self.fio_isequal(offset = 0, size = "10M", pattern = 0x5A):
+            self.Print ("Write and verify first 10M data: pass", "p")   
+        else:     
+            self.Print ("Write and verify first 10M data: fail", "f") 
+            return 1
+        
+        self.Print("")        
+        self.Print ("2.    Issue Sanitize command with block operation, ause:0, no deallocate:0", "b")
+        self.SANACT=2
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
+        self.Print ("Issue block erase sanitize, command: %s"%CMD)                     
+        mStr, sc=self.shell_cmd_with_sc(CMD)
+        self.Print ("Get return code: %s"%mStr)
+        self.Print ("Check return code is success or not, expected SUCCESS")
+        if sc==0:
+            self.Print("PASS", "p")  
+        else:
+            self.Print("Fail", "f")
+            ret_code=1
+            return 1 
+        
+        #self.Print ("Wait sanitize finish, timeout 600s")
+        if not self.WaitSanitizeOperationFinish(timeout=600, printInfo=True): return 1
+        
+        self.Print("") 
+        self.Print ("3.    After sanitize operation completed, issue compare command with data buffer set to 0", "b")
+        OneBlockSize = self.GetBlockSize()
+        CMD = "dd if=/dev/zero bs=%s count=1 2>&1 | nvme compare %s  -s 0 -z %s -c 0 2>&1"%(OneBlockSize, self.dev, OneBlockSize)
+        self.Print ("Issue command to compare first block: %s"%CMD)
+        mStr, sc=self.shell_cmd_with_sc(CMD)
+        self.Print("Return status: %s"%mStr)
+        self.Print("Check if compare command success")
+        if sc==0:
+            self.Print("Pass", "p") 
+        else:
+            self.Print("Fail", "f") 
+            
+        self.Print("")        
+        CMD = "hexdump %s -n %s"%(self.dev, OneBlockSize)
+        self.Print ("Issue command to read(hexdump) first block: %s"%CMD)
+        mStr, sc=self.shell_cmd_with_sc(CMD)   
+        self.Print(mStr)     
+        
+          
+                   
+        
+                            
     # </sub item scripts> 
                
     '''

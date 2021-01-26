@@ -386,6 +386,7 @@ class NVMECom():
     
     def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1, NVMEobj=None):
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0, ex, byte[0]=0x89, byte[1]=0xab, return ["89", "ab"]
+    #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=2, ex, byte[0]=0x89, byte[1]=0xab, return [0x89, 0xab]
     #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] ,if ReturnType=0
     #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1   
     #-- size, size in bytes
@@ -415,7 +416,8 @@ class NVMECom():
     # input admin-passthru command Returned Data Structure, not that command must have '2>&1' to check if command success or not
     # output list or string
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0 where byte[] is string type
-    #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1 where byte[] is string type      
+    #-- return string byte[0] + byte[1] + byte[2] + ...  if ReturnType=1 where byte[] is string type   
+    #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=2 where byte[] is int type  
     #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] 
         # if command success
         if re.search("NVMe command result:00000000", strIn):
@@ -423,7 +425,7 @@ class NVMECom():
             patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", strIn)            
             patten1= ''.join(patten)
             line=patten1.replace(" ", "")    
-            if ReturnType==0:
+            if ReturnType==0 or ReturnType==2:
                 # return list
                 # put patten in to list type
                 n=2
@@ -433,6 +435,9 @@ class NVMECom():
                 if BytesOfElement!=1:
                     n=BytesOfElement                    
                     listBuf=["".join(list(reversed(listBuf[i:i+n]))) for i in range(0, len(listBuf), n)]
+                    
+                if ReturnType==2:
+                    listBuf = [int(i, 16) for i in listBuf]
                     
                 return listBuf
                     

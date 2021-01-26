@@ -25,7 +25,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20190919"
+    Version = "20210119"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -49,9 +49,9 @@ class SMI_Telemetry(NVME):
         else:
             self.Print ("check if (Data Area 1 Last Block <= Data Area 2 Last Block<= Data Area 3 Last Block) or not")
             
-            LastBlock1=int(mLOG[9]+mLOG[8])
-            LastBlock2=int(mLOG[11]+mLOG[10])
-            LastBlock3=int(mLOG[13]+mLOG[12])
+            LastBlock1=int(mLOG[9]+mLOG[8], 16)
+            LastBlock2=int(mLOG[11]+mLOG[10], 16)
+            LastBlock3=int(mLOG[13]+mLOG[12], 16)
             '''
             #--- TODO test ----
             LastBlock1=2
@@ -242,9 +242,9 @@ class SMI_Telemetry(NVME):
     def SubCase5(self):
         ret_code = 0    
         self.Print ("check if (Telemetry Host-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not"      )
-        LastBlock1=int(self.LOG07[9]+self.LOG07[8])
-        LastBlock2=int(self.LOG07[11]+self.LOG07[10])
-        LastBlock3=int(self.LOG07[13]+self.LOG07[12])
+        LastBlock1=int(self.LOG07[9]+self.LOG07[8], 16)
+        LastBlock2=int(self.LOG07[11]+self.LOG07[10], 16)
+        LastBlock3=int(self.LOG07[13]+self.LOG07[12], 16)
         self.Print ("1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3))
         if (LastBlock1<=LastBlock2) and (LastBlock2<=LastBlock3):
             self.Print("PASS", "p")
@@ -333,9 +333,9 @@ class SMI_Telemetry(NVME):
     def SubCase11(self):
         ret_code = 0          
         self.Print ("check if (Telemetry Controller-Initiated Data Area 1 Last Block <= 2 Last Block<= 3 Last Block) or not")
-        LastBlock1=int(self.LOG08[9]+self.LOG08[8])
-        LastBlock2=int(self.LOG08[11]+self.LOG08[10])
-        LastBlock3=int(self.LOG08[13]+self.LOG08[12])
+        LastBlock1=int(self.LOG08[9]+self.LOG08[8], 16)
+        LastBlock2=int(self.LOG08[11]+self.LOG08[10], 16)
+        LastBlock3=int(self.LOG08[13]+self.LOG08[12], 16)
         self.Print ("1 Last Block: %s, 2 Last Block: %s, 3 Last Block: %s" %(LastBlock1, LastBlock2, LastBlock3))
         if (LastBlock1<=LastBlock2) and (LastBlock2<=LastBlock3):
             self.Print("PASS", "p")

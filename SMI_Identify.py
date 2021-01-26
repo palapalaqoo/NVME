@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20201201"
+    Version = "20210126"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -513,7 +513,7 @@ class SMI_IdentifyCommand(NVME):
         CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x1 2>&1"%self.dev_port
         self.IdentifyLists.append([ self.File_BuildIn_Identify_CNS01, self.File_Identify_CNS01, CMD, self.ParseFuncCNS_0x0_0x1 ])
         
-        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 2>&1"%self.dev_port
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 2>&1"%self.dev_port
         self.IdentifyLists.append([ None, self.File_Identify_CNS02, CMD, self.ParseFuncCNS_0x0_0x1 ])
         
         CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 2>&1"%self.dev_port
@@ -930,7 +930,7 @@ class SMI_IdentifyCommand(NVME):
                     
                     if NIDT==0x1:
                         #EUI64 = self.IdNs.EUI64.int
-                        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=128 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
+                        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
                         mStr = self.shell_cmd(CMD)
                         rtList = self.AdminCMDDataStrucToListOrString(strIn = mStr)
                         EUI64 = int(self.convert(lists=rtList, stopByte=127, startByte=120, mtype=self.TypeInt, endian="big-endian"), 16)
@@ -951,7 +951,7 @@ class SMI_IdentifyCommand(NVME):
                         
                     if NIDT==0x2:
                         #NGUID = self.IdNs.NGUID.int
-                        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=128 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
+                        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, nsid)
                         mStr = self.shell_cmd(CMD)
                         rtList = self.AdminCMDDataStrucToListOrString(strIn = mStr)
                         NGUID = int(self.convert(lists=rtList, stopByte=119, startByte=104, mtype=self.TypeInt, endian="big-endian"), 16)                        
@@ -1454,6 +1454,160 @@ class SMI_IdentifyCommand(NVME):
         self.SetPrintOffset(0)          
         return ret_code  
     
+    SubCase10TimeOut = 3000
+    SubCase10Desc = "Test status code" 
+    def SubCase10(self): 
+        ret_code = 0
+        self.Print("1, If a controller does not support the specified CNS value, then the controller shall abort the command with a status of Invalid Field in Command", "b")
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0xFF 2>&1 > /dev/null"%self.dev_port
+        self.Print("Issue CMD with CNS=0xFF: %s"%CMD)
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        self.Print("Return status: %s"%mStr)
+        self.Print("Check if status is Invalid Field(0x2)")
+        if sc==2:
+            self.Print("Pass", "p") 
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1
+            
+        self.Print("")
+        NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False     
+        self.Print("2. Identify Namespace data structure (CNS 00h) with nsid=0xFFFFFFFF", "b")
+        self.Print("Namespace Management Supported") if NsSupported else self.Print("Namespace Management not Supported")
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=0xFFFFFFFF 2>&1 > /dev/null"%self.dev_port
+        if NsSupported:
+            self.Print("Controller must success the command")            
+            self.Print("Issue CMD: %s"%CMD)         
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print("Return status: %s"%mStr)
+            self.Print("Check if status is success(0x0)")
+            if sc==0:
+                self.Print("Pass", "p") 
+            else:
+                self.Print("Fail", "f")
+                ret_code = 1
+        else:
+            self.Print("Controller shall fail the command with a status code of Invalid Namespace or Format")
+            self.Print("Issue CMD: %s"%CMD)         
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print("Return status: %s"%mStr)
+            self.Print("Check if status is Invalid Namespace or Format(0xB)")
+            if sc==0xB:
+                self.Print("Pass", "p") 
+            else:
+                self.Print("Fail", "f")
+                ret_code = 1  
+                
+        self.Print("")    
+        self.Print("3. Active Namespace ID list (CNS 02h) with nsid=0xFFFFFFFE/0xFFFFFFFF", "b")
+        self.Print("Controller should abort the command with status code Invalid Namespace or Format if the NSID field is set to FFFFFFFEh or FFFFFFFFh")
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 --namespace-id=0xFFFFFFFE 2>&1 > /dev/null"%self.dev_port
+        self.Print("Issue CMD with nsid=0xFFFFFFFE: %s"%CMD)
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        self.Print("Return status: %s"%mStr)
+        self.Print("Check if status is Invalid Namespace or Format(0xB)")
+        if sc==0xB:
+            self.Print("Pass", "p") 
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1    
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x2 --namespace-id=0xFFFFFFFF 2>&1 > /dev/null"%self.dev_port
+        self.Print("Issue CMD with nsid=0xFFFFFFFF: %s"%CMD)
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        self.Print("Return status: %s"%mStr)
+        self.Print("Check if status is Invalid Namespace or Format(0xB)")
+        if sc==0xB:
+            self.Print("Pass", "p") 
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1                          
+                
+        self.Print("")    
+        self.Print("4. Namespace Identification Descriptor list (CNS 03h) with nsid=0xFFFFFFFF", "b")
+        self.Print("Controller should abort the command with status code Invalid Namespace or Format If the NSID field does not specify an active NSID(ex. nsid=0xFFFFFFFF)")
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x3 --namespace-id=0xFFFFFFFF 2>&1 > /dev/null"%self.dev_port
+        self.Print("Issue CMD with nsid=0xFFFFFFFF: %s"%CMD)
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        self.Print("Return status: %s"%mStr)
+        self.Print("Check if status is Invalid Namespace or Format(0xB)")
+        if sc==0xB:
+            self.Print("Pass", "p") 
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1                 
+                
+        self.Print("")    
+        self.Print("5. Allocated Namespace ID list (CNS 10h) with nsid=0xFFFFFFFE/0xFFFFFFFF", "b")
+        self.Print("Controller should abort the command with status code Invalid Namespace or Format if the NSID field is set to FFFFFFFEh or FFFFFFFFh")
+        if self.NsSupported:
+            self.Print ("Namespace Management supported: Yes")
+        else:
+            self.Print ("Namespace Management supported: No") 
+            self.Print ("Skip")            
+        if self.NsSupported:
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x10 --namespace-id=0xFFFFFFFE 2>&1 > /dev/null"%self.dev_port
+            self.Print("Issue CMD with nsid=0xFFFFFFFE: %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print("Return status: %s"%mStr)
+            self.Print("Check if status is Invalid Namespace or Format(0xB)")
+            if sc==0xB:
+                self.Print("Pass", "p") 
+            else:
+                self.Print("Fail", "f")
+                ret_code = 1    
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x10 --namespace-id=0xFFFFFFFF 2>&1 > /dev/null"%self.dev_port
+            self.Print("Issue CMD with nsid=0xFFFFFFFF: %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print("Return status: %s"%mStr)
+            self.Print("Check if status is Invalid Namespace or Format(0xB)")
+            if sc==0xB:
+                self.Print("Pass", "p") 
+            else:
+                self.Print("Fail", "f")
+                ret_code = 1     
+
+        self.Print("")    
+        self.Print("6. Identify Namespace data structure for an Allocated Namespace ID (CNS 11h) with nsid=0xFFFFFFFF", "b")
+        self.Print("Controller should abort the command with status code Invalid Namespace or Format if the NSID field is set to FFFFFFFFh")
+        if self.NsSupported:
+            self.Print ("Namespace Management supported: Yes")
+        else:
+            self.Print ("Namespace Management supported: No") 
+            self.Print ("Skip")            
+        if self.NsSupported:
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x11 --namespace-id=0xFFFFFFFF 2>&1 > /dev/null"%self.dev_port
+            self.Print("Issue CMD with nsid=0xFFFFFFFF: %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print("Return status: %s"%mStr)
+            self.Print("Check if status is Invalid Namespace or Format(0xB)")
+            if sc==0xB:
+                self.Print("Pass", "p") 
+            else:
+                self.Print("Fail", "f")
+                ret_code = 1                    
+
+        self.Print("")    
+        self.Print("7. Namespace Attached Controller list (CNS 12h) with nsid=0xFFFFFFFF", "b")
+        self.Print("If the NSID field is set to FFFFFFFFh, then the controller should fail the command with a status code of Invalid Field in Command")
+        if self.NsSupported:
+            self.Print ("Namespace Management supported: Yes")
+        else:
+            self.Print ("Namespace Management supported: No") 
+            self.Print ("Skip")            
+        if self.NsSupported:
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x12 --namespace-id=0xFFFFFFFF 2>&1 > /dev/null"%self.dev_port
+            self.Print("Issue CMD with nsid=0xFFFFFFFF: %s"%CMD)
+            mStr, sc = self.shell_cmd_with_sc(CMD)
+            self.Print("Return status: %s"%mStr)
+            self.Print("Check if status is Invalid Field(0x2)")
+            if sc==2:
+                self.Print("Pass", "p") 
+            else:
+                self.Print("Fail", "f")
+                ret_code = 1            
+            
+        return ret_code
+                
     # </sub item scripts>    
 if __name__ == "__main__":
     DUT = SMI_IdentifyCommand(sys.argv ) 
