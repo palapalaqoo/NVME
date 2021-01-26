@@ -229,7 +229,7 @@ class mtest(NVME):
     SubCase1TimeOut = 600
     def SubCase1(self):
         self.LOG08_0=self.get_log_passthru(6, 32, 0, 0)
-        reset_value = 0x1
+        reset_value = 0x1 
         self.GetHMBAttributesDataStructure()
         if reset_value&0x1 >=1:
             aa=2
