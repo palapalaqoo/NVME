@@ -25,7 +25,7 @@ class SMI_Write(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Write.py"
     Author = "Sam Chan"
-    Version = "20190819"
+    Version = "20200128"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -142,16 +142,16 @@ class SMI_Write(NVME):
     SubCase1TimeOut = 60
     SubCase1Desc = "Test Metadata Pointer (MPTR)"       
     def SubCase1(self):
-        for i in range(16):  
-            ret_code=0        
+        ret_code=0        
+        for i in range(16):          
             ML=i
             self.Print ("set Metadata Length=%s for write command and check if write command success"%(ML)   )
             
-        if self.testMPTR(ML) :
-            self.Print("PASS", "p") 
-        else:
-            self.Print("Fail", "f")   
-            ret_code=1
+            if self.testMPTR(ML) :
+                self.Print("PASS", "p") 
+            else:
+                self.Print("Fail", "f")   
+                ret_code=1
         return ret_code
     
     # <sub item scripts>

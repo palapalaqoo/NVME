@@ -25,7 +25,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20210119"
+    Version = "20210128"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -484,7 +484,7 @@ class SMI_Telemetry(NVME):
                     mstrs=re.search(mStr, mThreadStr).group(1)
                     self.Print ("Completion Queue Entry Dword 0: %s" %(mstrs)    )
                     self.Print ("Check Dword 0")
-                    if mstrs=="00030202":
+                    if mstrs=="00080202":
                         self.AsyncNVME.Print("PASS", "p")
                     else:
                         self.AsyncNVME.Print("Fail", "f")

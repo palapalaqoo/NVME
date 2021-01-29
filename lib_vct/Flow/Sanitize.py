@@ -137,6 +137,8 @@ class Sanitize_():
                         break
                     else:
                         rtCode = FlowSanitizeStatus.SprogCountError
+                        self._mNVME.Print ("SPROG still equal to 0xFFFF after sending sanitize command and wait for 1 second!", "f")
+                        self._mNVME.Print ("i.e. controller has not starting sanitize operation in 1s after received command!", "f")
                         return rtCode
                 sleep(0.1)                
                 

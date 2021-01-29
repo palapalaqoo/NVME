@@ -527,8 +527,8 @@ class SMI_Sanitize(NVME):
                             "if sprogScale not set, spor timer will be random in 1 to 65534 to do spor ", argType=int)     
             
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
-                            helpMsg="nvme spec version, 1.3c / 1.4, default= 1.3c"
-                            "\ne.x. '--version 1.4'", argType=str, default="1.3c")        
+                            helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3c"
+                            "\ne.x. '--version 1.3d'", argType=str, default="1.3c")        
         
         # initial parent class
         super(SMI_Sanitize, self).__init__(argv)
@@ -1045,11 +1045,11 @@ class SMI_Sanitize(NVME):
                             return 1
 
     SubCase14TimeOut = 60
-    SubCase14Desc = "NVMe Spec1.4: test get log command - Log Page Offset"        
+    SubCase14Desc = "NVMe Spec1.3d: test get log command - Log Page Offset"        
     def SubCase14(self):
         ret_code=0
-        if self.specVer!="1.4":
-            self.Print( "Current target spec version = %s, please rerun with '-v 1.4' for NVMe Spec1.4"%self.specVer,"w")
+        if self.specVer!="1.3d":
+            self.Print( "Current target spec version = %s, please rerun with '-v 1.3d' for NVMe Spec1.3d"%self.specVer,"w")
             return 0
 
         supportsExtendedEata = True if self.IdCtrl.LPA.bit(2)=="1" else False
