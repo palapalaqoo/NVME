@@ -114,10 +114,10 @@ class Sanitize_():
             # wait for last Sanitize command Finish
             if not self.WaitRecentSanitizeFinish():
                 self._mNVME.Print("lib_vct/Flow/Sanitize: Fail!, Recent Sanitize can't finish in 10 s", "f")
-                return -1            
+                return FlowSanitizeStatus.CommandError         
             # Sanitize command
             if not self._IssueCommand():
-                return -1   
+                return FlowSanitizeStatus.CommandError
                 
             # print Progress with 0% 
             if self.ShowProgress:
@@ -137,8 +137,8 @@ class Sanitize_():
                         break
                     else:
                         rtCode = FlowSanitizeStatus.SprogCountError
-                        self._mNVME.Print ("SPROG still equal to 0xFFFF after sending sanitize command and wait for 1 second!", "f")
-                        self._mNVME.Print ("i.e. controller has not starting sanitize operation in 1s after received command!", "f")
+                        self._mNVME.Print ("lib_vct/Flow/Sanitize: Error!, after sending sanitize command and wait for 1 second, SPROG still equal to 0xFFFF !", "f")
+                        self._mNVME.Print ("lib_vct/Flow/Sanitize: i.e. controller has not starting sanitize operation in 1s after received command!", "f")
                         return rtCode
                 sleep(0.1)                
                 

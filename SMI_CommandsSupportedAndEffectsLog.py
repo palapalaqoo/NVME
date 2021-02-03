@@ -361,8 +361,8 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<           
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
-                            helpMsg="nvme spec version, 1.3c / 1.4, default= 1.3c"
-                            "\ne.x. '--version 1.4'", argType=str, default="1.3c")
+                            helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3c"
+                            "\ne.x. '--version 1.3d'", argType=str, default="1.3c")
                 
         # initial parent class
         super(SMI_CommandsSupportedAndEffectsLog, self).__init__(argv)
@@ -412,11 +412,11 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
     # </sub item scripts>
     
     SubCase2TimeOut = 60
-    SubCase2Desc = "NVMe Spec1.4: test get log command - Log Page Offset"        
+    SubCase2Desc = "NVMe Spec1.3d: test get log command - Log Page Offset"        
     def SubCase2(self):
         ret_code=0
-        if self.specVer!="1.4":
-            self.Print( "Current target spec version = %s, please rerun with '-v 1.4' for NVMe Spec1.4"%self.specVer,"w")
+        if self.specVer!="1.3d":
+            self.Print( "Current target spec version = %s, please rerun with '-v 1.3d' for NVMe Spec1.3d"%self.specVer,"w")
             return 0
 
         supportsExtendedEata = True if self.IdCtrl.LPA.bit(2)=="1" else False

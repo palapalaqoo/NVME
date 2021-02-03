@@ -20,7 +20,6 @@ import re
 # Import VCT modules
 from lib_vct.NVME import NVME
 
-
 class item:
     description=0
     fid=1
@@ -33,7 +32,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20210125"
+    Version = "20210203"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1196,7 +1195,32 @@ class SMI_SetGetFeatureCMD(NVME):
                 return False
             self.Print("  Success to restore feature value to 0x%X "%(original1), "p")
         return True
-        
+
+    def GetFeatureParameters(self, fid):
+        supported = False
+        saveable = None
+        nsSpec= None
+        changeable = None
+        for mItem in self.TestItems:
+            if int(mItem[item.fid])!=int(fid):
+                continue
+            
+            # if fid match
+            self.Print ( mItem[item.description]   )
+            self.Print ("Feature ID: %s"%mItem[item.fid]   )
+            supported=mItem[item.supported]      
+            self.Print ("Supported", "p") if supported else self.Print("Not supported", "w")
+            if supported:
+                self.Print ("" )      
+                saveable=True if mItem[item.capabilities]&0b001 > 0 else False   
+                nsSpec=True if mItem[item.capabilities]&0b010 > 0 else False
+                changeable=True if mItem[item.capabilities]&0b100 > 0 else False
+                currValue=mItem[item.reset_value]             
+                self.Print ("Feature saveable: %s"%("Yes" if saveable else "No"))
+                self.Print ("Feature namespace specific: %s"%("Yes" if nsSpec else "No"))
+                self.Print ("Feature changeable: %s"%("Yes" if changeable else "No"))   
+                self.Print ("Feature current value: 0x%X"%currValue)
+        return supported,  saveable, nsSpec, changeable, currValue
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
@@ -1214,7 +1238,7 @@ class SMI_SetGetFeatureCMD(NVME):
         self.disableNsTest = self.GetDynamicArgs(1)
         self.disableNsTest = True if self.disableNsTest==1 else False
         
-        VersionDefine = ["1.3c", "1.3d"]
+        VersionDefine = ["1.3c", "1.3d", "1.4"]
         self.specVersion = self.GetDynamicArgs(2)
         self.specVersion = "1.3d" if self.specVersion==None else self.specVersion   # default = 1.3d
         if not self.specVersion in VersionDefine:   # if input is not in VersionDefine, e.g keyin wrong version
@@ -1512,9 +1536,124 @@ class SMI_SetGetFeatureCMD(NVME):
         self.VerifyStatusCode(0x83)
         return self.ret_code    
     
+    SubCase37TimeOut = 600
+    SubCase37Desc = "[YMTC CTA-152] Set Features(Asynchronous Event Configuration) for NVMe v1.4"
+    def SubCase37(self):
+        self.ret_code=0
+        self.Print("Current taget version for NVMe: %s"%self.specVersion)
+        if self.specVersion!="1.4":
+            self.Print("Please run command with -v 1.4 if going to verify this test case!")
+            return 0
+        
+        self.Print("")
+        fid = 0xB        
+        supported, saveable, nsSpec, changeable, currValue = self.GetFeatureParameters(fid)
+        
+        if not supported:
+            pass                            
+        else:                                      
+            self.Print ("") 
+            self.Print("Issue a Set Features command with value = 5226(0x146A) for FID = 0xB(Asynchronous Event Configuration)")
+            value = 0x146A
+            self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
+            self.Print("Issue get feature command")
+            current1  ,SC= self.GetFeature(fid, sel=0)
+            if SC==0:
+                self.Print ("  Return current value: 0x%X"%current1)   
+                self.Print ("  Check if current value = 0x%X"%value)
+                if current1==value:
+                    self.Print("  PASS", "p")
+                else:
+                    self.Print("  Fail", "f")
+                    self.ret_code=1     
+            else:
+                self.Print("  Fail, can't read value!", "f")
+                self.ret_code=1  
+                  
+            self.Print ("")    
+            self.Print ("--  Restore values", "b")    
+            value=currValue
+            self.Print ("restore to previous 'current value': %s"%hex(value))
+            if not self.RestoreCurrentValue(fid, value, nsSpec): 
+                self.ret_code = 1
+
+        return self.ret_code        
     
-    
-    
+    SubCase38TimeOut = 600
+    SubCase38Desc = "[YMTC CTA-169] Set feature bit 14(Endurance Group Event Aggregate Log Change Notices) for NVMe v1.4"
+    def SubCase38(self):
+        self.ret_code=0
+        self.Print("Current taget version for NVMe: %s"%self.specVersion)
+        if self.specVersion!="1.4":
+            self.Print("Please run command with -v 1.4 if going to verify this test case!")
+            return 0
+        
+        self.Print("")
+        fid = 0xB        
+        supported, saveable, nsSpec, changeable, resetValue = self.GetFeatureParameters(fid)
+        
+        if not supported:
+            pass                            
+        else:                                      
+            self.Print ("") 
+            EGEALsupported = True if self.IdCtrl.OAES.bit(14) =="1" else False
+            
+            self.Print("Endurance Group Event Aggregate log: %s"%("supported(oaes bit14=1)" if EGEALsupported else "not supported(oaes bit14=0)"))
+            
+            value = 1<<14
+            self.Print("Issue a Set Features command with value = 0x%X(Endurance Group Event Aggregate Log Change Notices = 1) for FID = 0xB"%value)            
+            SC = self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)
+            self.Print("Return status: 0x%X"%SC)
+            if EGEALsupported:
+                self.Print("Check if status is 0x0(success)")
+                if SC==0:
+                    self.Print("  PASS", "p")
+                else:
+                    self.Print("  Fail", "f")
+                    self.ret_code=1
+            else:
+                self.Print("Check if status is 0x2(Invalid Field)")
+                if SC==2:
+                    self.Print("  PASS", "p")
+                else:
+                    self.Print("  Fail", "f")
+                    self.ret_code=1                        
+            
+                
+                
+            self.Print("Issue get feature command")
+            current1  ,SC= self.GetFeature(fid, sel=0)
+            if SC==0:
+                self.Print ("  Return current value: 0x%X"%current1)
+                if EGEALsupported:   
+                    self.Print("Endurance Group Event Aggregate log supported, expect set feature success")
+                    self.Print ("  Check if current value = 0x%X"%value)
+                    if current1==value:
+                        self.Print("  PASS", "p")
+                    else:
+                        self.Print("  Fail", "f")
+                        self.ret_code=1
+                else:   
+                    self.Print("Endurance Group Event Aggregate log not supported, expect set feature fail")
+                    self.Print ("  Check if current value = 0x%X"%resetValue)
+                    if current1==resetValue:
+                        self.Print("  PASS", "p")
+                    else:
+                        self.Print("  Fail", "f")
+                        self.ret_code=1                        
+                             
+            else:
+                self.Print("  Fail, can't read value!", "f")
+                self.ret_code=1  
+                  
+            self.Print ("")    
+            self.Print ("--  Restore values", "b")    
+            value=resetValue
+            self.Print ("restore to previous 'current value': %s"%hex(value))
+            if not self.RestoreCurrentValue(fid, value, nsSpec): 
+                self.ret_code = 1
+
+        return self.ret_code          
     
     
     
