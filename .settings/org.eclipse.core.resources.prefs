@@ -33,6 +33,7 @@ encoding/SMI_Telemetry.py=utf-8
 encoding/SMI_TelemetryExample.py=utf-8
 encoding/SMI_Write.py=utf-8
 encoding/SMI_XT_SRIOV.py=utf-8
+encoding/SMI_YMTC_PC300.py=utf-8
 encoding/mtest.py=utf-8
 encoding/mtest1.py=utf-8
 encoding/tools.py=utf-8
