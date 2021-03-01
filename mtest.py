@@ -228,13 +228,39 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        self.LOG08_0=self.get_log_passthru(6, 32, 0, 0)
-        reset_value = 0x1 
-        self.GetHMBAttributesDataStructure()
-        if reset_value&0x1 >=1:
-            aa=2
-             
-        
+        valueIn='0x1200000000000000030'
+
+        IsZero = True
+        if len(valueIn)>16:
+            while True:
+                subStr = valueIn[-16:]
+                # if 0xh or 0xH
+                if re.search("0x(\w+)", subStr) or re.search("0X(\w+)", subStr):   
+                    value=int(subStr, 16)
+                else:                
+                    value=int(subStr)
+                valueIn = valueIn[:-17]
+
+                if value!=0:
+                    IsZero = False
+                    break                
+                if len(valueIn)==0: break
+                
+        if IsZero:
+            valueIn = "0x0"
+        else:
+            valueIn = "-1(not all value is zero)"
+                    
+
+            
+        bb=bin(aa)
+        StartBit = 5
+        StopBit = 7
+        cc=bb[StartBit+2:StopBit+2+1]
+        cc=cc[::-1]
+        dd= int(cc, 2)
+        print dd
+            
         
 
 

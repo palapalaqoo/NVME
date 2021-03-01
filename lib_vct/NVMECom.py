@@ -411,6 +411,43 @@ class NVMECom():
             return None
         else:
             return self.AdminCMDDataStrucToListOrString(mbuf,ReturnType, BytesOfElement)
+
+    def GetPCIe4096ByteRegister(self):
+    #-- return list [ byte[0], byte[1], byte[2], ... ]
+        strIn=self.shell_cmd("lspci -xxxx -s %s" %(self.pcie_port))
+        
+        patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", strIn)            
+        patten1= ''.join(patten)  
+        line=patten1.replace(" ", "")  
+        # put patten in to list type
+        n=2
+        listBuf= [line[i:i+n] for i in range(0, len(line), n)] 
+        # to int
+        listBuf = [int(i, 16) for i in listBuf]        
+            
+        return listBuf
+    
+    def GetPCIeCapIDlist(self):
+    # return list,  [[CapID 0, offset], [CapID 1, offset] ..]
+    # and byte list, raw data
+        mList = []
+        data = self.GetPCIe4096ByteRegister()
+        if len(data)!=4096:
+            self.Print("Error!, size of GetPCIe4096ByteRegister() != 4096, curr = %s"%len(data))
+        CapabilitiesPointer = data[0x34] # pcie spec
+        ptr = CapabilitiesPointer # start from CapabilitiesPointer        
+        while True:
+            CapID = data[ptr]
+            mList.append([CapID, ptr])
+            NextCapabilityPointer = data[ptr+1]
+            if NextCapabilityPointer==0:
+                break
+            else:
+                ptr = NextCapabilityPointer
+                
+        return mList, data
+            
+   
             
     def AdminCMDDataStrucToListOrString(self, strIn, ReturnType=0, BytesOfElement=1):
     # input admin-passthru command Returned Data Structure, not that command must have '2>&1' to check if command success or not

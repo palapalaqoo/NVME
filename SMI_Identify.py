@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210126"
+    Version = "20210225"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -48,6 +48,9 @@ class SMI_IdentifyCommand(NVME):
     
     TypeInt=0x0
     TypeStr=0x1
+    TypeIntwithOffset=0x2
+    TypeReserved=0x3
+    
 
     # </Attributes> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -91,7 +94,7 @@ class SMI_IdentifyCommand(NVME):
         return value    
     
     def PrintAlignString(self,S0, S1, S2, PF="default"):            
-        mStr = "{:<8}\t{:<30}\t{:<30}".format(S0, S1, S2)
+        mStr = "{:<20}\t{:<30}\t{:<30}".format(S0, S1, S2)
         if PF=="pass":
             self.Print( mStr , "p")        
         elif PF=="fail":
@@ -133,8 +136,9 @@ class SMI_IdentifyCommand(NVME):
             self.Print("----------------------------------------------------------------------")   
 
 
-
+            cnt = 0
             for mItem in OutUserFile:
+                cnt +=1
                 # read name and value from csv file that was created by identify command
                 Name=mItem[0]
                 ValueC=mItem[1]
@@ -161,7 +165,8 @@ class SMI_IdentifyCommand(NVME):
                     self.PrintAlignString(Name, ValueC, ValueU, "fail")   
                     subRt=False
                     
-        self.Print("----------------------------------------------------------------------")     
+        self.Print("----------------------------------------------------------------------")
+        self.Print("Total num of item: %s"%cnt)
         self.Print("")
         # end of for mItem in BuileInFile:    
         return subRt  
@@ -212,16 +217,25 @@ class SMI_IdentifyCommand(NVME):
             mStr = "^#"
             if re.search(mStr, mItem[0]):
                 pass   
-            else:                 
+            else:  
+                # name,stop byte,start byte,type, stop bit, start bit
                 Name=mItem[0]        
-                if Name=="NGUID":
-                    pass
+                #if Name=="NGUID":
+                #    pass
                           
                 StopByte=int(mItem[1])
                 StartByte=int(mItem[2])                
                 mType=int(mItem[3])
+                StopBit=None
+                StartBit=None
+                if len(mItem)>=5:
+                    StopBit=int(mItem[4]) 
+                    StartBit=int(mItem[5])
+
+                if Name=="Reserved_110_102":
+                    pass                
                 # value from controller,  and format it
-                ValueC =self.convert(DS, StopByte, StartByte, mType)
+                ValueC =self.convert(DS, StopByte, StartByte, mType, StopBit, StartBit)
                 ValueC = self.mFormatString(ValueC, mType)
                     
                 # save to csv file
@@ -239,17 +253,39 @@ class SMI_IdentifyCommand(NVME):
             writer = csv.writer(csvfile)
             writer.writerow([name, value])               
     
-    def convert(self, lists, stopByte, startByte, mtype, endian="little-endian"):   
+    def convert(self, lists, stopByte, startByte, mtype, StopBit=None, StartBit=None, endian="little-endian"):   
         # return is string , eg, '0x1A' or 'SMI2262'
-        
+        # mtype=0, get string int,  ex, '0x1A' , get value from [StopBit, StartBit]
+        #    e.x, lists=[0x5A, 0x2D, 0x8B], stopByte=2, startByte=1, return "0x5A2D"
+        #
+        # mtype=1, get string, ex,  'SMI2262'
+        #
+        # mtype=2, get string int, ex, '0x1A' , get value from [StopBit, StartBit] and offset=startByte where discard stopByte
+        #     e.x, lists=[0x5A, 0x2D, 0x8B], startByte=1, StopBit=7, StartBit=4, return "0xD"
+        # mtype=3, return string with raw data, ex. "00000000", for reserved field
         # if error
         if startByte>stopByte and mtype==self.TypeInt:
             return "0"
         if startByte>stopByte and mtype==self.TypeStr:
             return ""
+        if (StopBit==None or StartBit==None) and mtype==self.TypeIntwithOffset:
+            return "0"        
+        
                     
         # sub bytes
-        subList=lists[startByte : stopByte+1]
+        if mtype==self.TypeIntwithOffset:
+            # ex, startByte=2, StartBit=10, equal to startByte=3, StartBit=2, 
+            stopByte = startByte# set to startByte
+            bitLen = StopBit-StartBit
+            offset = StartBit/8
+            startByte = startByte+offset
+            StartBit=StartBit%8 # adjust StartBit
+            offset = StopBit/8
+            stopByte = stopByte+offset
+            StopBit=StartBit + bitLen # adjust StopBit
+            subList=lists[startByte : stopByte+1]
+        else:
+            subList=lists[startByte : stopByte+1]
         mStr=""
         if mtype==self.TypeInt:
             if endian=="little-endian":
@@ -262,7 +298,27 @@ class SMI_IdentifyCommand(NVME):
             
         elif mtype==self.TypeStr: 
             for byte in subList:
-                mStr=mStr+chr(int(byte,16))    
+                mStr=mStr+chr(int(byte,16))   
+        elif mtype==self.TypeIntwithOffset:
+            if endian=="little-endian":
+                # reverse it and combine
+                subList=subList[::-1]
+            subList_Str="".join(subList)
+            # Converting string to int
+            mStr = int(subList_Str, 16)
+            # format to bit string, e.x. str: 0b1001001101111 for 0x126F
+            strLen = (stopByte - startByte +1)*8 + 2 # byte*8 +2 where 2 is for string '0b'
+            mStr=format(mStr, '#0%sb'%strLen) # '#010b' means 10 bit include '0b'
+            #mStr=bin(mStr) #e.x. str: 0b1001001101111 for 0x126F
+            # get bits
+            size=strLen # will equal to len(mStr)
+            mStr=mStr[size-StopBit-1:size-StartBit] # get bit
+            mStr= int(mStr, 2) 
+            mStr="0x%X"%mStr
+        elif mtype==self.TypeReserved:
+        # return string with raw data, ex. "00000000"
+            for byte in subList:
+                mStr=mStr+byte            
         else:
             mStr =  "0"
         return mStr
@@ -288,13 +344,33 @@ class SMI_IdentifyCommand(NVME):
         valueIn=self.RemoveSpaces(valueIn)        
         
         # if type is int, then format it to hex string
-        if mType==self.TypeInt:
+        if mType==self.TypeInt:            
             # if 0xh or 0xH
             if re.search("0x(\w+)", valueIn) or re.search("0X(\w+)", valueIn):   
                 valueIn="0x%x"%int(valueIn, 16)
             else:                
                 valueIn="0x%x"%int(valueIn)
-           
+        if mType==self.TypeReserved:
+            IsZero = True
+            cnt = 0
+            while True:
+                subStr = valueIn[-16:] # slice into 8bytes
+                # if 0xh or 0xH
+                if re.search("0x(\w+)", subStr) or re.search("0X(\w+)", subStr):   
+                    value=int(subStr, 16)
+                else:                
+                    value=int(subStr)
+                if value!=0:
+                    IsZero = False
+                    break      
+                cnt+=1          
+                valueIn = valueIn[:-17] # shift to right(remove 8bytes)
+                if len(valueIn)==0: break
+                                                 
+            if IsZero:
+                valueIn = "0x0"
+            else:
+                valueIn = "-1(not all value is zero, raw data: %s, offset: %s bytes"%(subStr, cnt*8)
             
         return valueIn
     
@@ -1025,8 +1101,19 @@ class SMI_IdentifyCommand(NVME):
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<           
     def __init__(self, argv):
+        VersionDefine = ["1.3c", "1.4"]
+        VersionDdfault = VersionDefine[0]
+        self.SetDynamicArgs(optionName="v", optionNameFull="version", \
+                            helpMsg="nvme spec version, %s, default= %s, ex. '-v %s'"%(VersionDefine, VersionDdfault, VersionDdfault), argType=str, default=VersionDdfault)
         # initial parent class
         super(SMI_IdentifyCommand, self).__init__(argv)
+
+        self.specVersion = self.GetDynamicArgs(0)
+        if not self.specVersion in VersionDefine:   # if input is not in VersionDefine, e.g keyin wrong version
+            self.specVersion = VersionDdfault
+
+        if self.specVersion=="1.4":
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4.csv"
              
         self.InitDirs()
         self.IdentifyLists=[]
@@ -1053,7 +1140,7 @@ class SMI_IdentifyCommand(NVME):
         return ret_code
 
     
-    SubCase2TimeOut = 60
+    SubCase2TimeOut = 600
     SubCase2Desc = "Test CNS=0x01, Identify Controller Data Structure" 
     def SubCase2(self): 
         ret_code=0

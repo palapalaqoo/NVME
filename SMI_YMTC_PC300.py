@@ -39,8 +39,8 @@ class SMI_YMTC_PC300(NVME):
   
         self.Print("")
         byte3999 = DS[3999]
-        self.Print ("Identify data offset 3999 value: 0x%X"%byte3999)
-        self.Print ("check if the 3999 bit0, FLUSH-NON-VOLATILE =1")        
+        self.Print ("Identify data structure, offset 3999, current value: 0x%X"%byte3999)
+        self.Print ("check bit 0( FLUSH-NON-VOLATILE), expect is 1")        
         if byte3999&(1)==1:
             self.Print("PASS", "p")  
         else:
@@ -51,7 +51,7 @@ class SMI_YMTC_PC300(NVME):
     
     
     SubCase2TimeOut = 600
-    SubCase2Desc = "[VCTDEPT-719][YMTC CTA-212] PCIe Register L0s Exit Latency is not 111b."   
+    SubCase2Desc = "[VCTDEPT-719][CTA-212] PCIe Register L0s Exit Latency is not 111b."   
     SubCase2KeyWord = ""
     def SubCase2(self):
         ret_code = 0
@@ -92,8 +92,15 @@ class SMI_YMTC_PC300(NVME):
             else:
                 self.Print("Fail", "f")
                 ret_code=1                  
-            
-        
+                    
+        return ret_code
+
+    SubCase3TimeOut = 600
+    SubCase3Desc = "[CTA-214] Margining Ready bit is not 1"   
+    SubCase3KeyWord = ""
+    def SubCase3(self):
+        ret_code = 0
+        self.Print("PCI Express Capability offset(PXCAP): %s"%self.PXCAP)
         return ret_code
         
     # </define sub item scripts>
