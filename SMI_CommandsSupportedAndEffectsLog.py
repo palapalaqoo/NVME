@@ -26,7 +26,7 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_CommandsSupportedAndEffectsLog.py"
     Author = "Sam Chan"
-    Version = "20201104"
+    Version = "20210304"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -375,16 +375,20 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
         
     # override
     def PreTest(self):   
-
         return True
 
-            
-            
     # <sub item scripts>
     SubCase1TimeOut = 60
     SubCase1Desc = "Test Commands Supported And Effects Log"        
     def SubCase1(self):
         ret_code=0
+        supportCommandsSupportedAndEffectsLog = True if self.IdCtrl.LPA.bit(1)=="1" else False
+        if supportCommandsSupportedAndEffectsLog:
+            self.Print( "Controller supports the Log Page Offset in IdCtrl.LPA.bit(1)", "p")
+        else:
+            self.Print( "Controller don't supports the 'Commands Supported And Effects Log' in IdCtrl.LPA.bit(1), skip", "w")
+            return 0
+
 
         self.Print ("Try to Save Get Log page 0x5 From Controller To CSVFile")
         Success = self.SaveGetLog05ToCSVFile()
@@ -415,6 +419,13 @@ class SMI_CommandsSupportedAndEffectsLog(NVME):
     SubCase2Desc = "NVMe Spec1.3d: test get log command - Log Page Offset"        
     def SubCase2(self):
         ret_code=0
+        supportCommandsSupportedAndEffectsLog = True if self.IdCtrl.LPA.bit(1)=="1" else False
+        if supportCommandsSupportedAndEffectsLog:
+            self.Print( "Controller supports the Log Page Offset in IdCtrl.LPA.bit(1)", "p")
+        else:
+            self.Print( "Controller don't supports the 'Commands Supported And Effects Log' in IdCtrl.LPA.bit(1), skip", "w")
+            return 0        
+        
         if self.specVer!="1.3d":
             self.Print( "Current target spec version = %s, please rerun with '-v 1.3d' for NVMe Spec1.3d"%self.specVer,"w")
             return 0

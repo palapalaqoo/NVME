@@ -117,6 +117,91 @@ class SMI_SmartHealthLog(NVME):
             self.Print("Fail", "f")    
             return False           
 
+    def GetHealthLog(self):
+        Value=[]
+        Value.append(["CompositeTemperature", self.GetLog.SMART.CompositeTemperature])
+        Value.append(["CriticalWarning", self.GetLog.SMART.CriticalWarning])
+        Value.append(["AvailableSpare", self.GetLog.SMART.AvailableSpare])
+        Value.append(["AvailableSpareThreshold", self.GetLog.SMART.AvailableSpareThreshold])
+        Value.append(["PercentageUsed", self.GetLog.SMART.PercentageUsed])
+        Value.append(["DataUnitsRead", self.GetLog.SMART.DataUnitsRead])
+        Value.append(["DataUnitsWritten", self.GetLog.SMART.DataUnitsWritten])
+        Value.append(["HostReadCommands", self.GetLog.SMART.HostReadCommands])
+        Value.append(["HostWriteCommands", self.GetLog.SMART.HostWriteCommands])
+        Value.append(["ControllerBusyTime", self.GetLog.SMART.ControllerBusyTime])
+        Value.append(["PowerCycles", self.GetLog.SMART.PowerCycles])
+        Value.append(["PowerOnHours", self.GetLog.SMART.PowerOnHours])
+        Value.append(["UnsafeShutdowns", self.GetLog.SMART.UnsafeShutdowns])
+        Value.append(["MediaandDataIntegrityErrors", self.GetLog.SMART.MediaandDataIntegrityErrors])
+        Value.append(["NumberofErrorInformationLogEntries", self.GetLog.SMART.NumberofErrorInformationLogEntries])
+        Value.append(["WarningCompositeTemperatureTime", self.GetLog.SMART.WarningCompositeTemperatureTime])
+        Value.append(["CriticalCompositeTemperatureTime", self.GetLog.SMART.CriticalCompositeTemperatureTime])
+        Value.append(["ThermalManagementTemperature1TransitionCount", self.GetLog.SMART.ThermalManagementTemperature1TransitionCount])
+        Value.append(["ThermalManagementTemperature2TransitionCount", self.GetLog.SMART.ThermalManagementTemperature2TransitionCount])
+        Value.append(["TotalTimeForThermalManagementTemperature1", self.GetLog.SMART.TotalTimeForThermalManagementTemperature1])
+        Value.append(["TotalTimeForThermalManagementTemperature2", self.GetLog.SMART.TotalTimeForThermalManagementTemperature2])
+        return Value
+
+    def VerifyHealthLog(self, OriginalValue, expectPowerCyclesAdd1=False):
+        self.Print ("Get current SMART / Health Log ")
+        CurrentValue=self.GetHealthLog()
+        self.Print ("Check if SMART / Health Log is retained")
+        self.Print ("Note: tempture and HCTM infomations maybe changed and will not be checked")
+        self.Print (""        )
+        ValueRetained=True
+        self.Print ("============================================")
+        for i in range(len(OriginalValue)): 
+            itemPass = True               
+            original=OriginalValue[i][1] 
+            current=CurrentValue[i][1]
+            Name =  OriginalValue[i][0]
+            # print field name
+            
+            self.Print(Name )
+            mStr = "{:<25}".format("Original: %s"%original) + "Current: %s"%current
+            # all the following have torlerance for time base values
+            if Name == "CompositeTemperature" \
+                or Name == "WarningCompositeTemperatureTime" \
+                or Name == "CriticalCompositeTemperatureTime" \
+                or Name == "ThermalManagementTemperature1TransitionCount" \
+                or Name == "ThermalManagementTemperature2TransitionCount" \
+                or Name == "TotalTimeForThermalManagementTemperature1" \
+                or Name == "TotalTimeForThermalManagementTemperature2":
+                torlerance=1000 # set large torlerance to skip check this field
+            else:
+                torlerance=0
+
+            # check value
+            intOriginal = int(original)
+            intCurrent = int(current)
+            # PowerCycles
+            if Name=="PowerCycles":
+                if expectPowerCyclesAdd1:
+                    expectValue = intOriginal+1
+                else:
+                    expectValue = intOriginal
+                if intCurrent!=expectValue:
+                    itemPass=False
+            # others        
+            else:
+                if not ((intOriginal <= intCurrent + torlerance) and (intOriginal >= intCurrent - torlerance)) :    
+                    itemPass=False
+                
+            if itemPass:
+                self.Print(mStr, "p")
+            else:
+                self.Print(mStr, "f")
+                ValueRetained=False
+            self.Print ("---------------------")
+            
+        self.Print ("============================================")
+        if ValueRetained:                
+            self.Print("PASS", "p")
+            return True
+        else:
+            self.Print("FAIL", "f")
+            return False        
+
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
@@ -646,7 +731,37 @@ class SMI_SmartHealthLog(NVME):
         
 
         return ret_code    
-    
+
+    SubCase14TimeOut = 600
+    SubCase14Desc = "Verify data after reset/por/spor"         
+    def SubCase14(self):
+        self.Print ("Get current SMART / Health Log ")
+        OriginalValue=self.GetHealthLog()
+        self.Print ("Done")
+        self.Print ("")
+        self.Print ("Issue nvme reset")
+        self.nvme_reset()
+        self.Print ("Done")
+        self.Print ("")        
+        self.Print ("Verify if SMART / Health Log is retained")
+        if not self.VerifyHealthLog(OriginalValue, expectPowerCyclesAdd1=False): return 1
+        
+        self.Print ("Get current SMART / Health Log ")
+        OriginalValue=self.GetHealthLog()
+        self.Print ("Done")        
+        self.Print ("")
+        self.Print ("Issue por")
+        if self.por_reset():
+            self.Print ("Done")
+        else:
+            self.Print ("can not power on/off device, please check por module!", "f")
+            return 1
+        self.Print ("Done")
+        self.Print ("")        
+        self.Print ("Verify if SMART / Health Log is retained")
+        if not self.VerifyHealthLog(OriginalValue, expectPowerCyclesAdd1=True): return 1        
+        
+        
     # </sub item scripts>
     
     

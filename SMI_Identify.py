@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210225"
+    Version = "20210304"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -93,8 +93,8 @@ class SMI_IdentifyCommand(NVME):
                     break
         return value    
     
-    def PrintAlignString(self,S0, S1, S2, PF="default"):            
-        mStr = "{:<20}\t{:<30}\t{:<30}".format(S0, S1, S2)
+    def PrintAlignString(self,S0, S1, S2, S3, PF="default"):            
+        mStr = "{:<30}\t{:<30}\t{:<30}\t{:<30}".format(S0, S1, S2, S3)
         if PF=="pass":
             self.Print( mStr , "p")        
         elif PF=="fail":
@@ -113,7 +113,7 @@ class SMI_IdentifyCommand(NVME):
         IN_UserFileFullPath=self.InPath+UserFileName
         
         subRt=True
-        self.Print("Check if file %s exist or not"%IN_UserFileFullPath)
+        self.Print("Check if file %s exist or not(for comparing identify data if exist, else show current identify data only)"%IN_UserFileFullPath)
         InUserFile=self.ReadCSVFile(IN_UserFileFullPath)
         if InUserFile==None:
             self.Print("Can't find file at %s"%IN_UserFileFullPath, "w")
@@ -131,9 +131,9 @@ class SMI_IdentifyCommand(NVME):
 
             self.Print( "")
             self.Print( "Start to check values ..")
-            self.Print("----------------------------------------------------------------------")   
-            self.PrintAlignString("Name", "Controller", IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)")
-            self.Print("----------------------------------------------------------------------")   
+            self.Print("------------------------------------------------------------------------------------------------------------")   
+            self.PrintAlignString("Name", "Controller", IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)", "Mark", "default")
+            self.Print("------------------------------------------------------------------------------------------------------------")   
 
 
             cnt = 0
@@ -142,6 +142,9 @@ class SMI_IdentifyCommand(NVME):
                 # read name and value from csv file that was created by identify command
                 Name=mItem[0]
                 ValueC=mItem[1]
+                ByteAndBit=mItem[2] # [stop byte: start byte][stop bit: start bit]
+                
+                if Name=="VenderSpecRawData": continue # will show it later
                 
                 # check value type, 0= int, 1= string
                 mStr="^0x"
@@ -158,13 +161,16 @@ class SMI_IdentifyCommand(NVME):
                 
                 # check if value is the same from controller and user file    
                 if ValueU==None:                                
-                    self.PrintAlignString(Name, ValueC, "N/A")
+                    self.PrintAlignString(Name, ValueC, "N/A", ByteAndBit, "default")
                 elif ValueU==ValueC:        
-                    self.PrintAlignString(Name, ValueC, ValueU, "pass")                            
+                    self.PrintAlignString(Name, ValueC, ValueU, ByteAndBit, "pass")                            
                 elif ValueU!=ValueC:      
-                    self.PrintAlignString(Name, ValueC, ValueU, "fail")   
+                    self.PrintAlignString(Name, ValueC, ValueU, ByteAndBit, "fail")   
                     subRt=False
-                    
+            if CNS==0x0:
+                self.PrintAlignString("VenderSpecRawData", "N/A", "N/A", "[4096:384][:]", "default")
+                for line in self.CNS00_VenderSpecRawDataList:
+                    self.Print(line)
         self.Print("----------------------------------------------------------------------")
         self.Print("Total num of item: %s"%cnt)
         self.Print("")
@@ -206,6 +212,21 @@ class SMI_IdentifyCommand(NVME):
 
             self.Print( "Parse and save data structure to csv file(%s)"%OUT_UserFileFullPath )
             ParseFunc(ParseCfg, OUT_UserFileFullPath, DS)
+            if CNS==0x0:
+                rTDS=self.yield_shell_cmd(CMD)
+                mStr = "^(0\w\w\w):"
+                self.CNS00_VenderSpecRawDataList = []
+                for line in self.yield_shell_cmd(CMD):
+                    # remove from 0000 to 0180, e.g. offset 384
+                    # 0000: 87 19 87 19 37 46 45 30 30 37 30 43 30 36 37 31 "....7FE0070C0671"
+                    if re.search(mStr, line):
+                        Num=int(re.search(mStr, line).group(1), 16)
+                        if Num <384:
+                            continue # don't record
+                        self.CNS00_VenderSpecRawDataList.append(line)  #record
+                        # save to csv file
+                        self.SaveToCSVFile(OUT_UserFileFullPath, "VenderSpecRawData", line, "[4096:384][:]")                        
+                    
             
             return True       
         
@@ -228,20 +249,21 @@ class SMI_IdentifyCommand(NVME):
                 mType=int(mItem[3])
                 StopBit=None
                 StartBit=None
-                if len(mItem)>=5:
+                if len(mItem)>=5: # if stop bit, start bit provided in csv file
                     StopBit=int(mItem[4]) 
                     StartBit=int(mItem[5])
-
-                if Name=="Reserved_110_102":
-                    pass                
+               
                 # value from controller,  and format it
                 ValueC =self.convert(DS, StopByte, StartByte, mType, StopBit, StartBit)
                 ValueC = self.mFormatString(ValueC, mType)
+                
+                # [stop byte: start byte][stop bit: start bit]
+                ByteAndBit = "[%s:%s][%s:%s]"%(StopByte, StartByte, "" if StopBit==None else StopBit, "" if StartBit==None else StartBit)
                     
                 # save to csv file
-                self.SaveToCSVFile(UserFile, Name, ValueC)
+                self.SaveToCSVFile(UserFile, Name, ValueC, ByteAndBit)
 
-    def SaveToCSVFile(self, fileName, name, value):
+    def SaveToCSVFile(self, fileName, name, value, ByteAndBit):
         fileNameFullPath = fileName
         # if file not exist, then create it
         if not os.path.exists(fileNameFullPath):
@@ -251,7 +273,7 @@ class SMI_IdentifyCommand(NVME):
         # write
         with open(fileNameFullPath, 'a') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([name, value])               
+            writer.writerow([name, value, ByteAndBit])               
     
     def convert(self, lists, stopByte, startByte, mtype, StopBit=None, StartBit=None, endian="little-endian"):   
         # return is string , eg, '0x1A' or 'SMI2262'
@@ -1114,12 +1136,14 @@ class SMI_IdentifyCommand(NVME):
 
         if self.specVersion=="1.4":
             SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4.csv"
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS00 = "./lib_vct/CSV/CNS00_IdentifyNamespacedatastructure_V1_4.csv"
              
         self.InitDirs()
         self.IdentifyLists=[]
         self.InitIdentifyLists()
         
-        self.NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False        
+        self.NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False  
+        self.CNS00_VenderSpecRawDataList = []      
         
     # override
     def PreTest(self):   
