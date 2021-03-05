@@ -146,8 +146,22 @@ class SMI_SmartHealthLog(NVME):
         self.Print ("Get current SMART / Health Log ")
         CurrentValue=self.GetHealthLog()
         self.Print ("Check if SMART / Health Log is retained")
-        self.Print ("Note: tempture and HCTM infomations maybe changed and will not be checked")
-        self.Print (""        )
+        SkipItemList = []
+        SkipItemList.append("DataUnitsRead")
+        SkipItemList.append("HostReadCommands")
+        SkipItemList.append("CompositeTemperature")
+        SkipItemList.append("WarningCompositeTemperatureTime")
+        SkipItemList.append("CriticalCompositeTemperatureTime")
+        SkipItemList.append("ThermalManagementTemperature1TransitionCount")
+        SkipItemList.append("ThermalManagementTemperature2TransitionCount")
+        SkipItemList.append("TotalTimeForThermalManagementTemperature1")
+        SkipItemList.append("TotalTimeForThermalManagementTemperature2")
+        
+        self.Print ("Note: below lists will not be checked")
+        for i in SkipItemList:
+            self.Print(i, "b")
+
+        self.Print ("")
         ValueRetained=True
         self.Print ("============================================")
         for i in range(len(OriginalValue)): 
@@ -160,13 +174,7 @@ class SMI_SmartHealthLog(NVME):
             self.Print(Name )
             mStr = "{:<25}".format("Original: %s"%original) + "Current: %s"%current
             # all the following have torlerance for time base values
-            if Name == "CompositeTemperature" \
-                or Name == "WarningCompositeTemperatureTime" \
-                or Name == "CriticalCompositeTemperatureTime" \
-                or Name == "ThermalManagementTemperature1TransitionCount" \
-                or Name == "ThermalManagementTemperature2TransitionCount" \
-                or Name == "TotalTimeForThermalManagementTemperature1" \
-                or Name == "TotalTimeForThermalManagementTemperature2":
+            if Name in SkipItemList:
                 torlerance=1000 # set large torlerance to skip check this field
             else:
                 torlerance=0

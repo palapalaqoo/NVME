@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210304"
+    Version = "20210305"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -168,9 +168,15 @@ class SMI_IdentifyCommand(NVME):
                     self.PrintAlignString(Name, ValueC, ValueU, ByteAndBit, "fail")   
                     subRt=False
             if CNS==0x0:
-                self.PrintAlignString("VenderSpecRawData", "N/A", "N/A", "[4096:384][:]", "default")
-                for line in self.CNS00_VenderSpecRawDataList:
-                    self.Print(line)
+                #self.PrintAlignString("VenderSpecRawData", "N/A", "N/A", "[4096:384][:]", "default")
+                
+                for info in self.CNS00_VenderSpecRawDataList:
+                    # info = [line, ByteAndBit]
+                    line = info[0]
+                    ByteAndBit = info[1]
+                    line = "VenderSpec: 0x%s"%line
+                    mStr = "{:<90}\t{:<30}".format(line, ByteAndBit)
+                    self.Print( mStr , "b")                      
         self.Print("----------------------------------------------------------------------")
         self.Print("Total num of item: %s"%cnt)
         self.Print("")
@@ -223,9 +229,12 @@ class SMI_IdentifyCommand(NVME):
                         Num=int(re.search(mStr, line).group(1), 16)
                         if Num <384:
                             continue # don't record
-                        self.CNS00_VenderSpecRawDataList.append(line)  #record
+                        stopByte = Num + 15 #stopByte offset
+                        startByte = Num                        
+                        ByteAndBit = "[%s:%s][:]"%(stopByte, startByte)
+                        self.CNS00_VenderSpecRawDataList.append([line, ByteAndBit] )  #record
                         # save to csv file
-                        self.SaveToCSVFile(OUT_UserFileFullPath, "VenderSpecRawData", line, "[4096:384][:]")                        
+                        self.SaveToCSVFile(OUT_UserFileFullPath, "VenderSpecRawData", line, ByteAndBit)                        
                     
             
             return True       
@@ -1143,7 +1152,7 @@ class SMI_IdentifyCommand(NVME):
         self.InitIdentifyLists()
         
         self.NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False  
-        self.CNS00_VenderSpecRawDataList = []      
+        self.CNS00_VenderSpecRawDataList = [] # [line, ByteAndBit]
         
     # override
     def PreTest(self):   
