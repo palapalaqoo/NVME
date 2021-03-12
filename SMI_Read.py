@@ -24,7 +24,7 @@ class SMI_Read(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Read.py"
     Author = "Sam Chan"
-    Version = "20201231"
+    Version = "20210312"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -75,7 +75,7 @@ class SMI_Read(NVME):
         self.Print( msg1 )   
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
-        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l 16 -r --cdw10=%s --cdw11=%s 2>&1"%(self.dev, cdw10, cdw11))
+        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw10=%s --cdw11=%s 2>&1"%(self.dev, self.OneBlockSize, cdw10, cdw11))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
@@ -89,7 +89,8 @@ class SMI_Read(NVME):
         #start from block 0
         cdw10, cdw11=self.getDW10_DW11(0)
         cdw12=(LR<<31) + (FUA<<30)+ (PRINFO<<26) + NLB
-        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l 16 -r --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, cdw10, cdw11, cdw12))
+        length = self.OneBlockSize*(NLB+1) # NLB is 0 based
+        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, length, cdw10, cdw11, cdw12))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :        
             return True         
@@ -116,7 +117,7 @@ class SMI_Read(NVME):
             return False 
         
     def testDW13(self, DSM, ExpectCommandSuccess):      
-        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l 16 -r --cdw13=%s 2>&1"%(self.dev, DSM))
+        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw13=%s 2>&1"%(self.dev, self.OneBlockSize, DSM))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -126,7 +127,7 @@ class SMI_Read(NVME):
             return False       
     
     def testDW14(self, EILBRT, ExpectCommandSuccess):      
-        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l 16 -r --cdw14=%s 2>&1"%(self.dev, EILBRT))
+        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw14=%s 2>&1"%(self.dev, self.OneBlockSize, EILBRT))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -137,7 +138,7 @@ class SMI_Read(NVME):
         
     def testDW15(self, ELBATM,ELBAT, ExpectCommandSuccess):      
         CDW15=(ELBATM<<16)+ELBAT
-        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l 16 -r --cdw15=%s 2>&1"%(self.dev, CDW15))
+        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw15=%s 2>&1"%(self.dev, self.OneBlockSize, CDW15))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -150,7 +151,7 @@ class SMI_Read(NVME):
     def __init__(self, argv):
         # initial parent class
         super(SMI_Read, self).__init__(argv)
-        
+        self.OneBlockSize = self.GetBlockSize()
         
         
     # <sub item scripts>

@@ -46,9 +46,9 @@ class SMI_FeatureTimeStamp(NVME):
         if SV==0:
             dw10 = 0xE
         else:
-            dw10 = 0xE| (0x1<<31)   # for set feature to saveable, set dw10 bit 31=1
-    
-        self.shell_cmd("echo -n -e '\\x%s\\x%s\\x%s\\x%s\\x%s\\x%s' |nvme admin-passthru %s -o 0x9 -l 8 -w --cdw10=0x%X 2>&1"%(byte0, byte1, byte2, byte3, byte4, byte5, self.dev, dw10))
+            dw10 = 0xE| (0x1<<31)   # for set feature to saveable, set dw10 bit 31=1        
+        mStr, sc = self.shell_cmd_with_sc("echo -n -e '\\x%s\\x%s\\x%s\\x%s\\x%s\\x%s' |nvme admin-passthru %s -o 0x9 -l 8 -w --cdw10=0x%X 2>&1"%(byte0, byte1, byte2, byte3, byte4, byte5, self.dev, dw10))
+        return mStr, sc
     
     def PrintFormatedTime(self, sel=0):
     # sel : sel in get feature command
@@ -68,21 +68,27 @@ class SMI_FeatureTimeStamp(NVME):
         dw10 = dw10 | (sel<<8)
         mbuf=self.shell_cmd("nvme admin-passthru %s --opcode=0xA --data-len=8 -r --cdw10=0x%X 2>&1"%(self.dev, dw10))
         line="0"
+        rawData = [0]
+        result = 255
         # if command success
-        if re.search("NVMe command result:00000000", mbuf):
+        # NVMe command result:00000000
+        pattern = "NVMe command result:.*(\w+)"
+        if re.search(pattern, mbuf):
             patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", mbuf)            
             patten1= ''.join(patten)
             line=patten1.replace(" ", "")
             # return list
             # put patten in to list type
             n=2
-            return [line[i:i+n] for i in range(0, len(line), n)]    
-        else:
-            return [0]   
+            rawData = [line[i:i+n] for i in range(0, len(line), n)]   
+            result = re.search(pattern, mbuf).group(1)
+            result = int("0x%s"%result, 16)
+        return result, rawData
+
     
     def Refresh(self, sel=0):
     # sel : sel in get feature command
-        self.DS=self.GetDataStructure(sel)
+        result, self.DS=self.GetDataStructure(sel)
         if not len(self.DS)==8:
             self.Print("Get feature fail", "f")
 
@@ -261,12 +267,6 @@ class SMI_FeatureTimeStamp(NVME):
 
         return ret_code
 
-
-
-
-
-
-    # </sub item scripts>
     
     SubCase4TimeOut = 60
     SubCase4Desc = "Test feature saveable value"
@@ -348,6 +348,9 @@ class SMI_FeatureTimeStamp(NVME):
             
         return ret_code
     
+    # </sub item scripts>
+             
+   
 if __name__ == "__main__":
     DUT = SMI_FeatureTimeStamp(sys.argv ) 
     DUT.RunScript()

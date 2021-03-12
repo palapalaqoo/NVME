@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20201109"
+    Version = "20210308"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -142,7 +142,7 @@ class SMI_SmartHealthLog(NVME):
         Value.append(["TotalTimeForThermalManagementTemperature2", self.GetLog.SMART.TotalTimeForThermalManagementTemperature2])
         return Value
 
-    def VerifyHealthLog(self, OriginalValue, expectPowerCyclesAdd1=False):
+    def VerifyHealthLog(self, OriginalValue, expectAdd1List=[]):
         self.Print ("Get current SMART / Health Log ")
         CurrentValue=self.GetHealthLog()
         self.Print ("Check if SMART / Health Log is retained")
@@ -157,52 +157,56 @@ class SMI_SmartHealthLog(NVME):
         SkipItemList.append("TotalTimeForThermalManagementTemperature1")
         SkipItemList.append("TotalTimeForThermalManagementTemperature2")
         
+        # print 
+        self.Print ("")  
         self.Print ("Note: below lists will not be checked")
         for i in SkipItemList:
             self.Print(i, "b")
+        if len(expectAdd1List)!=0:
+            self.Print ("")
+            self.Print ("Note: expected value of below lists is +1 ")
+            for i in expectAdd1List:
+                self.Print(i, "b")         
+        self.Print ("")   
+        self.Print ("Note: black text: value remained, red text: value fail, yellow text: value changed")     
 
-        self.Print ("")
         ValueRetained=True
-        self.Print ("============================================")
+        self.Print ("---------------------------------------------------------------------------------------------------")
+        mStr = "{:<60}\t{:<20}\t{:<20}".format("Field", "Original", "Current")
+        self.Print(mStr, "b" )        
         for i in range(len(OriginalValue)): 
             itemPass = True               
             original=OriginalValue[i][1] 
             current=CurrentValue[i][1]
             Name =  OriginalValue[i][0]
-            # print field name
-            
-            self.Print(Name )
-            mStr = "{:<25}".format("Original: %s"%original) + "Current: %s"%current
-            # all the following have torlerance for time base values
-            if Name in SkipItemList:
-                torlerance=1000 # set large torlerance to skip check this field
-            else:
-                torlerance=0
-
+            # print field name            
+            mStr = "{:<60}\t{:<20}\t{:<20}".format(Name, original, current)
             # check value
             intOriginal = int(original)
             intCurrent = int(current)
-            # PowerCycles
-            if Name=="PowerCycles":
-                if expectPowerCyclesAdd1:
-                    expectValue = intOriginal+1
-                else:
-                    expectValue = intOriginal
-                if intCurrent!=expectValue:
+            
+            if Name in SkipItemList:
+                pass
+            # PowerCycles, UnsafeShutdowns
+            elif Name in expectAdd1List:
+                if intCurrent!=intOriginal+1:
                     itemPass=False
-            # others        
             else:
-                if not ((intOriginal <= intCurrent + torlerance) and (intOriginal >= intCurrent - torlerance)) :    
-                    itemPass=False
+                if intCurrent!=intOriginal:
+                    itemPass=False                
                 
             if itemPass:
-                self.Print(mStr, "p")
+                # set color
+                if intCurrent==intOriginal:
+                    color = "b"
+                else:
+                    color = "w"
+                self.Print(mStr, color)
             else:
                 self.Print(mStr, "f")
                 ValueRetained=False
-            self.Print ("---------------------")
             
-        self.Print ("============================================")
+        self.Print ("---------------------------------------------------------------------------------------------------")
         if ValueRetained:                
             self.Print("PASS", "p")
             return True
@@ -743,6 +747,8 @@ class SMI_SmartHealthLog(NVME):
     SubCase14TimeOut = 600
     SubCase14Desc = "Verify data after reset/por/spor"         
     def SubCase14(self):
+        self.Print ("NVMe Reset", "b")
+        self.SetPrintOffset(4)
         self.Print ("Get current SMART / Health Log ")
         OriginalValue=self.GetHealthLog()
         self.Print ("Done")
@@ -752,8 +758,13 @@ class SMI_SmartHealthLog(NVME):
         self.Print ("Done")
         self.Print ("")        
         self.Print ("Verify if SMART / Health Log is retained")
-        if not self.VerifyHealthLog(OriginalValue, expectPowerCyclesAdd1=False): return 1
+        expectAdd1List = []
+        if not self.VerifyHealthLog(OriginalValue, expectAdd1List): return 1
         
+        self.Print ("")
+        self.SetPrintOffset(0)
+        self.Print ("POR", "b")
+        self.SetPrintOffset(4)
         self.Print ("Get current SMART / Health Log ")
         OriginalValue=self.GetHealthLog()
         self.Print ("Done")        
@@ -764,12 +775,30 @@ class SMI_SmartHealthLog(NVME):
         else:
             self.Print ("can not power on/off device, please check por module!", "f")
             return 1
-        self.Print ("Done")
         self.Print ("")        
         self.Print ("Verify if SMART / Health Log is retained")
-        if not self.VerifyHealthLog(OriginalValue, expectPowerCyclesAdd1=True): return 1        
+        expectAdd1List = ["PowerCycles"]
+        if not self.VerifyHealthLog(OriginalValue, expectAdd1List): return 1        
         
-        
+        self.Print ("")
+        self.SetPrintOffset(0)
+        self.Print ("SPOR", "b")
+        self.SetPrintOffset(4)
+        self.Print ("Get current SMART / Health Log ")
+        OriginalValue=self.GetHealthLog()
+        self.Print ("Done")        
+        self.Print ("")
+        self.Print ("Issue spor")
+        if self.spor_reset():
+            self.Print ("Done")
+        else:
+            self.Print ("can not power on/off device, please check por module!", "f")
+            return 1
+        self.Print ("")        
+        self.Print ("Verify if SMART / Health Log is retained")
+        expectAdd1List = ["PowerCycles", "UnsafeShutdowns"]
+        if not self.VerifyHealthLog(OriginalValue, expectAdd1List): return 1 
+        self.SetPrintOffset(0)          
     # </sub item scripts>
     
     

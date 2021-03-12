@@ -25,7 +25,7 @@ class SMI_Write(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Write.py"
     Author = "Sam Chan"
-    Version = "20200128"
+    Version = "20210312"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -41,7 +41,8 @@ class SMI_Write(NVME):
     def testMPTR(self, MetadataLen):
     #MetadataLen = Metadata Length
         # write pattern=0x5a
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null | nvme write %s -s 0 -z 512 -y %s 2>&1"%(self.dev,MetadataLen))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null | nvme write %s -s 0 -z %s -y %s 2>&1"\
+                            %(self.OneBlockSize, self.dev, self.OneBlockSize, MetadataLen))
         retCommandSueess=bool(re.search("write: Success", mStr))
         if (retCommandSueess ==  True) :
             return True         
@@ -57,7 +58,9 @@ class SMI_Write(NVME):
         self.Print (msg1)
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(self.dev, cdw10, cdw11))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |"\
+                            "nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s 2>&1"\
+                            %(self.OneBlockSize, self.dev, self.OneBlockSize, cdw10, cdw11))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
@@ -71,7 +74,9 @@ class SMI_Write(NVME):
         #start from block 0
         cdw10, cdw11=self.getDW10_DW11(0)
         cdw12=(LR<<31) + (FUA<<30)+ (PRINFO<<26) + NLB
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, cdw10, cdw11, cdw12))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |"
+                            "nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
+                            %(self.OneBlockSize, self.dev, self.OneBlockSize, cdw10, cdw11, cdw12))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :        
             return True         
@@ -87,8 +92,9 @@ class SMI_Write(NVME):
         self.Print (msg0)
         self.Print (msg1)   
         cdw12=NLB
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=%s 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw10=0 --cdw11=0 --cdw12=%s 2>&1"\
-                            %(NLB+1, self.dev, 512*(NLB+1), cdw12))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=%s 2>&1   |tr \\\\000 \\\\132 2>/dev/null |"\
+                            "nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw10=0 --cdw11=0 --cdw12=%s 2>&1"\
+                            %(self.OneBlockSize, NLB+1, self.dev, self.OneBlockSize*(NLB+1), cdw12))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
@@ -99,7 +105,8 @@ class SMI_Write(NVME):
             return False 
         
     def testDW13(self, DSM, ExpectCommandSuccess):      
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw13=%s 2>&1"%(self.dev, DSM))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |"\
+                            "nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw13=%s 2>&1"%(self.OneBlockSize, self.dev, self.OneBlockSize, DSM))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -110,7 +117,8 @@ class SMI_Write(NVME):
             return False       
     
     def testDW14(self, EILBRT, ExpectCommandSuccess):      
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw14=%s 2>&1"%(self.dev, EILBRT))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |"\
+                            "nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw14=%s 2>&1"%(self.OneBlockSize, self.dev, self.OneBlockSize, EILBRT))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -122,7 +130,8 @@ class SMI_Write(NVME):
         
     def testDW15(self, LBATM,LBAT, ExpectCommandSuccess):      
         CDW15=(LBATM<<16)+LBAT
-        mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l 512 -w --cdw15=%s 2>&1"%(self.dev, CDW15))
+        mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |"\
+                            "nvme io-passthru %s -o 0x1 -n 1 -l %s -w --cdw15=%s 2>&1"%(self.OneBlockSize, self.dev, self.OneBlockSize, CDW15))
         retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -136,7 +145,7 @@ class SMI_Write(NVME):
     def __init__(self, argv):
         # initial parent class
         super(SMI_Write, self).__init__(argv)
-        
+        self.OneBlockSize = self.GetBlockSize()
 
     # <sub item scripts>
     SubCase1TimeOut = 60

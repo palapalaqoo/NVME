@@ -13,7 +13,7 @@ from lib_vct.NVME import NVME
 class SMI_PCIPowerStatus(NVME):
     ScriptName = "SMI_PCIPowerStatus.py"
     Author = "Sam Chan"
-    Version = "20190410"
+    Version = "20210310"
     
     def SetPS(self, psValue):
         self.write_pcie(self.PMCAP, 0x4, psValue)
@@ -184,7 +184,7 @@ class SMI_PCIPowerStatus(NVME):
         t.start()     
              
         self.Print( "-----------------------------------------------------------------------------------")
-        self.PrintAlignString("'Shutdown Notification'", "'Shutdown Status'", "'Time in seconds'")  
+        self.PrintAlignString("'Shutdown Notification'", "'Shutdown Status'", "'Time in microseconds'")  
         while True:            
             SHN = self.GetSHN()
             SHST = self.GetSHST()       
@@ -201,10 +201,11 @@ class SMI_PCIPowerStatus(NVME):
                     RTD3E_Stop=TimeDiv
                     RTD3E_done=1
             # if is in RTD3 Entry Latency, i.e. CC.SHN is set to 01b by host software until CC.SHST is set to 10b, then mark it
+            TimeDivInMs = int((TimeDiv )*1000000 )  # time in microseconds
             if RTD3E_Start!=0 and RTD3E_Stop==0:
-                self.PrintAlignString(S0=hex(SHN), S1=hex(SHST), S2=TimeDiv, PF="pass")  
+                self.PrintAlignString(S0=hex(SHN), S1=hex(SHST), S2=TimeDivInMs, PF="pass")  
             else:
-                self.PrintAlignString(S0=hex(SHN), S1=hex(SHST), S2=TimeDiv ) 
+                self.PrintAlignString(S0=hex(SHN), S1=hex(SHST), S2=TimeDivInMs ) 
             
             # acting for more several loops if finish test
             if RTD3E_done!=0:
@@ -215,13 +216,15 @@ class SMI_PCIPowerStatus(NVME):
             # if timeout, then break
             if TimeDiv > Timeout:
                 break
-            sleep(0.001)
+            #sleep(0.001)
         self.Print( "-----------------------------------------------------------------------------------")
         
         if RTD3E_done!=0:
+            RTD3E_Stop = int((RTD3E_Stop )*1000000 )  # time in microseconds
+            RTD3E_Start = int((RTD3E_Start )*1000000 )  # time in microseconds
             RTD3E_TimeDiv = RTD3E_Stop - RTD3E_Start
-            RTD3E_TimeDiv = RTD3E_TimeDiv*1000000
-            self.Print("Measured RTD3 Entry Latency: %s microseconds(%s - %s)"%(RTD3E_TimeDiv, "{:.6f}".format(RTD3E_Stop), "{:.6f}".format(RTD3E_Start)))
+            RTD3E_TimeDiv = RTD3E_TimeDiv
+            self.Print("Measured RTD3 Entry Latency: %s microseconds(%s - %s)"%(RTD3E_TimeDiv, RTD3E_Stop, RTD3E_Start))
             self.Print("")     
             self.Print("Check if meatured RTD3 Entry Latency is less then RTD3E(%s microseconds) reported by controller"%RTD3E)
             if RTD3E_TimeDiv<RTD3E:
@@ -257,7 +260,7 @@ class SMI_PCIPowerStatus(NVME):
             
         RTD3R_done=0
         self.Print("Start to test RTD3 Resume Latency")   
-        self.Print("Measure the latency from the exit RTD3 command until the CSTS.RDY is set to 1 ")  
+        self.Print("Measure the latency from the exit RTD3 command until the CSTS.RDY is set to 1 and issue 1 admin and IO command.")  
         t = threading.Thread(target = self.thread_ResetRTD3)
         StartT=time.time()
         t.start()    
@@ -275,17 +278,49 @@ class SMI_PCIPowerStatus(NVME):
                 RTD3R_done=1
                 break            
             '''
-
             if self.GetRDY()==1:
-                CurrentT=time.time()
+                RdyT=time.time()
                 RTD3R_done=1
                 break
-            
-            sleep(0.001)
 
         if RTD3R_done!=0:
-            RTD3R_TimeDiv = CurrentT-StartT
-            RTD3R_TimeDiv = RTD3R_TimeDiv*1000000
+            # self.Print("Issue identify command to get VID")
+            Acnt = 1
+            while True:
+                mStr, sc = self.shell_cmd_with_sc("nvme id-ctrl %s 2>&1"%(self.dev))
+                if sc==0:
+                    break
+                Acnt +=1
+                if Acnt > 100:
+                    self.Print("after send identify command for 100 times, command still fail","f")
+                    return 1               
+            AdminT=time.time()
+            
+            # self.Print("Issue IO command to read block0")
+            IOcnt = 1
+            while True:     
+                mStr, sc = self.shell_cmd_with_sc("nvme read %s -s 0 -z 512 -c 0 2>&1"%(self.dev))
+                if sc==0:
+                    break
+                IOcnt +=1
+                if IOcnt > 100:
+                    self.Print("after send IO command for 100 times, command still fail","f")
+                    return 1            
+            IOT =time.time()
+
+            # print 
+            self.Print("")
+            RDY_TimeDiv = int((RdyT-StartT )*1000000 )  # time in microseconds       
+            self.Print("CSTS.RDY is set to 1 at: %s microseconds"%RDY_TimeDiv)    
+            
+            Admin_TimeDiv = int((AdminT-StartT )*1000000)            
+            self.Print("Controller accept admin command after sending %s identify command, timestamp at: %s microseconds"%(Acnt, Admin_TimeDiv))     
+                     
+            IO_TimeDiv = int((IOT-StartT )*1000000)            
+            self.Print("Controller accept IO command after sending %s read command, timestamp at: %s microseconds"%(IOcnt, IO_TimeDiv))    
+
+            
+            RTD3R_TimeDiv = IO_TimeDiv
             self.Print("Meatured RTD3 Resume Latency: %s microseconds"%RTD3R_TimeDiv)
             self.Print("")     
             self.Print("Check if Meatured RTD3 Resume Latency is less then RTD3R(%s microseconds) reported by controller"%RTD3R)

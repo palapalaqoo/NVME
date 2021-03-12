@@ -26,7 +26,7 @@ class SMI_Compare(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Compare.py"
     Author = "Sam Chan"
-    Version = "20200417"
+    Version = "20210311"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -51,7 +51,8 @@ class SMI_Compare(NVME):
         self.Print( msg1  )
         
         cdw10, cdw11=self.getDW10_DW11(SLBA)
-        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s 2>&1 "%(self.dev, cdw10, cdw11))
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s 2>&1 "\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, cdw10, cdw11))
         retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
@@ -65,7 +66,8 @@ class SMI_Compare(NVME):
         #start from block 0
         cdw10, cdw11=self.getDW10_DW11(0)
         cdw12=(LR<<31) + (FUA<<30)+ (PRINFO<<26) + NLB
-        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, cdw10, cdw11, cdw12))
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, cdw10, cdw11, cdw12))
         retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :        
             return True         
@@ -82,7 +84,7 @@ class SMI_Compare(NVME):
         self.Print( msg1  ) 
         cdw12=NLB        
         mStr, SC=self.shell_cmd_with_sc("nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s --cdw12=%s -i temp.bin 2>&1"\
-                            %(self.dev, 512*(NLB+1), 0, 0, cdw12))
+                            %(self.dev, self.OneBlockSize*(NLB+1), 0, 0, cdw12))
         retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             self.Print("PASS", "p")  
@@ -93,7 +95,8 @@ class SMI_Compare(NVME):
             return False 
         
     def testDW13(self, DSM, ExpectCommandSuccess):      
-        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw13=%s 2>&1"%(self.dev, DSM))
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw13=%s 2>&1"\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, DSM))
         retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -104,7 +107,8 @@ class SMI_Compare(NVME):
             return False       
     
     def testDW14(self, EILBRT, ExpectCommandSuccess):      
-        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw14=%s 2>&1"%(self.dev, EILBRT))
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw14=%s 2>&1"%\
+                                        (self.OneBlockSize, self.dev, self.OneBlockSize, EILBRT))
         retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -116,7 +120,8 @@ class SMI_Compare(NVME):
         
     def testDW15(self, ELBATM,ELBAT, ExpectCommandSuccess):      
         CDW15=(ELBATM<<16)+ELBAT
-        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l 512 -w --cdw15=%s 2>&1"%(self.dev, CDW15))
+        mStr, SC=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw15=%s 2>&1"\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, CDW15))
         retCommandSueess=self.CMDisSuccess(SC)
         if (retCommandSueess ==  ExpectCommandSuccess) :
             return True         
@@ -125,17 +130,24 @@ class SMI_Compare(NVME):
             self.Print("Command return status: %s"%mStr, "f")
             DW15Fail=1
             return False                
-    
+        
+    def ShowCurrFirstBLK(self):    
+        CMD = "hexdump %s -s 0 -n %s"%(self.dev, self.OneBlockSize)
+        self.Print( "Do shell command to hexdump first block: %s"%CMD) 
+        mStr= self.shell_cmd(CMD)
+        self.SetPrintOffset(4)
+        self.Print(mStr)
+        self.SetPrintOffset(0)       
+        
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
         super(SMI_Compare, self).__init__(argv)
         
+        self.OneBlockSize = self.GetBlockSize()
         # add all sub items to test script list
         #self.AddScript(self.Script0)
-        #self.AddScript(self.Script1)
-    
-    
+        #self.AddScript(self.Script1)    
     
     # override
     def PreTest(self):
@@ -295,14 +307,72 @@ class SMI_Compare(NVME):
         
         return ret_code
 
-
-
-
+    SubCase6TimeOut = 60
+    SubCase6Desc = "Test compare command with por/spor"
+    def SubCase6(self):
         
+        self.Print ("Current format, 1 block = %s bytes"%self.OneBlockSize)        
+        self.Print ("Write 0x5A to first block")
+        mStr, sc=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\132 2>/dev/null |nvme io-passthru %s -o 0x1 -n 1 -l %s -w 2>&1"\
+                            %(self.OneBlockSize, self.dev, self.OneBlockSize))
+        if sc!=0:
+            self.Print ("Write fail, return status: %s"%mStr)
+            self.ShowCurrFirstBLK()
+            return 1
+        self.Print ("Done")
+        self.Print ("")
+        self.Print ("Issue compare CMD to check if first block is 0x5A")
+        mStr, sc=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s 2>&1 "\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, 0, 0))
+        self.Print ("Return status: %s"%mStr)
+        self.Print ("Check if status code=0(command success and compare data matched)")
+        if sc==0:
+            self.Print("PASS", "p") 
+        else:
+            self.Print("Fail", "f")
+            self.ShowCurrFirstBLK()
+            return 1            
+
+        self.Print ("")
+        self.Print ("Do POR")
+        self.por_reset()
+        
+        self.Print ("")
+        self.Print ("Issue compare CMD to check if first block is 0x5A")
+        mStr, sc=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s 2>&1 "\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, 0, 0))
+        self.Print ("Return status: %s"%mStr)
+        self.Print ("Check if status code=0(command success and compare data matched)")
+        if sc==0:
+            self.Print("PASS", "p") 
+        else:
+            self.Print("Fail", "f")
+            self.ShowCurrFirstBLK()
+            return 1                      
+        
+        self.Print ("")
+        self.Print ("Do SPOR")
+        self.spor_reset()
+        
+        self.Print ("")
+        self.Print ("Issue compare CMD to check if first block is 0x5A")
+        mStr, sc=self.shell_cmd_with_sc("dd if=/dev/zero bs=%s count=1 2>&1 |tr \\\\000 \\\\132 |nvme io-passthru %s -o 0x5 -n 1 -l %s -w --cdw10=%s --cdw11=%s 2>&1 "\
+                                        %(self.OneBlockSize, self.dev, self.OneBlockSize, 0, 0))
+        self.Print ("Return status: %s"%mStr)
+        self.Print ("Check if status code=0(command success and compare data matched)")
+        if sc==0:
+            self.Print("PASS", "p") 
+        else:
+            self.Print("Fail", "f")
+            self.ShowCurrFirstBLK()
+            return 1  
+
+        self.Print ("")
+        self.ShowCurrFirstBLK()
+        return 0        
     # </sub item scripts>
     
-    
-    
+   
     
 if __name__ == "__main__":
     DUT = SMI_Compare(sys.argv ) 

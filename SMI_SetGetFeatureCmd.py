@@ -32,7 +32,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20210203"
+    Version = "20210309"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -210,7 +210,17 @@ class SMI_SetGetFeatureCMD(NVME):
                 valid_value = 0x1
             self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])    
                            
-    
+        description = "Timestamp"
+        fid = 0xE
+        supported = True if self.IdCtrl.ONCS.bit(6)=="1" else False
+        if not supported:
+            self.TestItems.append([description, fid, 0, 0, 0, supported])
+        else:
+            capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+            reset_value , SC=self.GetFeature(fid = fid)
+            valid_value=1 if reset_value==0 else 0
+            self.TestItems.append([description, fid, capabilities, reset_value, valid_value, supported])
+                
         description = "Host Controlled Thermal Management"
         fid = 0x10
         supported = True if self.IdCtrl.HCTMA.bit(0) == "1" else False
@@ -321,21 +331,39 @@ class SMI_SetGetFeatureCMD(NVME):
     def GetFeatureValueWithSC(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
     # get feature with status code
         Value=0 
-        buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
-        mStr="0"
-        if sel==0:
-            mStr="Current value:(.+)"
-        if sel==1:
-            mStr="Default value:(.+)"
-        if sel==2:
-            mStr="Saved value:(.+)"
-        if sel==3:
-            mStr="capabilities value:(.+)"                
-            
-        if re.search(mStr, buf):
-            Value=int(re.search(mStr, buf).group(1),16)
-        else:
+        mStr="0"        
+        if fid==0xE: # Timestamp, datalen=8, data is milliseconds
+            buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec, dataLen=8) 
             Value= buf
+            # if command success
+            if SC==0:
+                if sel==3:
+                    mStr="capabilities value:(.+)"               
+                    if re.search(mStr, buf):
+                        Value=int(re.search(mStr, buf).group(1),16)
+                else: # sel=0, 1, 2
+                    patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", buf)            
+                    patten1= ''.join(patten)
+                    line=patten1.replace(" ", "")
+                    # return list
+                    # put patten in to list type
+                    n=2
+                    rawData = [line[i:i+n] for i in range(0, len(line), n)]
+                    if len(rawData)==8:
+                        Value=int("0x%s"%rawData[5],16) # e.x. 0000: fe 49 02 15 78 01 02 00  , using 01 as value 
+        else:
+            buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
+            if sel==0:
+                mStr="Current value:(.+)"
+            if sel==1:
+                mStr="Default value:(.+)"
+            if sel==2:
+                mStr="Saved value:(.+)"
+            if sel==3:
+                mStr="capabilities value:(.+)"                          
+            if re.search(mStr, buf):
+                Value=int(re.search(mStr, buf).group(1),16)
+
         return Value, SC
     
     
@@ -371,7 +399,10 @@ class SMI_SetGetFeatureCMD(NVME):
             "--cdw11=%s --cdw12=%s --cdw13=%s --cdw14=%s  --cdw15=%s -n %s 2>&1"\
             %(self.dev_port, CDW10, value, hex(HSIZE), hex(HMDLAL), hex(HMDLAU), hex(HMDLEC), nsid)
             mStr, SC = self.shell_cmd_with_sc(CMD)
-                      
+        elif fid == 0xE: #TimeStamp, set value = 0, and DS = value
+            #DS='\\x0\\x0\\x0\\x0\\x0\\x1\\x0\\x0'
+            DS='\\x0\\x0\\x0\\x0\\x0\\x%X\\x0\\x0'%value
+            mStr, SC = self.set_feature_with_sc(fid = fid, value = 0, SV = sv, nsid = nsid, Data=DS)
         else:
             mStr, SC = self.set_feature_with_sc(fid = fid, value = value, SV = sv, nsid = nsid)
             
@@ -387,8 +418,6 @@ class SMI_SetGetFeatureCMD(NVME):
     def GetFeature(self, fid, sel=0, nsid=1, printInfo=False):
         # if Interrupt Vector Configuration, read with cdw11=1
         # nsSpec=True for test purpuse
-        if fid==3:
-            Value, SC = self.GetFeatureValueWithSC(fid=fid, sel=sel, nsid=nsid, nsSpec=True)
         if fid==9:
             Value, SC = self.GetFeatureValueWithSC(fid=fid, sel=sel, cdw11=1, nsid=nsid, nsSpec=True)
         else:
@@ -466,7 +495,19 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print("Fail", "f")
             self.ret_code=1                        
         
-             
+    def SetCurrAndSavedToDiffValue(self, CurrValue, SavedValue, ValidValue, ResetValue, fid, nsSpec):
+        if CurrValue==SavedValue:
+            if CurrValue!=ValidValue:
+                value=ValidValue
+            else:
+                value=ResetValue                 
+            # Send set feature command    
+            sc = self.SetFeature(fid, value, sv=0,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=0)                
+            GetValue  ,SC= self.GetFeature(fid, sel=0)
+            if SavedValue!=GetValue:
+                return True
+            else:
+                return False        
     
     def VerifySaveAble(self, mItem):
         supported=mItem[item.supported]
@@ -487,14 +528,36 @@ class SMI_SetGetFeatureCMD(NVME):
         elif rdValue!=mItem[item.reset_value]:
             value=mItem[item.reset_value]
         else:
-            value=DefaultValue
+            value=DefaultValue        
+        self.Print ("Read saved value = %s"%hex(rdValue))
+        self.Print ("Read default value = %s"%hex(DefaultValue))
+        if not saveable:
+            self.Print ("Feature is not saveable, check if saved value is the same as default value.")
+            if rdValue==DefaultValue:
+                self.Print("PASS", "p")
+            else:
+                self.Print("Fail", "f")
+                self.ret_code=1       
         
-        self.Print ("Read saved value = %s"%hex(rdValue)                )
+        
         self.Print ("Send set feature command with value = %s and SV field =1"%hex(value))
     
         # Send set feature command    
-        self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)
-        
+        sc = self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)
+        if saveable:
+            self.Print ("Check if set feature command success")
+            if sc==0:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                self.ret_code=1 
+        else:
+            self.Print ("Check if set feature command fail with status code = 0xD(FEATURE_NOT_SAVEABLE)")
+            if sc==0xD:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                self.ret_code=1                     
         # Send get feature command    
         GetValue  ,SC= self.GetFeature(fid, sel=2)              
         SavedValue =   GetValue            
@@ -503,7 +566,22 @@ class SMI_SetGetFeatureCMD(NVME):
         self.CheckResult(WriteValue=value, OriginValue=rdValue, CurrentValue=GetValue, ExpectMatch=saveable)   
         
         if saveable:
-            self.Print ("Test Persistent Across Power Cycle and Reset")
+            self.Print ("Test Persistent Across Power Cycle and Reset", "b")
+            self.SetPrintOffset(4)            
+            ValidValue = mItem[item.valid_value]
+            ResetValue = mItem[item.reset_value]
+            
+            self.Print ("Set saved and current value different")
+            CurrValue  ,SC= self.GetFeature(fid, sel=0)
+            if self.SetCurrAndSavedToDiffValue(CurrValue, SavedValue, ValidValue, ResetValue, fid, nsSpec):
+                self.Print ("Done")
+            else:
+                self.Print ("Fail","f")
+                self.ret_code=1                
+            CurrValue  ,SC= self.GetFeature(fid, sel=0)
+            self.Print ("Saved Value: %s"%SavedValue)
+            self.Print ("Current Value: %s"%CurrValue)            
+            
             self.Print ("-- Issue Nvme Reset")
             self.nvme_reset()
             # Send get feature command    
@@ -515,10 +593,30 @@ class SMI_SetGetFeatureCMD(NVME):
             else:
                 self.Print("Fail", "f")
                 self.ret_code=1 
+            GetValue  ,SC= self.GetFeature(fid, sel=0)                
+            self.Print ("Read current value: %s "%hex(GetValue))            
+            self.Print ("Check if current value is %s or not(the same with saved value) "%hex(SavedValue))
+            if GetValue == value:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                self.ret_code=1             
+            self.Print ("")
             
             if self.DisablePwr:  
                 self.Print ("-- User disable power off and power on test")
             else:
+                self.Print ("Set saved and current value different")
+                CurrValue  ,SC= self.GetFeature(fid, sel=0)
+                if self.SetCurrAndSavedToDiffValue(CurrValue, SavedValue, ValidValue, ResetValue, fid, nsSpec):
+                    self.Print ("Done")
+                else:
+                    self.Print ("Fail","f")
+                    self.ret_code=1                
+                CurrValue  ,SC= self.GetFeature(fid, sel=0)
+                self.Print ("Saved Value: %s"%SavedValue)
+                self.Print ("Current Value: %s"%CurrValue)               
+                
                 self.Print ("-- Do power off and power on ")
                 self.por_reset()
                 sleep(0.5)
@@ -531,17 +629,25 @@ class SMI_SetGetFeatureCMD(NVME):
                 else:
                     self.Print("Fail", "f")
                     self.ret_code=1                         
-                                                                    
-       
-            value = SavedValuebk
-            self.Print ("restore to previous 'saved value': %s"%hex(value))
-            if int(value)==0:
-                value = DefaultValue
-                self.Print ("becouse previous 'saved value' =0, set 'saved value' to default value: %s"%hex(value))                        
-            # Send set feature command    
-            self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)  
-            self.Print ("End of restore values")         
-            self.Print (""                          )     
+                GetValue  ,SC= self.GetFeature(fid, sel=0)                
+                self.Print ("Read current value: %s "%hex(GetValue))            
+                self.Print ("Check if current value is %s or not(the same with saved value) "%hex(SavedValue))
+                if GetValue == value:
+                    self.Print("PASS", "p")  
+                else:
+                    self.Print("Fail", "f")
+                    self.ret_code=1                                                                         
+        self.SetPrintOffset(0)
+        value = SavedValuebk
+        self.Print ("restore to previous 'saved value': %s"%hex(value))
+        if int(value)==0:
+            value = DefaultValue
+            self.Print ("becouse previous 'saved value' =0, set 'saved value' to default value: %s"%hex(value))                        
+        # Send set feature command    
+        self.SetFeature(fid, value, sv=1,nsid=1) if nsSpec else self.SetFeature(fid, value, sv=1)  
+        self.Print ("End of restore values")         
+        self.Print (""                          )     
+            
     
     def TestNsInMulitNS(self, mItem):
         supported=mItem[item.supported]
@@ -1273,7 +1379,6 @@ class SMI_SetGetFeatureCMD(NVME):
             self.Print("Supported", "p")    
             # initial self.TestItems
             self.initial()        
-            self.Print("Test item 'Timestamp' is in script SMI_FeatureTimestamp ", "w")
             self.Print("Test item 'Keep Alive Timer' has not implemented ", "w")
 
             return True
@@ -1655,8 +1760,24 @@ class SMI_SetGetFeatureCMD(NVME):
 
         return self.ret_code          
     
+
+    SubCase39TimeOut = 600
+    SubCase39Desc = "Timestamp"
+    def SubCase39(self):
+        self.Print ("Note: below test will set/get the 6th byte of Timestamp Data Structure only", "f")        
+        self.Print ("")
+        self.ret_code=0
+        self.VerifyFID(0xE)
+        return self.ret_code         
     
-    
+    SubCase40TimeOut = 600
+    SubCase40Desc = "Ulink3.0 StatusCode -> Timestamp"
+    def SubCase40(self):
+        self.ret_code=0
+        self.Print ("Note: below test will set/get the 6th byte of Timestamp Data Structure only", "f")
+        self.Print ("")
+        self.VerifyStatusCode(0xE)
+        return self.ret_code     
      
     # </sub item scripts>
     

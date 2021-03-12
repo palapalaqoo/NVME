@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20210125"
+    Version = "20210308"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -506,10 +506,15 @@ class SMI_Sanitize(NVME):
         self.Print ("Wait sanitize operation finish if there is a sanitize operation is currently in progress(Time out = 120s)")
         if self.WaitSanitizeOperationFinish(600):
             self.Print("Done", "p")
-            return True
         else:
             self.Print("Time out!, exit all test ", "f")  
             return False
+        
+        self.Print ("Write 10G data, star LBA=0x0, value = 0x7C"    )
+        self.fio_write(offset=0, size="10G", pattern="0x7C", showProgress=True)
+        self.Print ("Done")
+        
+        return True        
         
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -815,6 +820,8 @@ class SMI_Sanitize(NVME):
             
             if  Status==FlowSanitizeStatus.Success:
                 self.Print("Pass", "p")
+            elif Status==FlowSanitizeStatus.SanitizeGoFinishAfterEventTriger:
+                self.Print("Sanitize status: After hot reset, Sprog = 0xFFFF(It may not continues after a Controller Level Reset ) ", "w")                
             else:
                 if Status==FlowSanitizeStatus.CommandError:
                     self.Print("Sanitize status: CommandError", "f")
@@ -825,9 +832,7 @@ class SMI_Sanitize(NVME):
                 if Status==FlowSanitizeStatus.SprogCountError:
                     self.Print("Sanitize status: SprogCountError", "f")                                    
                 if Status==FlowSanitizeStatus.OverWriteCompletedPassesCountCountError:
-                    self.Print("Sanitize status: OverWriteCompletedPassesCountCountError", "f")
-                if Status==FlowSanitizeStatus.SanitizeGoFinishAfterEventTriger:
-                    self.Print("Sanitize status: After hot reset, Sprog = 0xFFFF(It may not continues after a Controller Level Reset ) ", "f")                      
+                    self.Print("Sanitize status: OverWriteCompletedPassesCountCountError", "f")                      
                 
                 self.Print("Fail", "f")
                 self.Print ("Do POR(power off reset) to reset controller")
