@@ -228,39 +228,10 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        valueIn='0x1200000000000000030'
-
-        IsZero = True
-        if len(valueIn)>16:
-            while True:
-                subStr = valueIn[-16:]
-                # if 0xh or 0xH
-                if re.search("0x(\w+)", subStr) or re.search("0X(\w+)", subStr):   
-                    value=int(subStr, 16)
-                else:                
-                    value=int(subStr)
-                valueIn = valueIn[:-17]
-
-                if value!=0:
-                    IsZero = False
-                    break                
-                if len(valueIn)==0: break
-                
-        if IsZero:
-            valueIn = "0x0"
-        else:
-            valueIn = "-1(not all value is zero)"
-                    
-
-            
-        bb=bin(aa)
-        StartBit = 5
-        StopBit = 7
-        cc=bb[StartBit+2:StopBit+2+1]
-        cc=cc[::-1]
-        dd= int(cc, 2)
-        print dd
-            
+        aa = "\x15\xab\x33"
+        tttt = self.hexdump(aa)
+        
+        self.Print(tttt)
         
 
 

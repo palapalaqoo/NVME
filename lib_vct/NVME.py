@@ -981,9 +981,11 @@ class NVME(object, NVMECom):
  
         return value, SC        
      
-    def get_feature(self, fid, cdw11=0, sel=0, nsid=-1, nsSpec=False, cmdExtention="", dataLen=0): 
+    def get_feature(self, fid, cdw11=0, sel=0, nsid=-1, nsSpec=False, cmdExtention="", dataLen=0, data=None): 
     # feature id, cdw11(If applicable)
         CMD=""
+        if data!=None:
+            CMD="echo -n -e \""+ data + "\" | "
         
         if nsSpec:
             CMD = CMD + " nvme get-feature %s -f %s --cdw11=%s -s %s -l %s "%(self.dev_port, fid, cdw11, sel, dataLen)
@@ -1001,10 +1003,10 @@ class NVME(object, NVMECom):
         value = self.shell_cmd(CMD)
         return value
 
-    def get_feature_with_sc(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False, dataLen=0): 
+    def get_feature_with_sc(self, fid, cdw11=0, sel=0, nsid=0, nsSpec=False, dataLen=0, data=None): 
     # using get_feature with echo $? to get value and Status code
         cmdExtention = ";echo $?"
-        mStr = self.get_feature(fid, cdw11, sel, nsid, nsSpec, cmdExtention, dataLen)
+        mStr = self.get_feature(fid, cdw11, sel, nsid, nsSpec, cmdExtention, dataLen, data)
         SC = int(mStr.split()[-1])# last line is status code
         value = mStr.rsplit("\n",1)[0]# remove last line, return value
  

@@ -16,6 +16,7 @@ import time
 from time import sleep
 import threading
 import re
+import os
 
 # Import VCT modules
 from lib_vct.NVME import NVME
@@ -25,7 +26,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20210128"
+    Version = "20210315"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -124,6 +125,49 @@ class SMI_Telemetry(NVME):
         for byte in range(384, 512):
             rStr=rStr+mLOG[byte]
         return rStr              
+    
+    def SaveToBinary(self, ID, fileNameAppend=""):
+        SavedFileNameList = []
+        filePath = "./temp/Telemetry_id%s_block0%s.bin"%(ID, fileNameAppend)        
+        # save header             
+        mLOG=self.get_log_passthru(ID, 512, 0, 0, ReturnType=2)
+        if not os.path.exists(filePath):
+            f = open(filePath, "w")
+            f.close()           
+        self.writeBinaryFileFromList(filePath, mLOG)   
+        SavedFileNameList.append(filePath)
+        
+        # save data     
+        LastBlock1=(mLOG[9]<<8)+mLOG[8]
+        LastBlock2=(mLOG[11]<<8)+mLOG[10]
+        LastBlock3=(mLOG[13]<<8)+mLOG[12]
+        for i in range(1, LastBlock1+1):
+            mLOG=self.get_log_passthru(ID, 512, 0, 0, 512*i, ReturnType=2)
+            filePath = "./temp/Telemetry_id%s_block%s%s.bin"%(ID, i, fileNameAppend)
+            if not os.path.exists(filePath):
+                f = open(filePath, "w")
+                f.close()           
+            self.writeBinaryFileFromList(filePath, mLOG)   
+            SavedFileNameList.append(filePath)
+    
+        for i in range(LastBlock1+1, LastBlock2+1):
+            mLOG=self.get_log_passthru(ID, 512, 0, 0, 512*i, ReturnType=2)
+            filePath = "./temp/Telemetry_id%s_block%s%s.bin"%(ID, i, fileNameAppend)
+            if not os.path.exists(filePath):
+                f = open(filePath, "w")
+                f.close()           
+            self.writeBinaryFileFromList(filePath, mLOG)   
+            SavedFileNameList.append(filePath)    
+            
+        for i in range(LastBlock2+1, LastBlock3+1):
+            mLOG=self.get_log_passthru(ID, 512, 0, 0, 512*i, ReturnType=2)
+            filePath = "./temp/Telemetry_id%s_block%s%s.bin"%(ID, i, fileNameAppend)
+            if not os.path.exists(filePath):
+                f = open(filePath, "w")
+                f.close()           
+            self.writeBinaryFileFromList(filePath, mLOG)   
+            SavedFileNameList.append(filePath)
+        return SavedFileNameList
     
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -555,6 +599,74 @@ class SMI_Telemetry(NVME):
                 ret_code=1  
 
         return ret_code    
+
+    SubCase15TimeOut = 600
+    SubCase15Desc = "Check Telemtry Log Across PowerState"        
+    def SubCase15(self):
+        ret_code=0
+        self.InitFolder("./temp")
+        self.Print ("Save current Telemetry log 0x7 to binary files")
+        SavedFileNameList_before = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        if len(SavedFileNameList_before)==0:
+            self.Print("Fail", "f")
+            return 1     
+        self.Print ("Below files was been created")
+        self.SetPrintOffset(4)
+        for mList in SavedFileNameList_before:
+            self.Print(mList)
+        self.SetPrintOffset(0)
+        
+        self.Print ("")
+        self.Print ("Do POR")
+        if not self.por_reset():
+            return 1
+        
+        
+        self.Print ("")
+        self.Print ("Save current Telemetry log 0x7 to binary files")
+        SavedFileNameList_after = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        if len(SavedFileNameList_after)==0:
+            self.Print("Fail", "f")
+            return 1     
+        self.Print ("Below files was been created")
+        self.SetPrintOffset(4)
+        for mList in SavedFileNameList_after:
+            self.Print(mList)
+        self.SetPrintOffset(0)        
+        
+        self.Print ("")
+        if len(SavedFileNameList_after)!=len(SavedFileNameList_before):
+            self.Print("Fail, number of created file is not equal! ", "f")
+            return 1   
+                
+        self.Print ("Compare all log data ..")
+        for before, after in zip(SavedFileNameList_before, SavedFileNameList_after):
+            if self.isFileTheSame(before, after)==None:
+                self.Print("Pass: %s, %s"%(before, after), "p")        
+            else:
+                self.Print("Fail: %s, %s"%(before, after), "f")      
+                CMD = "hexdump %s"%(before)
+                self.Print( "Do shell command to hexdump file: %s"%before) 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4)
+                self.Print(aa)
+                self.SetPrintOffset(0)  
+                CMD = "hexdump %s"%(after)
+                self.Print( "Do shell command to hexdump file: %s"%after) 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4)
+                self.Print(aa)
+                self.SetPrintOffset(0)                  
+                
+                
+                ret_code=1 
+                                 
+        
+
+
+        return ret_code     
+
+
     
 if __name__ == "__main__":
     DUT = SMI_Telemetry(sys.argv ) 

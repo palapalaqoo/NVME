@@ -1621,6 +1621,18 @@ class NVMECom():
         for mList in List:
             mStr = self.GetAlignString(S0=str(mList[0]), S0length=S0length, S1=str(mList[1]), S1length=S1length)
             self.Print(mStr)
+
+    def hexdump(self, src, length=16): 
+    # input is binary, ex, src = "\x15\xab\x33", self.hexdump(src)
+    # 16 byte per line
+        FILTER = ''.join([(len(repr(chr(x))) == 3) and chr(x) or '.' for x in range(256)])
+        lines = []
+        for c in xrange(0, len(src), length):
+            chars = src[c:c+length]
+            hex = ' '.join(["%02x" % ord(x) for x in chars])
+            printable = ''.join(["%s" % ((ord(x) <= 127 and FILTER[ord(x)]) or '.') for x in chars])
+            lines.append("%04x  %-*s  %s\n" % (c, length*3, hex, printable))
+        return ''.join(lines)
                                     
 #== end of NVMECom =================================================
 
