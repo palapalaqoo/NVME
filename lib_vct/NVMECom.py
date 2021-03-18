@@ -1633,6 +1633,15 @@ class NVMECom():
             printable = ''.join(["%s" % ((ord(x) <= 127 and FILTER[ord(x)]) or '.') for x in chars])
             lines.append("%04x  %-*s  %s\n" % (c, length*3, hex, printable))
         return ''.join(lines)
+    
+    def HexListToStr(self, rawDataList):
+    # support string and int type, ex, rawDataList=[0x15, 0x39], rawDataList=['15', '39']
+        T = rawDataList[0]
+        if type(T)==str:
+            mStr = ''.join([chr(int(x, 16)) for x in rawDataList])
+        else:
+            mStr = ''.join([chr(x) for x in rawDataList])
+        return mStr
                                     
 #== end of NVMECom =================================================
 
