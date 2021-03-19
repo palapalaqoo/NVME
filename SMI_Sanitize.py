@@ -510,13 +510,59 @@ class SMI_Sanitize(NVME):
             self.Print("Time out!, exit all test ", "f")  
             return False
         
+        if self.TestModeOn:
+            return True
+        
         self.Print ("Write 10G data, star LBA=0x0, value = 0x7C"    )
         self.fio_write(offset=0, size="10G", pattern="0x7C", showProgress=True)
         self.Print ("Done")
         
         return True        
         
+    def VerifyDeallocateAfterSaitize(self):
+        self.Print ("Issue Sanitize command with block operation and 'No Deallocate After Sanitize=1'", "b")
+        self.SANACT=2
+        CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s -d 2>&1"%(self.dev, self.SANACT)  
+        self.Print ("Command: %s"%CMD)                     
+        mStr, sc=self.shell_cmd_with_sc(CMD)
+        self.Print ("Get return code: %s"%mStr)
+        self.Print ("Check return code is success or not, expected SUCCESS")
+        if sc==0:
+            self.Print("PASS", "p")  
+        else:
+            self.Print("Fail", "f")
+            return False 
+        
+        if not self.WaitSanitizeOperationFinish(timeout=600, printInfo=True): return 1
+        self.Print("Done")
+        self.Print("")
+        SSTAT = self.GetLog.SanitizeStatus.SSTAT
+        self.Print("Current SSTAT: 0x%X"%SSTAT)
+        self.Print ("Check if bits [2:0] of SSTAT is 100b" )
+        self.Print("i.e. The most recent sanitize operation for which No-Deallocate After Sanitize")
+        self.Print("was requested has completed successfully with deallocation of all logical blocks")
+        if (SSTAT & 0b111) ==4:  
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            return False  
+        return True      
+        
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    def SetNODRM(self, valueIn):
+        self.Print("Issue set feature command to set No-Deallocate Response Mode (NODRM) to %s"%valueIn)  
+        self.set_feature(fid=0x17, value=valueIn)
+        value, sc = self.GetFeatureValueWithSC(fid=0x17)
+        if sc!=0:
+            self.Print("Get feature fail, return code: %s"%(value), "f")
+            return False
+        else:
+            self.Print("Get feature value: %s"%(value))
+            if value!=0:
+                self.Print("Set feature fail", "f")
+                return False
+        return True        
 
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="for case 12, test Loop, default=1", argType=int) 
@@ -532,7 +578,7 @@ class SMI_Sanitize(NVME):
                             "if sprogScale not set, spor timer will be random in 1 to 65534 to do spor ", argType=int)     
             
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
-                            helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3c"
+                            helpMsg="nvme spec version, 1.3c / 1.3d / 1.4, default= 1.3c"
                             "\ne.x. '--version 1.3d'", argType=str, default="1.3c")        
         
         # initial parent class
@@ -1133,7 +1179,91 @@ class SMI_Sanitize(NVME):
         CMD = "hexdump %s -n %s"%(self.dev, OneBlockSize)
         self.Print ("Issue command to read(hexdump) first block: %s"%CMD)
         mStr, sc=self.shell_cmd_with_sc(CMD)   
-        self.Print(mStr)     
+        self.Print(mStr)  
+        return 0
+    
+
+    SubCase16TimeOut = 6000
+    SubCase16Desc = "NVMe Spec1.4: test 'No Deallocate After Sanitize', NODMMAS, NDI"        
+    def SubCase16(self):
+        ret_code=0
+        if self.specVer!="1.4":
+            self.Print( "Current target spec version = %s, please rerun with '-v 1.4' for NVMe Spec1.4"%self.specVer,"w")
+            return 0
+
+        SANICAP = self.IdCtrl.SANICAP.int
+        self.Print( "SANICAP: %s"%SANICAP )
+        NODMMAS = (SANICAP>>30)&0b11 #bit 31:30
+        self.Print( "No-Deallocate Modifies Media After Sanitize (NODMMAS): %s"%NODMMAS )
+        NDI = (SANICAP>>29)&0b1 #bit 29
+        self.Print( "No-Deallocate Inhibited (NDI): %s"%NDI )
+        if self.SANACT!=2:
+            self.Print ("Block Erase sanitize not supported, skip!")
+            return 0
+        else:
+            self.Print ("Block Erase sanitize supported")        
+        
+        # TODO
+        NODMMAS=2        
+        
+        
+        self.Print("")
+        self.Print("1) Verify when NODMMAS=10b, NID=1 and 'No Deallocate After Sanitize=1', sanitize CMD must success")
+        self.Print("    And bits [2:0] of Sanitize Status (SSTAT) in Sanitize log must equal to 100b")
+        if NODMMAS!=2:
+            self.Print("NODMMAS !=10b , skip ")
+        elif NDI!=0:
+            self.Print("NDI !=0 , skip ")
+        else:
+            self.Print("")    
+            self.SetPrintOffset(4)    
+            if not self.VerifyDeallocateAfterSaitize(): return 1
+            self.SetPrintOffset(0)        
+
+        self.Print("")
+        self.Print("2) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1' and NODRM=1, sanitize CMD must success")
+        self.Print("    And bits [2:0] of Sanitize Status (SSTAT) in Sanitize log must equal to 100b")
+        if NODMMAS!=2:
+            self.Print("NODMMAS !=10b , skip ")
+        elif NDI!=1:
+            self.Print("NDI !=1 , skip ")
+        else:
+            self.Print("")    
+            self.SetPrintOffset(4)    
+            if not self.SetNODRM(1): return 1
+            if not self.VerifyDeallocateAfterSaitize(): return 1
+            self.SetPrintOffset(0) 
+        
+        self.Print("")
+        self.Print("3) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1', NODRM=0, sanitize CMD must fail with status = 'Invalid Field'")
+        if NODMMAS!=2:
+            self.Print("NODMMAS !=10b , skip ")
+        elif NDI!=1:
+            self.Print("NDI !=1 , skip ")
+        else:
+            self.Print("")    
+            self.SetPrintOffset(4)  
+            if not self.SetNODRM(0): return 1                
+            self.Print("")       
+            self.Print ("Issue Sanitize command with block operation and 'No Deallocate After Sanitize=1'", "b")
+            self.SANACT=2
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s -d 2>&1"%(self.dev, self.SANACT)  
+            self.Print ("Command: %s"%CMD)                     
+            mStr, sc=self.shell_cmd_with_sc(CMD)
+            self.Print ("Get return code: %s"%mStr)
+            self.Print ("Check return code is success or not, expected = 0x2(Invalid Field)")
+            if sc==0x2:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                return 1 
+            self.SetPrintOffset(0)                 
+
+        self.Print("")
+        self.Print("")
+        
+
+        return ret_code        
         
           
                    
