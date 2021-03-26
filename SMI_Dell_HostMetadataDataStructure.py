@@ -94,8 +94,8 @@ class HostMetadataDataStructure(Structure):
         self.PrintAlignString(S0=self.ElementType, S1=Definition, S2=self.ElementRevision, S3=self.ElementLength, \
                               S4=self.ElementValue, PO=PO)
 
-class SMI_HynixSRS(NVME):
-    ScriptName = "SMI_HynixSRS.py"
+class SMI_Dell_HostMetadataDataStructure(NVME):
+    ScriptName = "SMI_Dell_HostMetadataDataStructure.py"
     Author = ""
     Version = "20210316"
   
@@ -311,7 +311,7 @@ class SMI_HynixSRS(NVME):
     
     def __init__(self, argv):
         # initial parent class
-        super(SMI_HynixSRS, self).__init__(argv)
+        super(SMI_Dell_HostMetadataDataStructure, self).__init__(argv)
         
         # initial Element Types
         self.MED_Value = 0
@@ -341,7 +341,7 @@ class SMI_HynixSRS(NVME):
 
     # <define sub item scripts>
     SubCase1TimeOut = 60
-    SubCase1Desc = "[Hynix SRS] Host Metadata Log"
+    SubCase1Desc = "[Hynix SRS][Dell] Host Metadata Log"
     SubCase1KeyWord = ""   
     def SubCase1(self):
         ret_code=0
@@ -424,7 +424,7 @@ class SMI_HynixSRS(NVME):
 
 
 if __name__ == "__main__":
-    DUT = SMI_HynixSRS(sys.argv ) 
+    DUT = SMI_Dell_HostMetadataDataStructure(sys.argv ) 
     DUT.RunScript()
     DUT.Finish() 
 

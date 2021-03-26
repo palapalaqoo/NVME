@@ -49,8 +49,13 @@ class mtest(NVME):
                             iniFileName="SMIPowerCycleTest.ini", iniSectionName="None", iniOptionName="UGSDTimerMax")
         # initial parent class
         super(mtest, self).__init__(argv)
-        self.loops = self.GetDynamicArgs(0) 
+        a=11
+        b=type(a)
+        if b==str:
+            pass
         
+        a="11"
+        b=type(a)        
         #self.inst = mtest.mtest(sys.argv)
         #self.inst.printaa()
         
@@ -230,7 +235,8 @@ class mtest(NVME):
     def SubCase1(self):
         aa = "\x15\xab\x33"
         tttt = self.hexdump(aa)
-        
+        tempData = ["\\x0"]*16
+        patten1= ''.join(tempData)
         self.Print(tttt)
         
 

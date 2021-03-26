@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210305"
+    Version = "20210325"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -113,7 +113,7 @@ class SMI_IdentifyCommand(NVME):
         IN_UserFileFullPath=self.InPath+UserFileName
         
         subRt=True
-        self.Print("Check if file %s exist or not(for comparing identify data if exist, else show current identify data only)"%IN_UserFileFullPath)
+        self.Print("Check if file %s exist or not(for comparing identify data if applicable, else show current identify data only)"%IN_UserFileFullPath)
         InUserFile=self.ReadCSVFile(IN_UserFileFullPath)
         if InUserFile==None:
             self.Print("Can't find file at %s"%IN_UserFileFullPath, "w")
@@ -132,7 +132,7 @@ class SMI_IdentifyCommand(NVME):
             self.Print( "")
             self.Print( "Start to check values ..")
             self.Print("------------------------------------------------------------------------------------------------------------")   
-            self.PrintAlignString("Name", "Controller", IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)", "Mark", "default")
+            self.PrintAlignString("Name", "Controller", IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)", "[Bytes][Bits]", "default")
             self.Print("------------------------------------------------------------------------------------------------------------")   
 
 
@@ -243,6 +243,8 @@ class SMI_IdentifyCommand(NVME):
         DS = DataStructIn
         ParseCfgList = self.ReadCSVFile(ParseCfg)
         for mItem in ParseCfgList:
+            if len(mItem)<3: # if no data
+                continue
             # if start char=# means it is a comment, and quit it
             mStr = "^#"
             if re.search(mStr, mItem[0]):
@@ -832,7 +834,7 @@ class SMI_IdentifyCommand(NVME):
                 else:
                     # self.Print( "Success to get data structure") 
                     
-                    self.Print( "According to Figure 38: Controller List Format")
+                    self.Print( "Parse returned data(According to 'Controller List Format' in NVMe spec)")
                     NumOfId=self.convert(lists=DS, stopByte=1, startByte=0, mtype=self.TypeInt)
                     NumOfId=int(NumOfId, 16)
                     self.Print("    Number of Identifiers: %s"%hex(NumOfId))
@@ -862,11 +864,13 @@ class SMI_IdentifyCommand(NVME):
                 DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
                 if DS==None:
                     self.Print( "Fail to get data structure, quit !","f")
+                    self.Print( "CMD: %s"%CMD,"f")
+                    self.Print( "Returned status: %s"%rTDS,"f")
                     subRt = 1
                 else:
                     # self.Print( "Success to get data structure") 
                     
-                    self.Print( "According to Figure 38: Controller List Format")
+                    self.Print( "Parse returned data(According to 'Controller List Format' in NVMe spec)")
                     NumOfId=self.convert(lists=DS, stopByte=1, startByte=0, mtype=self.TypeInt)
                     NumOfId=int(NumOfId, 16)
                     self.Print("    Number of Identifiers: %s"%hex(NumOfId))
@@ -903,10 +907,12 @@ class SMI_IdentifyCommand(NVME):
                 DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
                 if DS==None:
                     self.Print( "Fail to get data structure, quit !","f")
+                    self.Print( "CMD: %s"%CMD,"f")
+                    self.Print( "Returned status: %s"%rTDS,"f")                    
                     subRt = 1
                 else:
                     # self.Print( "Success to get data structure")                     
-                    self.Print( "According to Figure 38: Controller List Format")
+                    self.Print( "Parse returned data(According to 'Controller List Format' in NVMe spec)")
                     NumOfId=self.convert(lists=DS, stopByte=1, startByte=0, mtype=self.TypeInt)
                     NumOfId=int(NumOfId, 16)
                     self.Print("    Number of Identifiers: %s"%hex(NumOfId))
@@ -938,7 +944,7 @@ class SMI_IdentifyCommand(NVME):
                     subRt = 1
                 else:
                     # self.Print( "Success to get data structure")                     
-                    self.Print( "According to Figure 38: Controller List Format")
+                    self.Print( "Parse returned data(According to 'Controller List Format' in NVMe spec)")
                     NumOfId=self.convert(lists=DS, stopByte=1, startByte=0, mtype=self.TypeInt)
                     NumOfId=int(NumOfId, 16)
                     self.Print("    Number of Identifiers: %s"%hex(NumOfId))
@@ -1132,7 +1138,7 @@ class SMI_IdentifyCommand(NVME):
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<           
     def __init__(self, argv):
-        VersionDefine = ["1.3c", "1.4"]
+        VersionDefine = ["1.3c", "1.4", "dellx16", "hp", "srs"]
         VersionDdfault = VersionDefine[0]
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
                             helpMsg="nvme spec version, %s, default= %s, ex. '-v %s'"%(VersionDefine, VersionDdfault, VersionDdfault), argType=str, default=VersionDdfault)
@@ -1146,6 +1152,13 @@ class SMI_IdentifyCommand(NVME):
         if self.specVersion=="1.4":
             SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4.csv"
             SMI_IdentifyCommand.File_BuildIn_Identify_CNS00 = "./lib_vct/CSV/CNS00_IdentifyNamespacedatastructure_V1_4.csv"
+        if self.specVersion=="dellx16":
+            # https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-835
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_DELL_X06.csv"
+        if self.specVersion=="hp":
+            # https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-836
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_HP.csv"            
+            
              
         self.InitDirs()
         self.IdentifyLists=[]
@@ -1726,6 +1739,47 @@ class SMI_IdentifyCommand(NVME):
                 self.Print("Fail", "f")
                 ret_code = 1            
             
+        return ret_code
+
+    SubCase11TimeOut = 3000
+    SubCase11Desc = "Verify invalid CNS" 
+    SubCase11KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-840"
+    def SubCase11(self): 
+        ret_code = 0
+        self.Print("Current taget version for NVMe: %s"%self.specVersion)
+        if self.specVersion!="srs":
+            self.Print("Please run command with -v srs if going to verify this test case!")
+            return 0        
+        
+        invalidCNSlist = range(4, 0x10) # 0x4 to 0xFF
+        invalidCNSlist += range(0x14, 0x100) # 0x14 to 0xFF
+        self.Print("Issue identify command with invalidCNSlist, expected status is Invalid Field(0x2)")
+        #self.Print("invalidCNSlist: %s"%map(lambda x: "0x%X"%x, invalidCNSlist)) 
+        mStr = ""
+        self.Print("invalidCNSlist:")
+        self.SetPrintOffset(4)
+        tens = 0
+        for mCNS in invalidCNSlist:  
+            if mCNS==0xEF:
+                pass
+            curr_tens =mCNS/16
+            if tens!=curr_tens:
+                self.Print(mStr)
+                tens=curr_tens
+                mStr = ""
+            mStr += "0x%X "%mCNS
+        if mStr!=0:
+            self.Print(mStr)    
+        self.SetPrintOffset(0) 
+       
+        for mCNS in invalidCNSlist:
+            CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=%s 2>&1"%(self.dev_port, mCNS)
+            mstr, sc = self.shell_cmd_with_sc(CMD)
+            if sc==2:
+                self.Print("CNS: 0x%X, Pass"%mCNS, "p") 
+            else:
+                self.Print("CNS: 0x%X, Fail, status code: %s"%(mCNS, sc), "p")
+                ret_code = 1 
         return ret_code
                 
     # </sub item scripts>    

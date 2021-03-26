@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20210308"
+    Version = "20210324"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -37,7 +37,7 @@ class SMI_Sanitize(NVME):
     # <Function> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     def Block0IsEqual(self, value, nsid=1):
         # check if block 0 is equal pattern or not
-        return self.fio_isequal(0, 512, value, nsid, 512)
+        return self.fio_isequal(0, self.OneBlockSize, value, nsid, self.OneBlockSize)
     
     def SendTestCommand(self, *args): 
         global CMD_Result
@@ -236,7 +236,7 @@ class SMI_Sanitize(NVME):
                 
                 TestPatten=randint(1, 0xFF)
                 self.Print ("Write data to the front, middle and back spaces of the LBA")
-                self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
+                self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*self.OneBlockSize), hex(self.middle_SB*self.OneBlockSize), hex(self.last_SB*self.OneBlockSize), hex(TestPatten)))
                 self.write_SML_data(TestPatten, "1G")                
                 self.Print("Done", "p")
                 self.Print ("")                             
@@ -277,7 +277,8 @@ class SMI_Sanitize(NVME):
                 
                 TestPatten=randint(1, 0xFF)
                 self.Print ("Write data to the front, middle and back spaces of the LBA")
-                self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*512), hex(self.middle_SB*512), hex(self.last_SB*512), hex(TestPatten)))
+                self.Print ("e.g. %s, %s and %s, size 1G, value = %s"%(hex(self.start_SB*self.OneBlockSize), \
+                                                                       hex(self.middle_SB*self.OneBlockSize), hex(self.last_SB*self.OneBlockSize), hex(TestPatten)))
                 self.write_SML_data(TestPatten, "1G")                
                 self.Print("Done", "p")
                                            
@@ -322,31 +323,31 @@ class SMI_Sanitize(NVME):
     def CheckLogicalBlockDataIsPass(self, Value, ExpectedResult="match"):
         mPass=True
         ExpectMatch = True if ExpectedResult=="match" else False
-        if self.fio_isequal(offset=self.start_SB*512, size="1G", pattern=Value) == ExpectMatch:
+        if self.fio_isequal(offset=self.start_SB*self.OneBlockSize, size="1G", pattern=Value) == ExpectMatch:
             self.Print("Front: Pass", "p")
         else:
             self.Print("Front: Fail, data from SSD as below", "f")
-            CMD = "hexdump %s -n 200M -s %s| head"%(self.dev, self.start_SB*512)
+            CMD = "hexdump %s -n 200M -s %s| head"%(self.dev, self.start_SB*self.OneBlockSize)
             self.Print (CMD)
             mStr = self.shell_cmd(CMD)            
             self.Print (mStr, "w")
             mPass=False
 
-        if self.fio_isequal(offset=self.middle_SB*512, size="1G", pattern=Value) == ExpectMatch:
+        if self.fio_isequal(offset=self.middle_SB*self.OneBlockSize, size="1G", pattern=Value) == ExpectMatch:
             self.Print("Middle: Pass", "p")
         else:
             self.Print("Middle: Fail, data from SSD as below", "f")
-            CMD="hexdump %s -n 200M -s %s| head"%(self.dev, self.middle_SB*512)
+            CMD="hexdump %s -n 200M -s %s| head"%(self.dev, self.middle_SB*self.OneBlockSize)
             self.Print (CMD)
             mStr = self.shell_cmd(CMD)            
             self.Print (mStr, "w")
             mPass=False
 
-        if self.fio_isequal(offset=self.last_SB*512, size="1G", pattern=Value) == ExpectMatch:
+        if self.fio_isequal(offset=self.last_SB*self.OneBlockSize, size="1G", pattern=Value) == ExpectMatch:
             self.Print("Back: Pass", "p")
         else:
             self.Print("Back: Fail, data from SSD as below", "f")
-            CMD="hexdump %s -n 200M -s %s| head"%(self.dev, self.last_SB*512)
+            CMD="hexdump %s -n 200M -s %s| head"%(self.dev, self.last_SB*self.OneBlockSize)
             self.Print (CMD)
             mStr = self.shell_cmd(CMD)
             self.Print (mStr, "w")
@@ -454,10 +455,10 @@ class SMI_Sanitize(NVME):
         
         TNOB = self.GetTotalNumberOfBlock()
         TestNLB = int((TNOB*self.prewriteSize)/8)*8
-        TestSize=TestNLB*512
+        TestSize=TestNLB*self.OneBlockSize
         self.Print("Total number of blocks: %s"%TNOB)
         self.Print("Test size of blocks: %s(%s%% of total blocks)"%(TestNLB, int(self.prewriteSize*100)))
-        self.Print("Test size: %s bytes(Test size of blocks*512)"%TestSize)
+        self.Print("Test size: %s bytes(Test size of blocks*%s)"%(TestSize, self.OneBlockSize))
         self.Print("Test loop: %s"%self.loops)        
         
         for loop in range(self.loops):
@@ -576,10 +577,12 @@ class SMI_Sanitize(NVME):
                             "and will do spor as SPROG>2000 at second cycle until last cycle to do spor as SPROG>65000, then finish the loop \n"\
                             "it also means it will do int(65536/1000) = 65 cycle test for 1 loop \n"\
                             "if sprogScale not set, spor timer will be random in 1 to 65534 to do spor ", argType=int)     
-            
+        
+        VersionDefine = ["1.3c", "1.3d", "1.4", "dellx16"]
+        VersionDdfault = VersionDefine[0]
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
-                            helpMsg="nvme spec version, 1.3c / 1.3d / 1.4, default= 1.3c"
-                            "\ne.x. '--version 1.3d'", argType=str, default="1.3c")        
+                            helpMsg="nvme spec version, %s, default= %s, ex. '-v %s'"%(VersionDefine, VersionDdfault, VersionDdfault), argType=str, default=VersionDdfault)
+                     
         
         # initial parent class
         super(SMI_Sanitize, self).__init__(argv)
@@ -594,6 +597,8 @@ class SMI_Sanitize(NVME):
         self.sprogScale=0 if self.sprogScale==None else self.sprogScale  
         
         self.specVer = self.GetDynamicArgs(3)
+        if not self.specVer in VersionDefine:   # if input is not in VersionDefine, e.g keyin wrong version
+            self.specVer = VersionDdfault        
         
         self.CryptoEraseSupport = True if (self.IdCtrl.SANICAP.bit(0) == "1") else False
         self.BlockEraseSupport = True if (self.IdCtrl.SANICAP.bit(1) == "1") else False
@@ -607,7 +612,8 @@ class SMI_Sanitize(NVME):
             self.SANACT=3
         else:
             self.SANACT=0
-       
+            
+        self.OneBlockSize = self.GetBlockSize()
         
     # <sub item scripts>  
     SubCase1TimeOut = 1000
@@ -1223,6 +1229,8 @@ class SMI_Sanitize(NVME):
         self.Print("")
         self.Print("2) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1' and NODRM=1, sanitize CMD must success")
         self.Print("    And bits [2:0] of Sanitize Status (SSTAT) in Sanitize log must equal to 100b")
+        self.Print("    Note: If NID set to ‘1’ and the No-Deallocate Response Mode bit is set to ‘1’")
+        self.Print("    then the controller deallocates after the sanitize operation even if the No-Deallocate After Sanitize bit is set to ‘1’ in a Sanitize command.")
         if NODMMAS!=2:
             self.Print("NODMMAS !=10b , skip ")
         elif NDI!=1:
@@ -1235,7 +1243,7 @@ class SMI_Sanitize(NVME):
             self.SetPrintOffset(0) 
         
         self.Print("")
-        self.Print("3) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1', NODRM=0, sanitize CMD must fail with status = 'Invalid Field'")
+        self.Print("3) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1' and NODRM=0, sanitize CMD must fail with status = 'Invalid Field'")
         if NODMMAS!=2:
             self.Print("NODMMAS !=10b , skip ")
         elif NDI!=1:
@@ -1265,10 +1273,141 @@ class SMI_Sanitize(NVME):
 
         return ret_code        
         
-          
-                   
+    SubCase17TimeOut = 6000
+    SubCase17Desc = "DELL: No Deallocate After Sanitize shall not be supported"        
+    def SubCase17(self):
+        ret_code=0
+        if self.specVer!="dellx16":
+            self.Print( "Current target spec version = %s, please rerun with '-v dellx16' for Dell"%self.specVer,"w")
+            return 0 
+                 
+        SANICAP = self.IdCtrl.SANICAP.int
+        self.Print( "SANICAP: %s"%SANICAP )
+        NODMMAS = (SANICAP>>30)&0b11 #bit 31:30
+        self.Print( "No-Deallocate Modifies Media After Sanitize (NODMMAS): %s"%NODMMAS )
+        NDI = (SANICAP>>29)&0b1 #bit 29
+        self.Print( "No-Deallocate Inhibited (NDI): %s"%NDI )
+        if self.SANACT!=2:
+            self.Print ("Block Erase sanitize not supported, skip!")
+            return 0
+        else:
+            self.Print ("Block Erase sanitize supported")  
+        self.Print ("If No Deallocate After Sanitize is not supported, NDI will be set to 1")
+        self.Print ("1) Check if No-Deallocate Inhibited (NDI) set to 1 for DELL")
+        if NDI!=1:
+            self.Print ("Fail!", "f")
+            return 0
+        else:
+            self.Print ("Pass", "p")          
+                                   
+
+        self.Print("")
+        self.Print("2) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1' and NODRM=1, sanitize CMD must success")
+        self.Print("    And bits [2:0] of Sanitize Status (SSTAT) in Sanitize log must equal to 100b")
+        self.Print("    Note: If NID set to ‘1’ and the No-Deallocate Response Mode bit is set to ‘1’")
+        self.Print("    then the controller deallocates after the sanitize operation even if the No-Deallocate After Sanitize bit is set to ‘1’ in a Sanitize command.")
+        if NODMMAS!=2:
+            self.Print("NODMMAS !=10b , skip ")
+        elif NDI!=1:
+            self.Print("NDI !=1 , skip ")
+        else:
+            self.Print("")    
+            self.SetPrintOffset(4)    
+            if not self.SetNODRM(1): return 1
+            if not self.VerifyDeallocateAfterSaitize(): return 1
+            self.SetPrintOffset(0) 
         
-                            
+        self.Print("")
+        self.Print("3) Verify when NODMMAS=10b, NID=1, 'No Deallocate After Sanitize=1' and NODRM=0, sanitize CMD must fail with status = 'Invalid Field'")
+        if NODMMAS!=2:
+            self.Print("NODMMAS !=10b , skip ")
+        elif NDI!=1:
+            self.Print("NDI !=1 , skip ")
+        else:
+            self.Print("")    
+            self.SetPrintOffset(4)  
+            if not self.SetNODRM(0): return 1                
+            self.Print("")       
+            self.Print ("Issue Sanitize command with block operation and 'No Deallocate After Sanitize=1'", "b")
+            self.SANACT=2
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s -d 2>&1"%(self.dev, self.SANACT)  
+            self.Print ("Command: %s"%CMD)                     
+            mStr, sc=self.shell_cmd_with_sc(CMD)
+            self.Print ("Get return code: %s"%mStr)
+            self.Print ("Check return code is success or not, expected = 0x2(Invalid Field)")
+            if sc==0x2:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                return 1 
+            self.SetPrintOffset(0)                 
+
+        self.Print("")
+        self.Print("")        
+
+    SubCase18TimeOut = (4000)
+    SubCase18Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=0, OWPASS=1"      
+    def SubCase18(self):
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        if not self.setReadOnlyMode(): return 1
+        self.Print ("Done")
+        return self.SubCase7()
+
+            
+    # timeout 1.1hr
+    SubCase19TimeOut = (4000)
+    SubCase19Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=1"      
+    def SubCase19(self):
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        if not self.setReadOnlyMode(): return 1
+        self.Print ("Done")
+        return self.SubCase8()
+
+    # timeout 1.1hr
+    SubCase20TimeOut = (4000)
+    SubCase20Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=2"      
+    def SubCase20(self):
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        if not self.setReadOnlyMode(): return 1
+        self.Print ("Done")
+        return self.SubCase9()
+        
+    SubCase21TimeOut = (4000)
+    SubCase21Desc = "[Read only mode] Test Logical Block Data - Block Erase sanitize operation"      
+    def SubCase21(self):
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        if not self.setReadOnlyMode(): return 1
+        self.Print ("Done")
+        return self.SubCase10()
+
+    SubCase22TimeOut = (4000)
+    SubCase22Desc = "[Read only mode] Test Logical Block Data - Crypto Erase sanitize operation"      
+    def SubCase22(self):
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        if not self.setReadOnlyMode(): return 1
+        self.Print ("Done")
+        return self.SubCase11()
+
     # </sub item scripts> 
                
     '''

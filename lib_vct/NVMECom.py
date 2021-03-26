@@ -66,21 +66,21 @@ class NVMECom():
         self.LogPath='%s/'%self.LogPath if self.LogPath[-1]!='/' else self.LogPath # add / if forgot to add /
         self.LogPath=self.LogPath[1:] if self.LogPath[0]=='/' else self.LogPath # remove / if first char is /
         
-        mStr = self.shell_cmd("ls %s|grep summary_regress_"%self.LogPath)
+        mStr = self.shell_cmd("ls %s 2> /dev/null |grep summary_regress "%self.LogPath)
         if(mStr ==""):
             self.InitLogFile()
             return False
         else:
             NVMECom.LogName_Summary =  self.LogPath + mStr
             
-        mStr = self.shell_cmd("ls %s|grep summary_color_"%self.LogPath)
+        mStr = self.shell_cmd("ls %s|grep summary_color"%self.LogPath)
         if(mStr ==""):
             self.InitLogFile()
             return False
         else:
             NVMECom.LogName_SummaryColor =  self.LogPath + mStr
             
-        mStr = self.shell_cmd("ls %s|grep detail_cmd_"%self.LogPath)
+        mStr = self.shell_cmd("ls %s|grep detail_cmd"%self.LogPath)
         if(mStr ==""):
             self.InitLogFile()
             return False
@@ -88,7 +88,7 @@ class NVMECom():
             NVMECom.LogName_CmdDetail =  self.LogPath + mStr
             NVMECom.LogName_CmdDetail += "_%s"%NVMECom.LogName_Id # with id
             
-        mStr = self.shell_cmd("ls %s|grep console_out_"%self.LogPath)
+        mStr = self.shell_cmd("ls %s|grep console_out"%self.LogPath)
         if(mStr ==""):
             self.InitLogFile()
             return False
@@ -654,12 +654,15 @@ class NVMECom():
         DT="DT: %s"%TimeDiv
         # case number
         Case="Case: %s"%self.SubCasePoint
-        # Loop
-        
+        # Loop, or any prefix string
         Loop = ""
         if self.PrintLoop!=None:
-            Loop = "Loop: %s"%self.PrintLoop
-            if self.PrintLoop%2==0:
+            if type(self.PrintLoop)==int:
+                Loop = "Loop: %s"%self.PrintLoop
+                if self.PrintLoop%2==0:
+                    Loop = self.UseStringStyle(Loop, fore="white", back="black")
+            if type(self.PrintLoop)==str:
+                Loop = self.PrintLoop
                 Loop = self.UseStringStyle(Loop, fore="white", back="black")
         
         return Ltime+" "+DT+" "+Case +" " +Loop+"| "
@@ -726,8 +729,9 @@ class NVMECom():
         parser.add_argument("-t", "--t", help="script test mode on", action="store_true")
         parser.add_argument("-d", "--d", help="print script doc and flow if acceptable", action="store_true")        
         parser.add_argument("-s", "--s", help="test time in seconds", type=int, nargs='?')
-        parser.add_argument("-p", "--p", help="log path that store logs, default='.\Log'", type=str, nargs='?')
+        parser.add_argument("-p", "--p", help="log path that store logs, default='.\Log', ex. '-p \'/Log/SubCase\''", type=str, nargs='?')
         parser.add_argument("-r", "--r", help="reboot parameters, please do not set it\n ", type=int, nargs='?')
+        parser.add_argument("-iknowwhatiamdoing", "--iknowwhatiamdoing", help="Warring!!, use option 'iknowwhatiamdoing' if applicable", action="store_true")
         #parser.add_argument("-checksmart", "--checksmart", help="check smart log using SMART.ini and SmartCheck module, e.x. '-checksmart'", action="store_true")
         
         # script arg define new args if overwrite in script
@@ -748,6 +752,7 @@ class NVMECom():
         mDev=args.dev
         mTestModeOn=True if args.t else False                
         mScriptDoc=True if args.d else False
+        mIknowwhatiamdoing=True if args.iknowwhatiamdoing else False
         if args.subcases==None:
             mSubItems=[]
         else:
@@ -772,7 +777,7 @@ class NVMECom():
         
         #mCheckSmart=True if args.checksmart else False
         
-        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs, mRebootP#, mCheckSmart
+        return mDev, mSubItems, mTestModeOn, mScriptDoc, mTestTime, mLogPath, mScriptParserArgs, mRebootP, mIknowwhatiamdoing#, mCheckSmart
         
     def GetPCIERegBase(self):
         # System Bus (PCI Express) Registers base offset in int format

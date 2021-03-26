@@ -23,7 +23,7 @@ class HostMetadataDataStructure(Structure):
             ('EVAL',c_char * 128)]  
 
 class SMI_HynixSRS(NVME):
-    ScriptName = "SMI_HynixSRS.py"
+    ScriptName = "SMI_Dell_Vendor_Feature.py"
     Author = ""
     Version = "20210316"
   

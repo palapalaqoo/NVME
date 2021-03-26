@@ -24,7 +24,7 @@ class SMI_Read(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Read.py"
     Author = "Sam Chan"
-    Version = "20210312"
+    Version = "20210322"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -90,14 +90,17 @@ class SMI_Read(NVME):
         cdw10, cdw11=self.getDW10_DW11(0)
         cdw12=(LR<<31) + (FUA<<30)+ (PRINFO<<26) + NLB
         length = self.OneBlockSize*(NLB+1) # NLB is 0 based
-        mStr=self.shell_cmd("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, length, cdw10, cdw11, cdw12))
-        retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
+        mStr, sc=self.shell_cmd_with_sc("nvme io-passthru %s -o 0x2 -n 1 -l %s -r --cdw10=%s --cdw11=%s --cdw12=%s 2>&1"%(self.dev, length, cdw10, cdw11, cdw12))        
+        retCommandSueess=True if sc==0 else False
         if (retCommandSueess ==  ExpectCommandSuccess) :        
+            self.Print("LR: %s, FUA: %s, PRINFO: %s, NLB: %s, expected status code: %s, %s"\
+            %(LR, FUA, PRINFO, NLB, "0" if ExpectCommandSuccess else "not 0", self.UseStringStyle("Pass", mode="bold", fore = "green")))       
             return True         
         else:
-            self.Print("Fail", "f")
-            self.Print("LR=%s, FUA=%s, PRINFO=%s, NLB=%s"%(LR, FUA, PRINFO, NLB), "f")
+            self.Print("LR: %s, FUA: %s, PRINFO: %s, NLB: %s, expected status code: %s, %s"\
+            %(LR, FUA, PRINFO, NLB, "0" if ExpectCommandSuccess else "not 0", self.UseStringStyle("Fail", mode="bold", fore = "red")))            
             self.Print("Command return status: %s"%mStr, "f")
+            self.Print("Command return status code: %s"%sc, "f")
             return False       
     
     def testDW12NLB(self, msg0, msg1 ,NLB, ExpectCommandSuccess):      

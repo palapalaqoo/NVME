@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20210308"
+    Version = "20210326"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -798,7 +798,61 @@ class SMI_SmartHealthLog(NVME):
         self.Print ("Verify if SMART / Health Log is retained")
         expectAdd1List = ["PowerCycles", "UnsafeShutdowns"]
         if not self.VerifyHealthLog(OriginalValue, expectAdd1List): return 1 
-        self.SetPrintOffset(0)          
+        self.SetPrintOffset(0)       
+        
+    SubCase15TimeOut = (4000)
+    SubCase15Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=0, OWPASS=1"      
+    def SubCase15(self):
+        ret_code=0
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        
+        LastLBA = self.IdNs.NCAP.int
+        self.Print("Currnt total LBA: 0x%X"%LastLBA)        
+        CriticalWarning=self.GetLog.SMART.CriticalWarning
+        self.Print("Currnt CriticalWarning: 0x%X"%CriticalWarning)
+        self.Print("")
+        self.Print ("Issue VU CMD to markBadBlk and verify Critical Warning bit0 and bit3")
+        self.Print("bit 0 (the media has been placed in read only mode)")
+        self.Print("bit 3 (available spare capacity has fallen below the threshold)")
+        
+        LBA_offset=LastLBA/10 # ten times
+        #for lba in range(LastLBA+1):
+        slba=0
+        elba=0
+        while True:
+            elba=slba+LBA_offset
+            if elba>=LastLBA:
+                elba=LastLBA
+            # TODO self.markBadBlk(startBlk=slba, stopBlk=elba)
+            CriticalWarning=self.GetLog.SMART.CriticalWarning
+            self.Print ("Start LBA: 0x%X, End LBA: 0x%X, current CriticalWarning: 0x%X"%(slba, elba, CriticalWarning))
+            if elba==LastLBA:
+                break            
+            slba=slba+LBA_offset+1            
+        self.Print("Done!")
+
+        self.Print("Check Critical Warning bit 0, expect value=1")               
+        if CriticalWarning&0b00000001 >0:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")   
+            ret_code=1
+            
+        self.Print("")
+        self.Print("Check Critical Warning bit 3, expect value=1")               
+        if CriticalWarning&0b00000001 >0:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")   
+            ret_code=1
+                    
+        return ret_code        
+
+
+           
     # </sub item scripts>
     
     

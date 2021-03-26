@@ -957,7 +957,18 @@ class SMI_Format(NVME):
                     
                     self.Print("Loop ending")
                     break
-                    
+                
+    SubCase18TimeOut = (4000)
+    SubCase18Desc = "[Read only mode] Test Secure Erase Settings (SES) with Read only mode"      
+    def SubCase18(self):
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        if not self.setReadOnlyMode(): return 1
+        self.Print ("Done")
+        return self.SubCase4()                    
 
     # </sub item scripts>
     

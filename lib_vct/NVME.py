@@ -66,7 +66,7 @@ class NVME(object, NVMECom):
             
         # ResumeSubCase=None means not reboot run script
         self.dev, self.UserSubItems, self.TestModeOn, self.mScriptDoc, self.mTestTime, self.LogPath, self.DynamicArgs, self.ResumeSubCase, \
-        =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
+        self.mIKNOWWHATIAMDOING =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
         #self.mCheckSmart =  self.ParserArgv(self.mArgv, self.CreateSubCaseListForParser())
         # check if self.dev = /dev/nvme*n*
         if not re.search("^/dev/nvme\d+n\d+$", self.dev):            
@@ -192,6 +192,7 @@ class NVME(object, NVMECom):
         self.pcie_port = self.GetPciePort(self.dev)         
         self.bridge_port = "0000:" + self.shell_cmd("echo $(lspci -t | grep : |cut -c 8-9):$(lspci -t | grep $(echo %s | cut -c6- |sed 's/:/]----/g') |cut -d '-' -f 2)" %(self.pcie_port))
         
+        self.OneBlockSize = self.GetBlockSize()
         # get valume of ssd
         ncap=self.IdNs.NCAP.int
         # the start 1G start block
@@ -366,7 +367,7 @@ class NVME(object, NVMECom):
         return mStr
                 
                           
-    def RunScript(self):                           
+    def RunScript(self, PrintCBR=True):                           
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
             for i in range(1, self.SubCaseMaxNum+1):
@@ -552,7 +553,7 @@ class NVME(object, NVMECom):
         self.ResetToInitStatus()
                 
         # print ColorBriefReport
-        self.PrintColorBriefReport()
+        if PrintCBR: self.PrintColorBriefReport()
         
         # copy log to ./Case_Summary.log
         copyfile(self.LogName_Summary, "Case_Summary.log")
@@ -908,27 +909,28 @@ class NVME(object, NVMECom):
     def write_SML_data(self,pattern, size="1M"):    
     #-- write 1G into SSD at start, midde and last address    
         # write data for testing(start, middle, last)
-        self.fio_write(self.start_SB*512, size, pattern) 
-        self.fio_write(self.middle_SB*512, size, pattern)
-        self.fio_write(self.last_SB*512, size, pattern)
+        
+        self.fio_write(self.start_SB*self.OneBlockSize, size, pattern) 
+        self.fio_write(self.middle_SB*self.OneBlockSize, size, pattern)
+        self.fio_write(self.last_SB*self.OneBlockSize, size, pattern)
     
     # check  Logical Block Content Change
     def isequal_SML_data(self,pattern, size="1M", printMsg=False): 
     #-- check 1G data at start, midde and last address
         ret=False        
-        if self.fio_isequal(self.start_SB*512,size, pattern, printMsg=printMsg):
+        if self.fio_isequal(self.start_SB*self.OneBlockSize,size, pattern, printMsg=printMsg):
             ret=True
         else:
             ret=False
             return ret 
                 
-        if self.fio_isequal(self.middle_SB*512,size, pattern, printMsg=printMsg):
+        if self.fio_isequal(self.middle_SB*self.OneBlockSize,size, pattern, printMsg=printMsg):
             ret=True
         else:
             ret=False
             return ret 
             
-        if self.fio_isequal(self.last_SB*512,size, pattern, printMsg=printMsg):
+        if self.fio_isequal(self.last_SB*self.OneBlockSize,size, pattern, printMsg=printMsg):
             ret=True
         else:
             ret=False
@@ -1379,7 +1381,8 @@ class NVME(object, NVMECom):
             cdw11=slba>>32    
             # if need to output write command status to output.log, unmark below
             #mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n %s -l 512 -w --cdw10=%s --cdw11=%s 2>&1 | tee >> output.log"%(oct_val, self.dev, nsid, cdw10, cdw11))
-            mStr=self.shell_cmd("dd if=/dev/zero bs=512 count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |nvme io-passthru %s -o 0x1 -n %s -l 512 -w --cdw10=%s --cdw11=%s 2>&1"%(oct_val, self.dev, nsid, cdw10, cdw11))
+            mStr=self.shell_cmd("dd if=/dev/zero bs=%s count=1 2>&1   |tr \\\\000 \\\\%s 2>/dev/null |"\
+                                "nvme io-passthru %s -o 0x1 -n %s -l %s -w --cdw10=%s --cdw11=%s 2>&1"%(self.OneBlockSize, oct_val, self.dev, nsid, self.OneBlockSize, cdw10, cdw11))
             #retCommandSueess=bool(re.search("NVMe command result:00000000", mStr))
             '''
             retCommandSueess=bool(re.search("ABORT_REQ", mStr))          
@@ -1838,6 +1841,65 @@ class NVME(object, NVMECom):
         self.Print(mStr)
         return rtCode    
     
+    def markBadBlk(self, startBlk, stopBlk):
+        tempData = ["\\x0"]*16 # 16byte data payload
+        # offset C = 00000003h for erase fail.    
+        oct_val=oct(0x3)[-3:]
+        tempData[0xC] = "\\%s"%oct_val     
+        #MaxNLB = self.MaxNLBofCDW12()
+        for blk in range(startBlk, stopBlk+1):
+            DS=tempData
+            # offset 5:4 is block address. (offset 4 is MSB)
+            MLB = blk>>8
+            SLB = blk&0xFF
+            MLB_oct_val=oct(MLB)[-3:]
+            DS[0x5] = "\\%s"%MLB_oct_val 
+            SLB_oct_val=oct(MLB)[-3:]
+            DS[0x4] = "\\%s"%SLB_oct_val
+            DSstring =  ''.join(tempData)              
+            # cdw12=0xF for 16byte data payload, nsid=0
+            CMD="echo -n -e \""+ DSstring + "\" | "
+            CMD = CMD + "nvme admin-passthru %s --opcode=0xF1 --cdw10=0 "\
+            "--cdw11=0 --cdw12=0xF --cdw13=0x1 --cdw14=0  --cdw15=0 -n 0 2>&1"\
+            %(self.dev_port)
+            mStr, SC = self.shell_cmd_with_sc(CMD)
+        return True
+    
+    def setReadOnlyMode(self):
+        LastLBA = self.IdNS.NCAP.int
+        for lba in range(LastLBA+1):
+            self.markBadBlk(startBlk=lba, stopBlk=lba)
+        return True    
+    
+    def backUpEnvironment(self):
+        self.LogName_summaryBk=NVMECom.LogName_summary
+        self.LogName_SummaryColorBk=NVMECom.LogName_SummaryColor
+        self.LogName_CmdDetailBk=NVMECom.LogName_CmdDetail
+        self.LogName_ConsoleOutBk=NVMECom.LogName_ConsoleOut     
+       
+    def restoreEnvironment(self):
+        NVMECom.LogName_summary=self.LogName_summaryBk
+        NVMECom.LogName_SummaryColor=self.LogName_SummaryColorBk
+        NVMECom.LogName_CmdDetail=self.LogName_CmdDetailBk
+        NVMECom.LogName_ConsoleOut=self.LogName_ConsoleOutBk 
+        
+    def runSubCase(self, targetClass, targetCase, appendCMD=[]):
+    # usage
+    # from SMI_Identify import SMI_IdentifyCommand
+    # rtcode = self.runSubCase(SMI_IdentifyCommand, 2, appendCMD=["-v", "dellx16"])    
+        self.backUpEnvironment()
+        # sys.argv   <type 'list'>: ['/home/root/sam/eclipse/NVME/SMI_Dell_vendor_feature.py', '/dev/nvme0n1', '2']
+        # run SMI_Identify.py /dev/nvme0n1 2 -p Log/SubLogs/SubCase2 and set SubCase2Desc,  SubCase2TimeOut
+        # SubCasePoint: current subcase number
+        mArgv = [self.dev, '%s'%targetCase, "-p", "Log/SubLogs/SubCase%s"%self.SubCasePoint]
+        mArgv = mArgv + appendCMD
+        inst = targetClass(mArgv)
+        inst.PrintLoop = "Case %s"%self.SubCasePoint #show
+        inst.SubCase2TimeOut=self.SubCase2TimeOut # rename
+        inst.SubCase2Desc=self.SubCase2Desc # rename
+        inst.RunScript(PrintCBR=False)  # run and do not print report for SMI_Identify
+        self.restoreEnvironment()
+        return inst.rtCode      
 # end of NVME    
 # ==============================================================    
 class SmartCheck_():  
@@ -2088,7 +2150,9 @@ class SmartCheck_():
                 self._NVME.shell_cmd("kill -9 %s"%self.GnomePid)
                 self.GnomePid = None
                 self.GnomePtsNo = None         
-        return True   
+        return True
+    
+       
     '''
     # for time base smart check
     def isRunning(self):
@@ -2181,7 +2245,7 @@ class SmartCheck_():
             self.SmartCheckThread=None
         return True
     '''           
-# ==============================================================    
+# end of SmartCheck_ ==============================================================    
 
 class DevWakeUpAllTheTime():
 # make device wake up all the time
