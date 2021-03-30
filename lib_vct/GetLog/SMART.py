@@ -29,6 +29,10 @@ class SMART_(object, NVMECom):
         return self.str2int(self._mNVME.get_log(0x02, 512, 5, 5))
 
     @property
+    def EnduranceGroupCriticalWarningSummary(self):         
+        return self.str2int(self._mNVME.get_log(0x02, 512, 6, 6))
+
+    @property
     def DataUnitsRead(self):         
         return self.str2int(self._mNVME.get_log(0x02, 512, 32, 47))
 

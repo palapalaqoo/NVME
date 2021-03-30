@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20210324"
+    Version = "20210330"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -629,16 +629,36 @@ class SMI_Sanitize(NVME):
         CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, self.SANACT)  
         self.Print ("Issue sanitize command: %s"%CMD)
                      
-        mStr=self.shell_cmd(CMD)
+        mStr, sc=self.shell_cmd_with_sc(CMD)
         self.Print ("Get return code: %s"%mStr)
         self.Print ("Check return code is success or not, expected SUCCESS")
-        if re.search("NVMe command result:00000000", mStr):
+        if sc==0:
             self.Print("PASS", "p")  
         else:
             self.Print("Fail", "f")
             ret_code=1 
         
         self.WaitSanitizeOperationFinish(timeout=600, printInfo=True)
+        
+        self.Print ("")
+        invalidList=[0]
+        if not self.CryptoEraseSupport: invalidList.append(0b100)
+        if not self.BlockEraseSupport: invalidList.append(0b010)
+        if not self.OverwriteSupport: invalidList.append(0b011)
+        invalidList.extend([0b101, 0b110, 0b111])
+        self.Print ("Verify invalid SANACT %s"%invalidList)        
+        for act in invalidList:
+            CMD = "nvme admin-passthru %s --opcode=0x84 --cdw10=%s 2>&1"%(self.dev, act)  
+            self.Print ("Issue sanitize command: %s"%CMD)            
+            mStr, sc=self.shell_cmd_with_sc(CMD)
+            self.Print ("Get return code: %s"%mStr)
+            self.Print ("Check return code is success or not, expected fail with INVALID_FIELD(0x2)")
+            if sc==0x2:
+                self.Print("PASS", "p")  
+            else:
+                self.Print("Fail", "f")
+                ret_code=1 
+                        
         return ret_code
     
     SubCase2TimeOut = 1000

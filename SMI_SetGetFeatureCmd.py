@@ -32,7 +32,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20210309"
+    Version = "20210330"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -570,7 +570,8 @@ class SMI_SetGetFeatureCMD(NVME):
             self.SetPrintOffset(4)            
             ValidValue = mItem[item.valid_value]
             ResetValue = mItem[item.reset_value]
-            
+            self.Print ("")
+            self.Print ("NVMe reset test", "b")
             self.Print ("Set saved and current value different")
             CurrValue  ,SC= self.GetFeature(fid, sel=0)
             if self.SetCurrAndSavedToDiffValue(CurrValue, SavedValue, ValidValue, ResetValue, fid, nsSpec):
@@ -606,37 +607,47 @@ class SMI_SetGetFeatureCMD(NVME):
             if self.DisablePwr:  
                 self.Print ("-- User disable power off and power on test")
             else:
-                self.Print ("Set saved and current value different")
-                CurrValue  ,SC= self.GetFeature(fid, sel=0)
-                if self.SetCurrAndSavedToDiffValue(CurrValue, SavedValue, ValidValue, ResetValue, fid, nsSpec):
-                    self.Print ("Done")
-                else:
-                    self.Print ("Fail","f")
-                    self.ret_code=1                
-                CurrValue  ,SC= self.GetFeature(fid, sel=0)
-                self.Print ("Saved Value: %s"%SavedValue)
-                self.Print ("Current Value: %s"%CurrValue)               
-                
-                self.Print ("-- Do power off and power on ")
-                self.por_reset()
-                sleep(0.5)
-                # Send get feature command    
-                GetValue  ,SC= self.GetFeature(fid, sel=2)                
-                self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
-                self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
-                if GetValue == value:
-                    self.Print("PASS", "p")  
-                else:
-                    self.Print("Fail", "f")
-                    self.ret_code=1                         
-                GetValue  ,SC= self.GetFeature(fid, sel=0)                
-                self.Print ("Read current value: %s "%hex(GetValue))            
-                self.Print ("Check if current value is %s or not(the same with saved value) "%hex(SavedValue))
-                if GetValue == value:
-                    self.Print("PASS", "p")  
-                else:
-                    self.Print("Fail", "f")
-                    self.ret_code=1                                                                         
+                for mode in ["por", "spor"]:
+                    self.Print ("")
+                    if mode =="por":
+                        self.Print ("Normal power off test", "b")
+                    else:
+                        self.Print ("Suddenly power off test", "b")
+                    self.Print ("Set saved and current value different")
+                    CurrValue  ,SC= self.GetFeature(fid, sel=0)
+                    if self.SetCurrAndSavedToDiffValue(CurrValue, SavedValue, ValidValue, ResetValue, fid, nsSpec):
+                        self.Print ("Done")
+                    else:
+                        self.Print ("Fail","f")
+                        self.ret_code=1                
+                    CurrValue  ,SC= self.GetFeature(fid, sel=0)
+                    self.Print ("Saved Value: %s"%SavedValue)
+                    self.Print ("Current Value: %s"%CurrValue)               
+                    
+                    if mode =="por":
+                        self.Print ("-- Do normal power off and power on ")
+                        self.por_reset()
+                    else:
+                        self.Print ("-- Do suddenly power off and power on ")
+                        self.spor_reset()                    
+                    sleep(0.5)
+                    # Send get feature command    
+                    GetValue  ,SC= self.GetFeature(fid, sel=2)                
+                    self.Print ("After power on, read feature saved value: %s "%hex(GetValue))
+                    self.Print ("Check if get feature saved value is %s or not "%hex(SavedValue))
+                    if GetValue == value:
+                        self.Print("PASS", "p")  
+                    else:
+                        self.Print("Fail", "f")
+                        self.ret_code=1                         
+                    GetValue  ,SC= self.GetFeature(fid, sel=0)                
+                    self.Print ("Read current value: %s "%hex(GetValue))            
+                    self.Print ("Check if current value is %s or not(the same with saved value) "%hex(SavedValue))
+                    if GetValue == value:
+                        self.Print("PASS", "p")  
+                    else:
+                        self.Print("Fail", "f")
+                        self.ret_code=1                                                                         
         self.SetPrintOffset(0)
         value = SavedValuebk
         self.Print ("restore to previous 'saved value': %s"%hex(value))
@@ -1281,7 +1292,22 @@ class SMI_SetGetFeatureCMD(NVME):
                         self.ret_code=1                                    
 
                 self.Print ("") 
-                self.Print ("-(5)--  Restore values", "b")     
+                self.Print ("-(5)--  Test Get Features with invalid Select field(100b to 111b)" , "b")
+                invalidList = [4,5,6,7]
+                self.Print ("Send get feature command with SEL=%s, expected CMD fail with INVALID_FIELD(0x2)"%invalidList)
+                self.SetPrintOffset(4)
+                for sel in invalidList:
+                    rdValue , SC=self.GetFeature(fid, sel)
+                    self.Print ("Send get feature command with SEL=%s, return status code: 0x%X"%(sel, SC))
+                    if SC==0x2:
+                        self.Print("PASS", "p")  
+                    else:
+                        self.Print("Fail", "f")
+                        self.ret_code=1                    
+                self.SetPrintOffset(0)
+
+                self.Print ("") 
+                self.Print ("-(6)--  Restore values", "b")     
                 
                 value=mItem[item.reset_value]
                 self.Print ("restore to previous 'current value': %s"%hex(value))

@@ -214,6 +214,15 @@ class SMI_SmartHealthLog(NVME):
             self.Print("FAIL", "f")
             return False        
 
+    def PrintAlignString(self,S0, S1, S2, S3, S4, S5, PF="default"):            
+        mStr = "{:<16}{:<16}{:<34}{:<16}{:<24}{:<34}".format(S0, S1, S2, S3, S4,S5 )
+        if PF=="pass":
+            self.Print( mStr , "p")        
+        elif PF=="fail":
+            self.Print( mStr , "f")      
+        else:
+            self.Print( mStr )  
+
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
@@ -801,24 +810,36 @@ class SMI_SmartHealthLog(NVME):
         self.SetPrintOffset(0)       
         
     SubCase15TimeOut = (4000)
-    SubCase15Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=0, OWPASS=1"      
+    SubCase15Desc = "[Read only mode] Test Critical Warning in Read only mode"      
     def SubCase15(self):
         ret_code=0
-        self.Print ("Verify sanitize in Read only mode ")
+        self.Print ("Verify Critical Warning in Read only mode ")
         if not self.mIKNOWWHATIAMDOING:
             self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
             return 0        
-        
+
+        EnduranceGroupSupported = True if self.IdCtrl.CTRATT.bit(4)=="1" else False
+        if not EnduranceGroupSupported:
+            self.Print("EnduranceGroupSupported: No", "w")
+        else:
+            self.Print("EnduranceGroupSupported: Yes", "p")        
         LastLBA = self.IdNs.NCAP.int
         self.Print("Currnt total LBA: 0x%X"%LastLBA)        
         CriticalWarning=self.GetLog.SMART.CriticalWarning
         self.Print("Currnt CriticalWarning: 0x%X"%CriticalWarning)
+        PercentageUsed=self.GetLog.SMART.PercentageUsed
+        self.Print("Currnt PercentageUsed: 0x%X"%PercentageUsed)
         self.Print("")
         self.Print ("Issue VU CMD to markBadBlk and verify Critical Warning bit0 and bit3")
-        self.Print("bit 0 (the media has been placed in read only mode)")
-        self.Print("bit 3 (available spare capacity has fallen below the threshold)")
-        
+        self.Print("bit 0 (available spare capacity has fallen below the threshold)")
+        self.Print("bit 3 (the media has been placed in read only mode)")
+        self.Print("")
+        mList = []
+        AvailableSpareT = self.GetLog.SMART.AvailableSpareThreshold
         LBA_offset=LastLBA/10 # ten times
+        self.PrintAlignString("markBadBlk_SLBA", "markBadBlk_ELBA", "CriticalWarning[bit0,bit1..bit7]", "AvailableSpare", "AvailableSpareThreshold",\
+                              "EnduranceGroupCriticalWarningSummary[bit0,bit1..bit7]")
+        self.Print("--------------------------------------------------------------------------------------------------------")
         #for lba in range(LastLBA+1):
         slba=0
         elba=0
@@ -828,27 +849,90 @@ class SMI_SmartHealthLog(NVME):
                 elba=LastLBA
             # TODO self.markBadBlk(startBlk=slba, stopBlk=elba)
             CriticalWarning=self.GetLog.SMART.CriticalWarning
-            self.Print ("Start LBA: 0x%X, End LBA: 0x%X, current CriticalWarning: 0x%X"%(slba, elba, CriticalWarning))
+            AvailableSpare=self.GetLog.SMART.AvailableSpare
+            CriticalWarningList = self.byte2List(CriticalWarning) # convert to bit list
+            EnduranceGroupCriticalWarningSummary=self.GetLog.SMART.EnduranceGroupCriticalWarningSummary
+            EGCWSlist = self.byte2List(EnduranceGroupCriticalWarningSummary)                                
+            self.PrintAlignString("0x%X"%slba, "0x%X"%elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist)
+            # save to list, note 3th =CriticalWarningList and 5th =EGCWSlist
+            mList.append([slba, elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist]) 
             if elba==LastLBA:
                 break            
-            slba=slba+LBA_offset+1            
+            slba=slba+LBA_offset+1      
+        self.Print("--------------------------------------------------------------------------------------------------------")      
         self.Print("Done!")
-
-        self.Print("Check Critical Warning bit 0, expect value=1")               
-        if CriticalWarning&0b00000001 >0:
-            self.Print("Pass", "p")
-        else:
-            self.Print("Fail", "f")   
-            ret_code=1
-            
         self.Print("")
-        self.Print("Check Critical Warning bit 3, expect value=1")               
-        if CriticalWarning&0b00000001 >0:
+            
+        self.Print("1) Check if AvailableSpare is counting down")     
+        lastValue=100
+        isPass=True
+        for item in mList:
+            if item[3]<lastValue: 
+                isPass=False
+                break    
+        if isPass:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")   
+            ret_code=1            
+            
+        self.Print("2) Check if Critical Warning bit 0(available spare capacity has fallen below the threshold) was set to 1")    
+        self.Print("when AvailableSpare<AvailableSpareThreshold")    
+        lastValue=100
+        isPass=True
+        for item in mList:
+            AvailableSpare, AvailableSpareT = item[3:5]
+            Bit0 = item[2][0] # element2 is CriticalWarning
+            if (AvailableSpare<AvailableSpareT) and Bit0!=1: 
+                isPass=False
+                break    
+            if (AvailableSpare>=AvailableSpareT) and Bit0!=0: 
+                isPass=False
+                break              
+        if isPass:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")   
+            ret_code=1      
+
+        self.Print("3) Check Critical Warning bit 0(available spare capacity has fallen below the threshold), expect value=1")      
+        Bit0 = mList[len(mList)-1][2][0] # last list element2 is CriticalWarning
+        if Bit0==1:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")   
+            ret_code=1            
+        self.Print("4) Check Critical Warning bit 3(the media has been placed in read only mode), expect value=1")         
+        Bit3 = mList[len(mList)-1][2][3] # last list, element2 is CriticalWarning      
+        if Bit3==1:
             self.Print("Pass", "p")
         else:
             self.Print("Fail", "f")   
             ret_code=1
+ 
+        self.Print("5) Check Endurance Group Critical Warning Summary")
+        if False: # TODO not EnduranceGroupSupported:
+            self.Print("EnduranceGroupSupported: No, skip", "w")
+        else:
+            self.Print("EnduranceGroupSupported: Yes", "p")  
+            self.Print("Verify Endurance Group Critical Warning Summary in SMART log, bit [0,2,3] must the same as CriticalWarning")       
+            isPass=True
+            for item in mList:
+                CriticalWarning = item[2]
+                EGCWSlist = item[5]
+                # compare bit 0,2,3
+                if EGCWSlist[0]!=CriticalWarning[0]:isPass=False; break
+                if EGCWSlist[2]!=CriticalWarning[2]:isPass=False; break
+                if EGCWSlist[3]!=CriticalWarning[3]:isPass=False; break
+            if isPass:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")   
+                ret_code=1                
                     
+  
+
+                                
         return ret_code        
 
 

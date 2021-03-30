@@ -995,6 +995,19 @@ class NVMECom():
         n = NthByte # N th byte
         goal = 0xFF << (8 * n)
         return int((target & goal) >> (8 * n))       
+    
+    def byte2List(self, byteIn):
+        byteIn
+        mList=[]
+        mList.append(1 if byteIn&(1<<0) >0 else 0)
+        mList.append(1 if byteIn&(1<<1) >0 else 0)
+        mList.append(1 if byteIn&(1<<2) >0 else 0)
+        mList.append(1 if byteIn&(1<<3) >0 else 0)
+        mList.append(1 if byteIn&(1<<4) >0 else 0)
+        mList.append(1 if byteIn&(1<<5) >0 else 0)
+        mList.append(1 if byteIn&(1<<6) >0 else 0)
+        mList.append(1 if byteIn&(1<<7) >0 else 0)    
+        return mList
 
     def IsControllerName(self, name):
     # check if is specific Controller by it's name
