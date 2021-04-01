@@ -822,9 +822,7 @@ class SMI_SmartHealthLog(NVME):
         if not EnduranceGroupSupported:
             self.Print("EnduranceGroupSupported: No", "w")
         else:
-            self.Print("EnduranceGroupSupported: Yes", "p")        
-        LastLBA = self.IdNs.NCAP.int
-        self.Print("Currnt total LBA: 0x%X"%LastLBA)        
+            self.Print("EnduranceGroupSupported: Yes", "p")             
         CriticalWarning=self.GetLog.SMART.CriticalWarning
         self.Print("Currnt CriticalWarning: 0x%X"%CriticalWarning)
         PercentageUsed=self.GetLog.SMART.PercentageUsed
@@ -835,30 +833,37 @@ class SMI_SmartHealthLog(NVME):
         self.Print("bit 3 (the media has been placed in read only mode)")
         self.Print("")
         mList = []
-        AvailableSpareT = self.GetLog.SMART.AvailableSpareThreshold
-        LBA_offset=LastLBA/10 # ten times
+        AvailableSpareT = self.GetLog.SMART.AvailableSpareThreshold 
+        LBAlist = self.getMarkBadBlkRange() # self.getMarkBadBlkRange() will get list of blocks
+        PrintMsgEveryXcommand=len(self.getMarkBadBlkRange())/10 # ten times 
         self.PrintAlignString("markBadBlk_SLBA", "markBadBlk_ELBA", "CriticalWarning[bit0,bit1..bit7]", "AvailableSpare", "AvailableSpareThreshold",\
                               "EnduranceGroupCriticalWarningSummary[bit0,bit1..bit7]")
         self.Print("--------------------------------------------------------------------------------------------------------")
-        #for lba in range(LastLBA+1):
-        slba=0
-        elba=0
-        while True:
-            elba=slba+LBA_offset
-            if elba>=LastLBA:
-                elba=LastLBA
-            # TODO self.markBadBlk(startBlk=slba, stopBlk=elba)
-            CriticalWarning=self.GetLog.SMART.CriticalWarning
-            AvailableSpare=self.GetLog.SMART.AvailableSpare
-            CriticalWarningList = self.byte2List(CriticalWarning) # convert to bit list
-            EnduranceGroupCriticalWarningSummary=self.GetLog.SMART.EnduranceGroupCriticalWarningSummary
-            EGCWSlist = self.byte2List(EnduranceGroupCriticalWarningSummary)                                
-            self.PrintAlignString("0x%X"%slba, "0x%X"%elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist)
-            # save to list, note 3th =CriticalWarningList and 5th =EGCWSlist
-            mList.append([slba, elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist]) 
-            if elba==LastLBA:
+        slbaPtr=0
+        elbaPtr=0
+        totalNum = len(self.getMarkBadBlkRange())
+        # example, issue cmd, using pointer(slbaPtr/elbaPtr) to get MarkBadBlk value, after every 3 cmd, print info
+        for i in range(totalNum):
+            lba = LBAlist[i]
+            self.markBadBlk(lba)
+            elbaPtr = i
+            # ex, PrintMsgEveryXcommand=3, print info after every 3 time of markBadBlk cmd
+            # if is last cmd of markBadBlk, print info
+            if (elbaPtr+1)%PrintMsgEveryXcommand==0 or elbaPtr==totalNum:
+                slba = LBAlist[slbaPtr]
+                elba = LBAlist[elbaPtr]
+                CriticalWarning=self.GetLog.SMART.CriticalWarning
+                AvailableSpare=self.GetLog.SMART.AvailableSpare
+                CriticalWarningList = self.byte2List(CriticalWarning) # convert to bit list
+                EnduranceGroupCriticalWarningSummary=self.GetLog.SMART.EnduranceGroupCriticalWarningSummary
+                EGCWSlist = self.byte2List(EnduranceGroupCriticalWarningSummary)                                
+                self.PrintAlignString("0x%X"%slba, "0x%X"%elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist)
+                # save to list, note 3th =CriticalWarningList and 5th =EGCWSlist
+                mList.append([slba, elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist]) 
+                slbaPtr = elbaPtr +1
+            if elbaPtr==totalNum:
                 break            
-            slba=slba+LBA_offset+1      
+  
         self.Print("--------------------------------------------------------------------------------------------------------")      
         self.Print("Done!")
         self.Print("")

@@ -1841,35 +1841,36 @@ class NVME(object, NVMECom):
         self.Print(mStr)
         return rtCode    
     
-    def markBadBlk(self, startBlk, stopBlk):
+    def getMarkBadBlkRange(self): 
+        # return list, 0x10E to 1
+        return range(0x10E, 0, -1)   
+    
+    def markBadBlk(self, blk):
+    # note: blk is for mark bad blk, ex, blk =0x10E to 1 for markBad all capability of SSD
         tempData = ["\\x0"]*16 # 16byte data payload
         # offset C = 00000003h for erase fail.    
-        oct_val=oct(0x3)[-3:]
-        tempData[0xC] = "\\%s"%oct_val     
-        #MaxNLB = self.MaxNLBofCDW12()
-        for blk in range(startBlk, stopBlk+1):
-            DS=tempData
-            # offset 5:4 is block address. (offset 4 is MSB)
-            MLB = blk>>8
-            SLB = blk&0xFF
-            MLB_oct_val=oct(MLB)[-3:]
-            DS[0x5] = "\\%s"%MLB_oct_val 
-            SLB_oct_val=oct(MLB)[-3:]
-            DS[0x4] = "\\%s"%SLB_oct_val
-            DSstring =  ''.join(tempData)              
-            # cdw12=0xF for 16byte data payload, nsid=0
-            CMD="echo -n -e \""+ DSstring + "\" | "
-            CMD = CMD + "nvme admin-passthru %s --opcode=0xF1 --cdw10=0 "\
-            "--cdw11=0 --cdw12=0xF --cdw13=0x1 --cdw14=0  --cdw15=0 -n 0 2>&1"\
-            %(self.dev_port)
-            mStr, SC = self.shell_cmd_with_sc(CMD)
+        tempData[0xC] = "\\x3"
+        DS=tempData
+        # offset 5:4 is block address. (offset 5 is MSB)
+        MLB = blk>>8
+        SLB = blk&0xFF
+        DS[0x5] = "\\x%X"%MLB 
+        DS[0x4] = "\\x%X"%SLB
+        DSstring =  ''.join(tempData)              
+        # cdw12=0xF for 16byte data payload, nsid=0
+        CMD="echo -n -e \""+ DSstring + "\" | "
+        CMD = CMD + "nvme admin-passthru %s --opcode=0xF1 --cdw10=0x80 "\
+        "--cdw11=0 --cdw12=0x100E --cdw13=0x1 --cdw14=0  --cdw15=0 -n 0 -l 16 -w 2>&1"\
+        %(self.dev_port)
+        mStr, SC = self.shell_cmd_with_sc(CMD)
         return True
     
     def setReadOnlyMode(self):
-        LastLBA = self.IdNS.NCAP.int
-        for lba in range(LastLBA+1):
-            self.markBadBlk(startBlk=lba, stopBlk=lba)
-        return True    
+
+        for lba in self.getMarkBadBlkRange():
+            self.markBadBlk(blk=lba)
+        return True
+    
     
     def backUpEnvironment(self):
         self.LogName_summaryBk=NVMECom.LogName_summary

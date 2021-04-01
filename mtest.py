@@ -233,11 +233,12 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        aa = "\x15\xab\x33"
-        tttt = self.hexdump(aa)
-        tempData = ["\\x0"]*16
-        patten1= ''.join(tempData)
-        self.Print(tttt)
+        totalNum = len(self.getMarkBadBlkRange())
+        
+        for i in range(totalNum):
+            print i
+        
+        self.setReadOnlyMode()
         
 
 
