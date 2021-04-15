@@ -233,13 +233,9 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        totalNum = len(self.getMarkBadBlkRange())
-        
-        for i in range(totalNum):
-            print i
-        
-        self.setReadOnlyMode()
-        
+        validList = range(0, 0xFFFF, 0x100) 
+        self.Print("Verify CMD with SLBA=0 and NLB = below lists", "b")
+        self.PrintList(validList)
 
 
         return 0        

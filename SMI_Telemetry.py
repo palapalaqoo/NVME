@@ -26,7 +26,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20210315"
+    Version = "20210415"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -169,11 +169,113 @@ class SMI_Telemetry(NVME):
             SavedFileNameList.append(filePath)
         return SavedFileNameList
     
+    def PrintFWlog(self):
+        CMD = "nvme fw-log %s"%self.dev_port
+        mStr = self.shell_cmd(CMD)
+        self.Print(mStr, "d", 4)
+    
+    def FW_DownloadAndCommit(self, CA):
+        self.Print("Current FW log", "b")
+        self.PrintFWlog()
+        
+        self.Print("")
+        self.Print("Issue CMD to download FW(%s)"%self.FWimage, "b")
+        CMD = "nvme fw-download /dev/nvme0 --fw=%s 2>&1"%self.FWimage
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        self.Print(mStr, "d" if sc==0 else "f", 4)
+        if sc!=0:
+            self.Print(mStr, "f")
+            return False
+
+        self.Print("")
+        self.Print("Current FW log", "b")
+        self.PrintFWlog()        
+        
+        self.Print("")
+        self.Print("Issue fw-commit CMD to commit to slot2 with Commit Action (CA) = %s"%CA, "b")
+        CMD = "nvme fw-commit %s --slot=2 --action=%s"%(self.dev_port, CA)
+        mStr, sc = self.shell_cmd_with_sc(CMD)# TODO
+        self.Print(mStr, "d" if sc==0 else "f", 4)
+        if sc!=0:
+            self.Print(mStr, "f")
+            return False        
+                
+        self.Print("")
+        self.Print("Current FW log", "b")
+        self.PrintFWlog()  
+        return True
+            
+    def VerifyTelemetryLogAfterFWcommit(self, CA):
+        self.InitFolder("./temp")
+        self.Print ("1)-- Save current Telemetry log 0x7 to binary files", "b")
+        SavedFileNameList_before = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        if len(SavedFileNameList_before)==0:
+            self.Print("Fail", "f")
+            return False   
+        self.Print ("Below files was been created")
+        for mList in SavedFileNameList_before:
+            self.Print(mList, "d", 4)     
+        
+        self.Print ("")
+        self.Print ("2)-- Commit FW", "b")
+        self.SetPrintOffset(4)
+        if not self.FW_DownloadAndCommit(CA):
+            return False  
+        self.SetPrintOffset(0)
+        
+        self.Print ("")
+        self.Print ("3)-- Save current Telemetry log 0x7 to binary files", "b")
+        SavedFileNameList_after = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        if len(SavedFileNameList_after)==0:
+            self.Print("Fail", "f")
+            return False    
+        self.Print ("Below files was been created")
+        self.SetPrintOffset(4)
+        for mList in SavedFileNameList_after:
+            self.Print(mList)
+        self.SetPrintOffset(0)        
+        
+        self.Print ("")
+        if len(SavedFileNameList_after)!=len(SavedFileNameList_before):
+            self.Print("Fail, number of created file is not equal! ", "f")
+            return False  
+        
+        self.Print ("")        
+        self.Print ("4)-- Compare all log data ..",  "b")
+        for before, after in zip(SavedFileNameList_before, SavedFileNameList_after):
+            if self.isFileTheSame(before, after)==None:
+                self.Print("Pass: %s, %s"%(before, after), "p")        
+            else:
+                self.Print("Fail: %s, %s"%(before, after), "f")      
+                CMD = "hexdump %s"%(before)
+                self.Print( "Do shell command to hexdump file: %s"%before) 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4)
+                self.Print(aa)
+                self.SetPrintOffset(0)  
+                CMD = "hexdump %s"%(after)
+                self.Print( "Do shell command to hexdump file: %s"%after) 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4)
+                self.Print(aa)
+                self.SetPrintOffset(0)                  
+   
+                return False
+        return True        
+        
+            
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     def __init__(self, argv):
         # initial parent class
+        self.SetDynamicArgs(optionName="f", optionNameFull="FWimage", \
+                            helpMsg="FW image name, e.x. -f 2265_ISP_Package.bin"\
+                            , argType=str, default="FW_Image.bin")        
+        
         super(SMI_Telemetry, self).__init__(argv)
+        
+        self.FWimage = self.GetDynamicArgs(0)
+        
         
         self.NSSRSupport=True if self.CR.CAP.NSSRS.int==1 else False
         self.ResetItem=[]
@@ -657,16 +759,44 @@ class SMI_Telemetry(NVME):
                 self.SetPrintOffset(4)
                 self.Print(aa)
                 self.SetPrintOffset(0)                  
-                
-                
+   
                 ret_code=1 
-                                 
-        
-
-
         return ret_code     
 
 
+    SubCase16TimeOut = 600
+    SubCase16Desc = "Compare Telemetry log after Firmware Commit(CA0~3)"        
+    def SubCase16(self):
+        ret_code=0
+        NumOfFWslot = int(self.IdCtrl.FRMW.bit(3, 1), 2)
+        self.Print("Number of firmware slots: %s"%NumOfFWslot)
+        self.Print("FWimage: %s"%self.FWimage)
+        if not self.isfileExist(self.FWimage):
+            self.Print("FWimage( %s ) not exist in current directory, please check or assign FWimage name with -f option"%self.FWimage, "w")
+            self.Print("For more informat , run 'python SMI_Telemetry.py'", "w")
+            return 255
+
+        for CA in range(1,4):
+            self.Print("")
+            # print prefix
+            self.PrintLoop = CA            
+            self.Print("Compare Telemetry log after Firmware Commit with Commit Action (CA) = %s"%CA, "b")
+            if not self.VerifyTelemetryLogAfterFWcommit(CA):
+                return 1
+        
+        self.PrintLoop = ""
+        self.Print("")
+        self.Print("")
+        self.Print("")
+        self.Print("")
+        
+        
+        
+        return ret_code  
+        
+        
+        
+        
     
 if __name__ == "__main__":
     DUT = SMI_Telemetry(sys.argv ) 

@@ -367,20 +367,26 @@ class NVME(object, NVMECom):
         return mStr
                 
                           
-    def RunScript(self, PrintCBR=True):                           
+    def RunScript(self, isRunSubCase=False, parentSubCasePoint=0):                           
         # if user issue command without subitem option, then test all items
         if len(self.UserSubItems)==0:
             for i in range(1, self.SubCaseMaxNum+1):
                 self.UserSubItems.append(i)
         
-        # print information if not resume from reboot(first run this script), else information will not recorded
-        if self.ResumeSubCase==None: 
-            # redirect console output to file by using tee class
-            sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                       
-            self.PrintInfo() 
+        if isRunSubCase: self.SubCasePoint=parentSubCasePoint # set case no. to parent 
+        if isRunSubCase: self.PrintLoop = "Case %s"%self.SubCasePoint #show    
+        
+        if isRunSubCase:
+            sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)   
         else:
-            self.PrintInfo() 
-            sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                     
+            # print information if not resume from reboot(first run this script), else information will not recorded
+            if self.ResumeSubCase==None: 
+                # redirect console output to file by using tee class
+                sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                       
+                self.PrintInfo() 
+            else:
+                self.PrintInfo() 
+                sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)                     
 
         # print document only
         if self.mScriptDoc: 
@@ -431,10 +437,14 @@ class NVME(object, NVMECom):
                     if SubCaseNum in self.UserSubItems:
                         # set SubCasePoint for consol prefix
                         self.SubCasePoint=SubCaseNum
+                        if isRunSubCase: self.SubCasePoint=parentSubCasePoint
                         # print sub case titles
                         TimeoutMsg = "timeout: %s s"%Timeout if Timeout!=0 else "timeout: 0(infinite)"
                         self.Print ("")
-                        self.Print ("-- Case %s --------------------------------------------------------------------- %s --"%(SubCaseNum, TimeoutMsg), "b")
+                        if not isRunSubCase: # if from RunSubCase(), will not print case number
+                            self.Print ("-- Case %s --------------------------------------------------------------------- %s --"%(SubCaseNum, TimeoutMsg), "b")
+                        else:
+                            self.Print ("-- Case  --------------------------------------------------------------------- %s --"%(TimeoutMsg), "b")
                         self.Print ("-- %s"%Description)
                         self.Print ("-- Keyword: %s"%SpecKeyWord)
     
@@ -496,7 +506,8 @@ class NVME(object, NVMECom):
                         
                         # reset self.Print() 
                         self.SetPrintOffset(0) 
-                        self.PrintLoop=None    
+                        if not isRunSubCase: 
+                            self.PrintLoop=None    
                              
                         # disable RecordCmdToLogFile to record command
                         self.RecordCmdToLogFile=True             
@@ -553,7 +564,7 @@ class NVME(object, NVMECom):
         self.ResetToInitStatus()
                 
         # print ColorBriefReport
-        if PrintCBR: self.PrintColorBriefReport()
+        if not isRunSubCase: self.PrintColorBriefReport()
         
         # copy log to ./Case_Summary.log
         copyfile(self.LogName_Summary, "Case_Summary.log")
@@ -1895,10 +1906,7 @@ class NVME(object, NVMECom):
         mArgv = [self.dev, '%s'%targetCase, "-p", "Log/SubLogs/SubCase%s"%self.SubCasePoint]
         mArgv = mArgv + appendCMD
         inst = targetClass(mArgv)
-        inst.PrintLoop = "Case %s"%self.SubCasePoint #show
-        inst.SubCase2TimeOut=self.SubCase2TimeOut # rename
-        inst.SubCase2Desc=self.SubCase2Desc # rename
-        inst.RunScript(PrintCBR=False)  # run and do not print report for SMI_Identify
+        inst.RunScript(isRunSubCase=True, parentSubCasePoint=self.SubCasePoint)  # run and do not print report for SMI_Identify
         self.restoreEnvironment()
         return inst.rtCode      
 # end of NVME    

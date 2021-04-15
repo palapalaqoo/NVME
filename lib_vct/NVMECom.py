@@ -55,6 +55,7 @@ class NVMECom():
     PrintLoop = None # Loop that will be shown in PrefixString() if PrintLoop != None, "Loop: %s"%self.PrintLoop
     CurrentOffsetSize= 0    # offset size int 
     PrintOffset = ""     # using SetPrintOffset(self, offset) to set self.CurrentOffsetSize to generate spaces, ex. self.CurrentOffsetSize=2, PrintOffset='  '
+    PrintOffsetValue = 0
     
     def SubItemNum(self):
         self.SubItemNumValue+=1
@@ -598,17 +599,28 @@ class NVMECom():
     
     def SetPrintOffset(self, offset):        
         self.PrintOffset = ""
+        self.PrintOffsetValue = offset
         self.CurrentOffsetSize = offset
         for i in range(offset):
             self.PrintOffset = self.PrintOffset + " "
+    def GetPrintOffset(self):   
+        return self.PrintOffsetValue
     
-    def Print(self, msg, Ctype="d"):
+    def Print(self, msg, Ctype="d", offsetR=None):
+        # offsetR: relatively offset
         # split by '/n' and add PrintOffset then, print rows one by one
-        MsgList = msg.split("\n")        
+        MsgList = msg.split("\n")
+        if offsetR!=None: # set offset
+            offsetBK = self.GetPrintOffset()
+            self.SetPrintOffset(offsetBK + offsetR)    
+                
         for mMsg in MsgList:
             mMsg = self.PrintOffset + mMsg
             self.Print1Row(mMsg, Ctype)
-    
+            
+        if offsetR!=None: # clear offset
+            self.SetPrintOffset(offsetBK)    
+                
     def Print1Row(self, msg, Ctype="d"):
         # Ctype, consol type
         # p/P: pass, print msg with green color
@@ -1660,6 +1672,32 @@ class NVMECom():
         else:
             mStr = ''.join([chr(x) for x in rawDataList])
         return mStr
+
+    def PrintList(self, mList, addOffset = 4, numberPerLine = 16):
+    # print int list with offset, where mList = [int, int ,int ..]
+        mStr = ""
+        currBk = self.CurrentOffsetSize
+        self.SetPrintOffset(currBk + addOffset)
+        maxV = max(mList)
+        maxV = "0x%X "%maxV
+        maxLength = len(maxV)+1
+        cnt = 0
+        lineList = []
+        for value in mList:  
+            lineList.append(value)
+            cnt +=1
+            if cnt==numberPerLine:
+                mStr = ""
+                for V in lineList:
+                    Vstr = "0x%X "%V
+                    mStr = mStr+"{:<{x}}".format(Vstr, x=maxLength)
+                self.Print(mStr)
+                cnt=0
+                lineList = []
+            
+        if mStr!=0:
+            self.Print(mStr)    
+        self.SetPrintOffset(currBk)         
                                     
 #== end of NVMECom =================================================
 

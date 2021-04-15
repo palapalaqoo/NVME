@@ -31,5 +31,5 @@ fi
 
 
 #stdbuf -e 4096 -o 4096 ./SMI_NVMEReset.py ${dev_full_path}
-stdbuf -eL -oL python SMI_NVMEReset.py ${dev_full_path}
+stdbuf -eL -oL python SMI_NVMEReset.py $@
 #echo ${dev_full_path}
