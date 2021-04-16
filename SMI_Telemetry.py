@@ -269,7 +269,7 @@ class SMI_Telemetry(NVME):
     def __init__(self, argv):
         # initial parent class
         self.SetDynamicArgs(optionName="f", optionNameFull="FWimage", \
-                            helpMsg="FW image name, e.x. -f 2265_ISP_Package.bin"\
+                            helpMsg="FW image file in current directory for FFU test, e.x. -f 2265_ISP_Package.bin"\
                             , argType=str, default="FW_Image.bin")        
         
         super(SMI_Telemetry, self).__init__(argv)
@@ -776,7 +776,7 @@ class SMI_Telemetry(NVME):
             self.Print("For more informat , run 'python SMI_Telemetry.py'", "w")
             return 255
 
-        for CA in range(1,4):
+        for CA in range(0,4):
             self.Print("")
             # print prefix
             self.PrintLoop = CA            

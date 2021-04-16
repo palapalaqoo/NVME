@@ -703,6 +703,7 @@ class NVMECom():
         # default value priority is iniFileName>default
         
         # if iniFileName!=None, using ini file to set default value and show in helpMsg
+        # else show default in helpMsg if defalut is not None
         if iniFileName!=None:
             config = self.getConfigParser(iniFileName)
             SectionName = "None" if iniSectionName==None else iniSectionName # if iniSectionName=None, set SectionName = 'None' string
@@ -716,7 +717,10 @@ class NVMECom():
                     
                 helpMsg += "\n%s"%self.HighLightRed("Default(%s): %s"%(iniFileName, default))
             else:    
-                helpMsg += "\n%s"%self.HighLightRed("option(%s) in %s is missing, set Default: %s"%(iniOptionName, iniFileName, default))                     
+                helpMsg += "\n%s"%self.HighLightRed("option(%s) in %s is missing, set Default: %s"%(iniOptionName, iniFileName, default))
+        else:
+            if default!=None: helpMsg += "\n%s"%self.HighLightRed("Default: %s"%(default))
+                                 
             
                      
         # set ScriptParserArgs
