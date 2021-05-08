@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210325"
+    Version = "20210423"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -94,7 +94,7 @@ class SMI_IdentifyCommand(NVME):
         return value    
     
     def PrintAlignString(self,S0, S1, S2, S3, PF="default"):            
-        mStr = "{:<30}\t{:<30}\t{:<30}\t{:<30}".format(S0, S1, S2, S3)
+        mStr = "{:<32}\t{:<30}\t{:<30}\t{:<30}".format(S0, S1, S2, S3)
         if PF=="pass":
             self.Print( mStr , "p")        
         elif PF=="fail":
@@ -197,7 +197,7 @@ class SMI_IdentifyCommand(NVME):
         OUT_UserFileFullPath=self.OutPath+UserFileName
 
         if ParseCfg!=None:
-            self.Print( "Check if BuileInFile exist or not")
+            self.Print( "Check if BuileInFile exist or not(%s)"%SMI_IdentifyCommand.File_BuildIn_Identify_CNS01)
             BuileInFile = self.ReadCSVFile(ParseCfg)
             if BuileInFile==None:
                 self.Print( "BuileInFile is not exist(%s), quit !"%ParseCfg,"f")
@@ -1138,7 +1138,7 @@ class SMI_IdentifyCommand(NVME):
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<           
     def __init__(self, argv):
-        VersionDefine = ["1.3c", "1.4", "dellx16", "hp", "srs"]
+        VersionDefine = ["1.3c", "1.4", "dellx16", "hp", "lenovo", "srs"]
         VersionDdfault = VersionDefine[0]
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
                             helpMsg="nvme spec version, %s, default= %s, ex. '-v %s'"%(VersionDefine, VersionDdfault, VersionDdfault), argType=str, default=VersionDdfault)
@@ -1154,10 +1154,13 @@ class SMI_IdentifyCommand(NVME):
             SMI_IdentifyCommand.File_BuildIn_Identify_CNS00 = "./lib_vct/CSV/CNS00_IdentifyNamespacedatastructure_V1_4.csv"
         if self.specVersion=="dellx16":
             # https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-835
-            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_DELL_X06.csv"
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4_SRS.csv"
         if self.specVersion=="hp":
             # https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-836
-            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_HP.csv"            
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4_SRS.csv" 
+        if self.specVersion=="lenovo":
+            # https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-836
+            SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4_SRS.csv"                       
             
              
         self.InitDirs()
@@ -1747,12 +1750,16 @@ class SMI_IdentifyCommand(NVME):
     def SubCase11(self): 
         ret_code = 0
         self.Print("Current taget version for NVMe: %s"%self.specVersion)
-        if self.specVersion!="srs":
-            self.Print("Please run command with -v srs if going to verify this test case!")
-            return 0        
+        mandatoryCNSlist = [0x0, 0x1, 0x2, 0x3]
+        if self.specVersion=="1.3c":
+            optionalCNSlist = [0x10, 0x11, 0x12, 0x13, 0x14, 0x15]
+        else: # 1.4 if not 1.3c
+            optionalCNSlist = [0x4, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]    
         
-        invalidCNSlist = range(4, 0x10) # 0x4 to 0xFF
-        invalidCNSlist += range(0x14, 0x100) # 0x14 to 0xFF
+        invalidCNSlist = range(0, 0x100) # 0x14 to 0xFF
+        invalidCNSlist = [item for item in invalidCNSlist if item not in mandatoryCNSlist] # remove mandatoryCNSlist
+        invalidCNSlist = [item for item in invalidCNSlist if item not in optionalCNSlist] # remove optionalCNSlist
+        
         self.Print("Issue identify command with invalidCNSlist, expected status is Invalid Field(0x2)")
         #self.Print("invalidCNSlist: %s"%map(lambda x: "0x%X"%x, invalidCNSlist)) 
         mStr = ""
@@ -1775,10 +1782,10 @@ class SMI_IdentifyCommand(NVME):
         for mCNS in invalidCNSlist:
             CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=%s 2>&1"%(self.dev_port, mCNS)
             mstr, sc = self.shell_cmd_with_sc(CMD)
-            if sc==2:
-                self.Print("CNS: 0x%X, Pass"%mCNS, "p") 
+            if sc == 0x2:
+                self.Print("CNS: 0x%X, status code: %s, Pass"%(mCNS, sc), "p") 
             else:
-                self.Print("CNS: 0x%X, Fail, status code: %s"%(mCNS, sc), "p")
+                self.Print("CNS: 0x%X, status code: %s, Fail"%(mCNS, sc), "p")
                 ret_code = 1 
         return ret_code
                 

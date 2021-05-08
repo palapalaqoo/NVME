@@ -1852,6 +1852,13 @@ class NVME(object, NVMECom):
         self.Print(mStr)
         return rtCode    
     
+    def setPE(self, cdw13_PE):
+        CMD = "nvme admin-passthru %s --opcode=0xF0 "\
+        "--cdw12=0xD --cdw13=0x%X --cdw14=0xFFFF -n 0 -w 2>&1"\
+        %(self.dev_port, cdw13_PE)
+        mStr, SC = self.shell_cmd_with_sc(CMD)
+        return True if SC==0 else False        
+    
     def getMarkBadBlkRange(self): 
         # return list, 0x10E to 1
         return range(0x10E, 0, -1)   

@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20210326"
+    Version = "20210506"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -142,13 +142,11 @@ class SMI_SmartHealthLog(NVME):
         Value.append(["TotalTimeForThermalManagementTemperature2", self.GetLog.SMART.TotalTimeForThermalManagementTemperature2])
         return Value
 
-    def VerifyHealthLog(self, OriginalValue, expectAdd1List=[]):
+    def VerifyHealthLog(self, OriginalValue, expectAdd1List=[], expectGreatOrEqualList=[]):
         self.Print ("Get current SMART / Health Log ")
         CurrentValue=self.GetHealthLog()
         self.Print ("Check if SMART / Health Log is retained")
         SkipItemList = []
-        SkipItemList.append("DataUnitsRead")
-        SkipItemList.append("HostReadCommands")
         SkipItemList.append("CompositeTemperature")
         SkipItemList.append("WarningCompositeTemperatureTime")
         SkipItemList.append("CriticalCompositeTemperatureTime")
@@ -159,14 +157,19 @@ class SMI_SmartHealthLog(NVME):
         
         # print 
         self.Print ("")  
-        self.Print ("Note: below lists will not be checked")
+        self.Print ("Note: below fields will not be checked")
         for i in SkipItemList:
             self.Print(i, "b")
         if len(expectAdd1List)!=0:
             self.Print ("")
-            self.Print ("Note: expected value of below lists is +1 ")
+            self.Print ("Note: expected value of below fields are original values +1 ")
             for i in expectAdd1List:
-                self.Print(i, "b")         
+                self.Print(i, "b")       
+        if len(expectGreatOrEqualList)!=0:
+            self.Print ("")
+            self.Print ("Note: expected value of below fields are greater or equal original values ")
+            for i in expectGreatOrEqualList:
+                self.Print(i, "b")                                     
         self.Print ("")   
         self.Print ("Note: black text: value remained, red text: value fail, yellow text: value changed")     
 
@@ -188,9 +191,12 @@ class SMI_SmartHealthLog(NVME):
             if Name in SkipItemList:
                 pass
             # PowerCycles, UnsafeShutdowns
-            elif Name in expectAdd1List:
+            elif Name in expectAdd1List: # expect original+1
                 if intCurrent!=intOriginal+1:
                     itemPass=False
+            elif Name in expectGreatOrEqualList: # expect >= original
+                if intCurrent<intOriginal:
+                    itemPass=False                
             else:
                 if intCurrent!=intOriginal:
                     itemPass=False                
@@ -214,7 +220,7 @@ class SMI_SmartHealthLog(NVME):
             self.Print("FAIL", "f")
             return False        
 
-    def PrintAlignString(self,S0, S1, S2, S3, S4, S5, PF="default"):            
+    def PrintAlignString(self,S0="", S1="", S2="", S3="", S4="", S5="", PF="default"):            
         mStr = "{:<16}{:<16}{:<34}{:<16}{:<24}{:<34}".format(S0, S1, S2, S3, S4,S5 )
         if PF=="pass":
             self.Print( mStr , "p")        
@@ -228,11 +234,16 @@ class SMI_SmartHealthLog(NVME):
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
                             helpMsg="nvme spec version, 1.3c / 1.3d, default= 1.3c"
                             "\ne.x. '--version 1.3d'", argType=str, default="1.3c")
-                
+        self.SetDynamicArgs(optionName="PUS100", optionNameFull="PUS100", \
+                            helpMsg="PercentageUsedScale for case 16 that will set PercentageUsed to 100"
+                            "\ne.x for SKH, formula of PercentageUsed in SMART log is"\
+                            "\n(sum of all block erase count/total erase block)/7000"\
+                            "\nso run script with '-PUS100 7000'", argType=int, default=7000)                
         # initial parent class
         super(SMI_SmartHealthLog, self).__init__(argv)
         
         self.specVer = self.GetDynamicArgs(0)
+        self.PUS100 = self.GetDynamicArgs(1)
         
         
         self.Print ("Check if the controller supports the Compare command or not in identify - ONCS")   
@@ -787,7 +798,8 @@ class SMI_SmartHealthLog(NVME):
         self.Print ("")        
         self.Print ("Verify if SMART / Health Log is retained")
         expectAdd1List = ["PowerCycles"]
-        if not self.VerifyHealthLog(OriginalValue, expectAdd1List): return 1        
+        expectGreatOrEqualList = ["DataUnitsRead", "HostReadCommands"]
+        if not self.VerifyHealthLog(OriginalValue, expectAdd1List, expectGreatOrEqualList): return 1        
         
         self.Print ("")
         self.SetPrintOffset(0)
@@ -806,7 +818,8 @@ class SMI_SmartHealthLog(NVME):
         self.Print ("")        
         self.Print ("Verify if SMART / Health Log is retained")
         expectAdd1List = ["PowerCycles", "UnsafeShutdowns"]
-        if not self.VerifyHealthLog(OriginalValue, expectAdd1List): return 1 
+        expectGreatOrEqualList = ["DataUnitsRead", "HostReadCommands"]
+        if not self.VerifyHealthLog(OriginalValue, expectAdd1List, expectGreatOrEqualList): return 1 
         self.SetPrintOffset(0)       
         
     SubCase15TimeOut = (4000)
@@ -940,8 +953,63 @@ class SMI_SmartHealthLog(NVME):
                                 
         return ret_code        
 
+    SubCase16TimeOut = (4000)
+    SubCase16Desc = "Test 'Percentage Used' by VU command"      
+    def SubCase16(self):
+        ret_code=0
 
-           
+        
+        self.Print("Check if Controller accept UV CMD")
+        if not self.setPE(cdw13_PE=0):
+            self.Print("Controller do not accept UV CMD: %s"%self.LastCmd, "f")
+            self.Print("Warnning!, skip", "w")
+            return 255
+        else:
+            self.Print("Pass", "p")
+            
+        self.Print("")
+        self.Print("PercentageUsedScale: %s"%self.PUS100)
+        self.Print("I.E. %s PE( for all blocks ) will set PercentageUsedScale to 100"%self.PUS100)
+        PUS=self.PUS100/100
+        self.Print("%s PE( for all blocks ) will set PercentageUsedScale to 1"%PUS)
+        self.Print("Make PercentageUsedScale to 255 need %s PE ((PercentageUsedScale/100)*255)"%(PUS*255))
+        self.Print("")
+
+        self.PrintAlignString("PE", "PercentageUsed")
+        self.Print("--------------------------------------------------------------------------------------------------------")
+        value_curr = 0
+        value_last = 0
+        ispass = True
+        for PE in range(0x0, PUS*260, PUS):
+            self.setPE(cdw13_PE=PE)
+            value_curr = self.GetLog.SMART.PercentageUsed
+            pf = "pass" if value_curr>=value_last else "fail"
+            if pf == "fail":
+                ispass = False
+            self.PrintAlignString(S0 = "0x%X"%PE, S1 = value_curr)
+            value_last = value_curr
+            
+        self.Print("--------------------------------------------------------------------------------------------------------")
+        self.Print("")
+                    
+        self.Print("Check if PercentageUsed counting up")
+        if ispass:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1
+            
+        self.Print("")
+        self.Print("Reset PE to 0")
+        if self.setPE(cdw13_PE=0):            
+            self.Print("Done", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1
+            
+        return ret_code
+            
+                              
     # </sub item scripts>
     
     

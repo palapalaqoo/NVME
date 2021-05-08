@@ -233,10 +233,13 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
+        CMD = "nvme admin-passthru %s --opcode=0xF0 "\
+        "--cdw12=0xD --cdw13=%s --cdw14=0xFFFF -n 0 -w 2>&1"\
+        %(self.dev_port)
+        mStr, SC = self.shell_cmd_with_sc(CMD)
 
-        validList = range(0, 0xFFFF, 0x100) 
-        self.Print("Verify CMD with SLBA=0 and NLB = below lists", "b")
-        self.PrintList(validList)
+
+        CMD =
 
 
         return 0        
