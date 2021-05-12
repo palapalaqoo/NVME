@@ -239,7 +239,7 @@ class mtest(NVME):
         mStr, SC = self.shell_cmd_with_sc(CMD)
 
 
-        CMD =
+
 
 
         return 0        
@@ -253,8 +253,9 @@ class mtest(NVME):
     
 if __name__ == "__main__":
 
-
-            
+    bb= [1,2,3,4,5]
+    cc=bb[1:3]
+    dd=bb[4:7]        
                        
     print mtest
 

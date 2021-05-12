@@ -1827,7 +1827,9 @@ class BaseWithOrderedFields(type):
         
 class OrderedAttributeClass(object): # snchan       
     __metaclass__ = BaseWithOrderedFields
-
+    # For print dynamic OrderedAttributeClass list
+    dynamicList = None
+    
     class MyOrderedField(tuple): # input parameter must tuple
         creation_counter = 0
         
@@ -1836,6 +1838,7 @@ class OrderedAttributeClass(object): # snchan
             self.creation_counter = OrderedAttributeClass.MyOrderedField.creation_counter
             # Increment the class's counter for future instances
             OrderedAttributeClass.MyOrderedField.creation_counter += 1
+            
 
     def getOrderedAttributesList_curr(self):
         # read name and current value, ex, if after setting A=0x1, B=0x2, return [[A, 0x1], [C, 0x2], ..]
@@ -1843,7 +1846,16 @@ class OrderedAttributeClass(object): # snchan
         for mList in self.ordered_fields: # ordered_fields is initial value = [['x', (1, 2)], ['z', (3, 4, 5)], ('b', ()), ('a', ())]
             name = mList[0]
             listBuf.append([name, getattr(self, name)])
+        
+        if self.dynamicList!=None:
+            for mList in self.ResetInformationList:
+                AttrList= mList.getOrderedAttributesList_curr()
+                listBuf.extend(AttrList)            
+ 
         return listBuf
+    
+    def setDynamicList(self, mList):
+        self.dynamicList = mList
     
     @classmethod
     def getOrderedAttributesList_init(cls):
