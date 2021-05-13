@@ -3,6 +3,8 @@
 
 # Import python built-ins
 import sys
+import re
+from time import sleep
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import OrderedAttributeClass
@@ -280,6 +282,8 @@ class SMI_PersistentEventLog(NVME):
         TNEV= self.PELH.TNEV
         #TNEV = 2 # TODO 
         offsetS = 512 # start from offset 512
+        self.Print("Size of PersistentEvent log data: %s"%len(listRawData))
+        self.PrintAlignString("No:", "Start at:", "Stop at:", "Size:", "Type:", "Event Data at:", "Event Data end:")
         for i in range(TNEV):
             #return PersistentEventFormat and end offset
             isPass, PersistentEventFormat, offsetE = self.GetPersistentEventN(i, listRawData, offsetS)
@@ -292,9 +296,10 @@ class SMI_PersistentEventLog(NVME):
                 return False
             else:
                 offsetS = offsetE +1
+        lastAddr = offsetE+1 
         self.Print("Check if Total Log Length(%s) in Persistent Event Log Header is equal to the last byte address(%s) of last PersistentEvent"\
-                       %(self.PELH.TLL, offsetE))
-        if self.PELH.TLL==offsetE+1:
+                       %(self.PELH.TLL, lastAddr))
+        if self.PELH.TLL==lastAddr:
             self.Print("Pass", "p")
         else:            
             self.Print("Fail", "f")            
@@ -304,10 +309,12 @@ class SMI_PersistentEventLog(NVME):
 
     def GetPersistentEventN(self, id, listRawData, offset):
         isPass = True
+        # parser Event Format without Vendor Specific Information and Persistent Event Log Event Data, ie, header only
         # class inst
         rtInst = self.PELH.PersistentEventFormat_() # using new class to avoid the same rtInst when call func getOrderedAttributesList_curr()
         self.SetClassWithRawData(rtInst, listRawData, offset)# PersistentEventFormat start from offset of  listRawData
         
+        # handle header
         EHL = rtInst.EHL # Event Header Length = EHL+3
         VSIL = rtInst.VSIL # Vendor Specific Information Length
         EHLplus3 = EHL+3
@@ -318,15 +325,15 @@ class SMI_PersistentEventLog(NVME):
         EL = rtInst.EL # Event Length =  Vendor Specific Information Length +  Event Data length
         EHLplusELplus2 = EHL+EL+2 # also = EHL+3 + EL -1
         EHLplus3plusVSIL = EHL+3+VSIL # also = EHL+3 + VSIL -1 +1
-        ELplusEHLplus3 = EL+EHL+3 # also = EL+EHL+3
         EventData = listRawData[offset+EHLplus3plusVSIL: offset+EHLplusELplus2 +1]
         #EventData = listRawData[0: 512] # TODO
         
         EventType= rtInst.EventType       
         #EventType=0x4 # TODO 
         offsetE = offset+EHLplusELplus2
-        self.PrintAlignString("no: %s"%id, "Start at: %s"%offset, "Stop at: %s"%(offsetE), "size: %s"%(EHLplusELplus2+1) ,\
-                               "EventType: %s"%EventType, "Event Data start at: %s"%EHLplus3plusVSIL)
+        #self.PrintAlignString("No:", "Start at:", "Stop at:", "Size:", "Type:", "Event Data at:", "Event Data end:")       
+        self.PrintAlignString(id, offset, offsetE, (EHLplusELplus2+1) ,\
+                               EventType, "%s + %s"%(offset, EHLplus3plusVSIL), "%s + %s"%(offset, EHLplusELplus2))
         #parser raw data to structure
         rtInst.EventData = self.ParserEventData(EventData, EventType, rtInst, offset)
         if (offset+EHLplusELplus2 +1)>self.PELH.TLL:
@@ -382,8 +389,7 @@ class SMI_PersistentEventLog(NVME):
             rtInst = self.PELH.TelemetryLogCreated_()   
         elif EventType==0xD:
             expectSize = 1
-            rtInst = self.PELH.ThermalExcursion_()                                  
-            
+            rtInst = self.PELH.ThermalExcursion_()                                              
         else:
             self.Print("Error!, EventType undefined: %s"%EventType, "f")   
             rtInst = self.PELH.EventNotDefine
@@ -445,14 +451,32 @@ class SMI_PersistentEventLog(NVME):
         return rtInst        
         
 
-    def PrintAlignString(self,S0="", S1="", S2="", S3="", S4="", S5="", PF="default"):            
-        mStr = "{:<16}{:<16}{:<16}{:<16}{:<16}{:<16}".format(S0, S1, S2, S3, S4,S5 )
+    def PrintAlignString(self,S0="", S1="", S2="", S3="", S4="", S5="", S6="", S7="", PF="default"):            
+        mStr = "{:<4}{:<10}{:<10}{:<8}{:<10}{:<16}{:<16}{:<16}".format(S0, S1, S2, S3, S4, S5, S6, S7 )
         if PF=="pass":
             self.Print( mStr , "p")        
         elif PF=="fail":
             self.Print( mStr , "f")      
         else:
             self.Print( mStr )
+
+    def GetTMT1_TMT1(self):
+        buf = self.get_feature(0x10)
+        TMT=0
+        TMT1=0
+        TMT2=0
+        # get feature
+        mStr="Current value:(.+$)"
+        if re.search(mStr, buf):
+            TMT=int(re.search(mStr, buf).group(1), 16)
+            TMT1=TMT>>16
+            TMT2=TMT&0xFFFF    
+        return TMT1, TMT2
+    
+    def SetTMT1_TMT2(self, TMT1, TMT2):       
+        TMT=(TMT1<<16)+(TMT2)
+        # set feature
+        return self.set_feature(0x10, TMT)  
     
     def __init__(self, argv):
         # initial parent class
@@ -527,21 +551,30 @@ class SMI_PersistentEventLog(NVME):
         
         self.Print("")
         self.Print("4) Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
-        self.Print("    i.e. cmd with size = 'Total Log Length', offset = 0")        
-        
+        self.Print("    i.e. cmd with size = 'Total Log Length'(%s), offset = 0"%self.PELH.TLL)        
+        self.SetPrintOffset(4)
         LSF = self.LSF_ReadLogData
         TLL = self.PELH.TLL
         #TLL = 1024 #  TODO delete it
-        resultStrList = self.get_log_passthru(LID=0xD, size=TLL, LSP=LSF, LPO=0)   
+        resultStrList = self.get_log_passthru(LID=0xD, size=TLL, LSP=LSF, LPO=0)
+        self.Print("CMD: %s"%self.LastCmd)   
         #resultStrList = self.get_log_passthru(LID=0x2, size=1024, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=TLL, LSP=LSF, LPO=0)   
         resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
         if resultStrList==None:
             self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
             mStr = self.shell_cmd(self.LastCmd)
             self.Print(mStr)
-            return 1        
-                
-        
+            return 1 
+        self.Print("Done")
+        size = len(resultStrList)
+        self.Print("Size of log data: %s"%size)
+        self.Print("Check if size of log data = 'Total Log Length'(%s)"%TLL)
+        if size==TLL:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1    
+        self.SetPrintOffset(0)
      
 
         self.Print("")
@@ -552,10 +585,10 @@ class SMI_PersistentEventLog(NVME):
         self.SetPrintOffset(0)            
         
         self.Print("")
-        self.Print("6) Show Log Events")           
+        self.Print("6) Show Persistent Event Log Events", "b")          
 
         self.Print("")
-        self.Print("Persistent Event Log Events", "b")   
+        self.SetPrintOffset(4)
         cnt=0
         for PersistentEventFormat in self.PELH.PersistentEventN:
             allAttrList= PersistentEventFormat.getOrderedAttributesList_curr()
@@ -567,15 +600,44 @@ class SMI_PersistentEventLog(NVME):
             allAttrList= PersistentEventFormat.EventData.getOrderedAttributesList_curr()
             self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
             cnt+=1
+        self.SetPrintOffset(0)     
             
-            
-
-
-
-
-
-
         return ret_code
+
+    SubCase2TimeOut = 6000
+    SubCase2Desc = "Test Thermal Excursion Event (Event Type 0Dh)"   
+    SubCase2KeyWord = "a temperature that is greater than or equal to TMT1, if any (i.e., light throttling has started)"
+    def SubCase2(self):
+        ret_code=0
+        LiveT = self.GetLog.SMART.CompositeTemperature
+        self.Print ("CompositeTemperature now: %s °C"%self.KelvinToC(LiveT))            
+        self.Print ("")
+        TMT1bk, TMT2bk = self.GetTMT1_TMT1()
+        self.Print ("TMT1: %s = %s °C"%(TMT1bk,self.KelvinToC(TMT1bk)))
+        self.Print ("TMT2: %s = %s °C"%(TMT2bk,self.KelvinToC(TMT2bk)))
+        self.Print ("")
+        self.Print ("Check if controller is not performing HCTM function")
+        self.Print ("i.e.Thermal Management T1 Total Time and Thermal Management T2 Total Time is not counting")
+        TTTMT1 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
+        TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
+        
+        self.Print ("")
+        self.Print ("TTTMT1: %s"%TTTMT1)
+        self.Print ("TTTMT2: %s"%TTTMT2)
+        self.Print ("")
+        self.Print ("Sleep 2 s")
+        sleep(2)
+        TTTMT1_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
+        TTTMT2_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
+        self.Print ("")
+        self.Print ("TTTMT1: %s"%TTTMT1_n)
+        self.Print ("TTTMT2: %s"%TTTMT2_n)
+        
+        if TTTMT1!=TTTMT1_n or TTTMT2!=TTTMT2_n:
+            self.Print("Fail, can't reset HCTM function, quit this test item", "f")
+            ret_code=1
+                    
+        return ret_code 
 
     # </define sub item scripts>
 

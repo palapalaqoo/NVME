@@ -460,7 +460,8 @@ class NVMECom():
         # if command success
         if re.search("NVMe command result:00000000", strIn):
             line="0"        
-            patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", strIn)            
+            #patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", strIn)            
+            patten=re.findall("\w+:(.+) \".+\"", strIn) # 0050: 32 36 35 4b 48 20 20 20 20 20 20 20 20 20 20 20 "265KH..........."
             patten1= ''.join(patten)
             line=patten1.replace(" ", "")    
             if ReturnType==0 or ReturnType==2:
