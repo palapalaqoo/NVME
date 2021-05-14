@@ -5,10 +5,11 @@
 import sys
 import re
 from time import sleep
+import copy
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import OrderedAttributeClass
-
+from SMI_FeatureHCTM import SMI_FeatureHCTM
     
 class SMI_PersistentEventLog(NVME):
     ScriptName = "SMI_PersistentEventLog.py"
@@ -22,15 +23,20 @@ class SMI_PersistentEventLog(NVME):
         return None
     
     # class inherit from OrderedAttributeClass that can print ordered attributes
-    # MyOrderedField: [stop byte, start byte, 0=int  1=string]
+    # MyOrderedField: [stop byte, start byte, type, parserFunc=None] where type 0=int, 1=string, 2=not define and need to be set later
+    # parserFunc: if provided, value = parserFunc(value)
     class PELH_(OrderedAttributeClass): 
-             
+        # define parserFuncs
+        def p_getFormatTime(self, value):
+            mStr = "0x%X(%s)"%(value, self.getFormatTime(value&0xFFFFFFFFFFFF)) #remove byte 6 ( TimestampOrigin and Synch)
+            return mStr
+        # end of define parserFuncs     
         LogIdentifier = OrderedAttributeClass.MyOrderedField((0, 0, 0))
         TNEV = OrderedAttributeClass.MyOrderedField((7, 4, 0))
         TLL = OrderedAttributeClass.MyOrderedField((15, 8, 0))
         LogRevision = OrderedAttributeClass.MyOrderedField((16, 16, 0))
         LogHeaderLength = OrderedAttributeClass.MyOrderedField((19, 18, 0))
-        Timestamp = OrderedAttributeClass.MyOrderedField((27, 20, 0))
+        Timestamp = OrderedAttributeClass.MyOrderedField((27, 20, 0, p_getFormatTime))
         POH = OrderedAttributeClass.MyOrderedField((43, 28, 0))
         PowerCycleCount = OrderedAttributeClass.MyOrderedField((51, 44, 0))
         VID = OrderedAttributeClass.MyOrderedField((53, 52, 0))
@@ -76,6 +82,7 @@ class SMI_PersistentEventLog(NVME):
             self.SupportedEventsBitmap = self.SupportedEventsBitmap_()
                         
             self.PersistentEventN=[]             
+            self.briefInfo=[]
             #self.PersistentEventFormat = self.PersistentEventFormat_()
             self.EventNotDefine = self.EventNotDefine_()
             self.SMARTHealthLogSnapshot = self.SMARTHealthLogSnapshot_()
@@ -93,11 +100,14 @@ class SMI_PersistentEventLog(NVME):
             self.ThermalExcursion = self.ThermalExcursion_            
 
         class PersistentEventFormat_(OrderedAttributeClass):
+            def p_getFormatTime(self, value):
+                mStr = "0x%X(%s)"%(value, self.getFormatTime(value&0xFFFFFFFFFFFF)) #remove byte 6 ( TimestampOrigin and Synch)
+                return mStr         
             EventType = OrderedAttributeClass.MyOrderedField((0, 0, 0))
             EventTypeRevision = OrderedAttributeClass.MyOrderedField((1, 1, 0))
             EHL = OrderedAttributeClass.MyOrderedField((2, 2, 0))
             ControllerIdentifier = OrderedAttributeClass.MyOrderedField((5, 4, 0))
-            EventTimestamp = OrderedAttributeClass.MyOrderedField((13, 6, 0))
+            EventTimestamp = OrderedAttributeClass.MyOrderedField((13, 6, 0,p_getFormatTime))
             VSIL = OrderedAttributeClass.MyOrderedField((21, 20, 0))
             EL = OrderedAttributeClass.MyOrderedField((23, 22, 0))
             VendorSpecificInformation = OrderedAttributeClass.MyOrderedField((0, 0, 2))
@@ -215,6 +225,7 @@ class SMI_PersistentEventLog(NVME):
             
         class ThermalExcursion_(OrderedAttributeClass):
             OverTemperature = OrderedAttributeClass.MyOrderedField((0, 0, 0))
+            Threshold = OrderedAttributeClass.MyOrderedField((1, 1, 0))
 
                
     def SetClassWithRawData(self, classIn, listRawData, offset):
@@ -227,10 +238,14 @@ class SMI_PersistentEventLog(NVME):
             startByte = offset + argList[1]
             isString=True if argList[2] == 1 else False
             isSkip=True if argList[2] == 2 else False
+            parserFunc = None if len(argList)<=3 else argList[3]
             if isSkip:
                 setattr(classIn, name, None)
             else:
-                setattr(classIn, name, self.GetBytesFromList(listRawData, stopByte, startByte, isString))
+                value = self.GetBytesFromList(listRawData, stopByte, startByte, isString)
+                if parserFunc!=None: # if provided, value = parserFunc(value)
+                    value = parserFunc(self, value)
+                setattr(classIn, name, value)
             
     
     def ParserPersistentEventLogHeader(self, listRawData):
@@ -283,11 +298,13 @@ class SMI_PersistentEventLog(NVME):
         #TNEV = 2 # TODO 
         offsetS = 512 # start from offset 512
         self.Print("Size of PersistentEvent log data: %s"%len(listRawData))
-        self.PrintAlignString("No:", "Start at:", "Stop at:", "Size:", "Type:", "Event Data at:", "Event Data end:")
+        title = self.PrintAlignString("No:", "Start at:", "Stop at:", "Size:", "Type:", "Event Data at:", "Event Data end:", "EventTimestamp")
+        self.PELH.briefInfo=[title] # clear and set title for briefInfo
         for i in range(TNEV):
             #return PersistentEventFormat and end offset
-            isPass, PersistentEventFormat, offsetE = self.GetPersistentEventN(i, listRawData, offsetS)
+            isPass, PersistentEventFormat, offsetE, briefInfo = self.GetPersistentEventN(i, listRawData, offsetS)
             self.PELH.PersistentEventN.append(PersistentEventFormat)
+            self.PELH.briefInfo.append(briefInfo)
             
             if offsetS == offsetE:
                 self.Print("Error!, current PersistentEvent start at offset: %s, end at offset: %s(EHLplus3plusVSIL=0), stop parsing.."%(offsetS, offsetE), "f")    
@@ -304,6 +321,23 @@ class SMI_PersistentEventLog(NVME):
         else:            
             self.Print("Fail", "f")            
             return False
+        self.Print("")
+        self.Print("Check if EventTimestamp is counting up")
+        old = 0xFFFFFFFFFFFF
+        curr = 0
+        cnt=0
+        for Event in self.PELH.PersistentEventN:
+            Timestamp = Event.EventTimestamp
+            searchStr = "(0x\w+)\(.+\)"
+            if re.search(searchStr, Timestamp): # 0x2017968B29BAE(2021-05-14 10:26:46)
+                curr = re.search(searchStr, Timestamp).group(1)
+                curr = int(curr, 16) & 0xFFFFFFFFFFFF # 6byte only
+            if curr>old:
+                self.Print("Fail at No: %s , EventTimestamp: %s "%(cnt, Timestamp), "f")
+                return False              
+            cnt+=1
+            old = curr
+        self.Print("Pass", "p")
 
         return True
 
@@ -331,9 +365,14 @@ class SMI_PersistentEventLog(NVME):
         EventType= rtInst.EventType       
         #EventType=0x4 # TODO 
         offsetE = offset+EHLplusELplus2
-        #self.PrintAlignString("No:", "Start at:", "Stop at:", "Size:", "Type:", "Event Data at:", "Event Data end:")       
-        self.PrintAlignString(id, offset, offsetE, (EHLplusELplus2+1) ,\
-                               EventType, "%s + %s"%(offset, EHLplus3plusVSIL), "%s + %s"%(offset, EHLplusELplus2))
+        # print and save brief information
+        timeStamp = rtInst.EventTimestamp
+        if re.search("\((.+)\)", timeStamp): # 0x2017968B29BAE(2021-05-14 10:26:46)
+            timeStamp = re.search("\((.+)\)", timeStamp).group(1)
+        #self.PrintAlignString("No:", "Start at:", "Stop at:", "Size:", "Type:", "Event Data at:", "Event Data end:", "EventTimestamp")       
+        briefInfo = self.PrintAlignString(id, offset, offsetE, (EHLplusELplus2+1) ,\
+                               EventType, "%s + %s"%(offset, EHLplus3plusVSIL), "%s + %s"%(offset, EHLplusELplus2), timeStamp)
+        
         #parser raw data to structure
         rtInst.EventData = self.ParserEventData(EventData, EventType, rtInst, offset)
         if (offset+EHLplusELplus2 +1)>self.PELH.TLL:
@@ -341,7 +380,7 @@ class SMI_PersistentEventLog(NVME):
             self.Print("Error!, Expect the last byte of this Event is at: %s"\
                        ", that is less then Total Log Length (TLL): %s "%(offset+EHLplusELplus2 +1, self.PELH.TLL))
         
-        return isPass, rtInst, offsetE #return next offset
+        return isPass, rtInst, offsetE, briefInfo #return next offset
             
     
     def ParserEventData(self, EventData, EventType, rtInst, offset):
@@ -388,7 +427,7 @@ class SMI_PersistentEventLog(NVME):
             expectSize = 512
             rtInst = self.PELH.TelemetryLogCreated_()   
         elif EventType==0xD:
-            expectSize = 1
+            expectSize = 2
             rtInst = self.PELH.ThermalExcursion_()                                              
         else:
             self.Print("Error!, EventType undefined: %s"%EventType, "f")   
@@ -459,6 +498,7 @@ class SMI_PersistentEventLog(NVME):
             self.Print( mStr , "f")      
         else:
             self.Print( mStr )
+        return mStr
 
     def GetTMT1_TMT1(self):
         buf = self.get_feature(0x10)
@@ -477,6 +517,97 @@ class SMI_PersistentEventLog(NVME):
         TMT=(TMT1<<16)+(TMT2)
         # set feature
         return self.set_feature(0x10, TMT)  
+    
+    def GetAndParserPEL(self):
+        self.Print("1) Issue cmd with ReleaseContext=1 in Log Specific Field(cdw10) to clear current Persistent Event log")
+        LSF = self.LSF_ReleaseContext
+        result = self.get_log_passthru(LID=0xD, size=512, LSP=LSF, LPO=0)    
+        #result = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        #  TODO 
+        if result==None:
+            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
+            mStr = self.shell_cmd(self.LastCmd)
+            self.Print(mStr)
+            return False
+
+        self.Print("")
+        self.Print("2) Issue cmd with EstablishContextAndReadLogData=1 in Log Specific Field to create context and get Persistent Event Log Header(512bytes)")
+        LSF = self.LSF_EstablishContextAndReadLogData
+        resultStrList = self.get_log_passthru(LID=0xD, size=512, LSP=LSF, LPO=0) 
+        #resultStrList = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        # 0xD TODO
+        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
+        if resultStrList==None:
+            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
+            mStr = self.shell_cmd(self.LastCmd)
+            self.Print(mStr)
+            return False
+        
+        self.Print("")
+        self.Print("3) Parser Persistent Event Log Header")
+        if not self.ParserPersistentEventLogHeader(resultStrList):
+            self.Print("ParserPersistentEventLogHeader fail", "f")
+            return False
+        self.SetPrintOffset(4)     
+        allAttrList= self.PELH.getOrderedAttributesList_curr()
+        self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)  
+                         
+        allAttrList= self.PELH.SupportedEventsBitmap.getOrderedAttributesList_curr()
+        self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)    
+        self.SetPrintOffset(0)
+
+        
+        self.Print("")
+        self.Print("4) Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
+        self.Print("    i.e. cmd with size = 'Total Log Length'(%s), offset = 0"%self.PELH.TLL)        
+        self.SetPrintOffset(4)
+        LSF = self.LSF_ReadLogData
+        TLL = self.PELH.TLL
+        #TLL = 1024 #  TODO delete it
+        resultStrList = self.get_log_passthru(LID=0xD, size=TLL, LSP=LSF, LPO=0)
+        self.Print("CMD: %s"%self.LastCmd)   
+        #resultStrList = self.get_log_passthru(LID=0x2, size=1024, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=TLL, LSP=LSF, LPO=0)   
+        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
+        if resultStrList==None:
+            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
+            mStr = self.shell_cmd(self.LastCmd)
+            self.Print(mStr)
+            return False 
+        self.Print("Done")
+        size = len(resultStrList)
+        self.Print("Size of log data: %s"%size)
+        self.Print("Check if size of log data = 'Total Log Length'(%s)"%TLL)
+        if size==TLL:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            return False    
+        self.SetPrintOffset(0)
+     
+
+        self.Print("")
+        self.Print("5) Parser Persistent Events")
+        self.SetPrintOffset(4)
+        if not self.ParserPersistentEventLogEvents(resultStrList):
+            return False
+        self.SetPrintOffset(0)
+        self.Print("")
+        return True    
+    
+    def PrintPEL(self):        
+        self.Print("Show Persistent Event Log Events")          
+        self.Print("")
+        self.SetPrintOffset(4)
+        cnt=0
+        for PersistentEventFormat in self.PELH.PersistentEventN:
+            allAttrList= PersistentEventFormat.getOrderedAttributesList_curr()
+            self.Print("---------------------------------------")
+            self.Print("Persistent Event %s"%cnt, "b")
+            self.Print("Persistent Event Log Event Header", "b")
+            self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
+            self.Print("Persistent Event Log Event Data", "b")
+            allAttrList= PersistentEventFormat.EventData.getOrderedAttributesList_curr()
+            self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
+            cnt+=1
+        self.SetPrintOffset(0)          
     
     def __init__(self, argv):
         # initial parent class
@@ -512,95 +643,15 @@ class SMI_PersistentEventLog(NVME):
     def SubCase1(self):
         ret_code=0
         
-        self.Print("1) Issue cmd with ReleaseContext=1 in Log Specific Field(cdw10) to clear current Persistent Event log")
-        LSF = self.LSF_ReleaseContext
-        result = self.get_log_passthru(LID=0xD, size=512, LSP=LSF, LPO=0)    
-        #result = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        #  TODO 
-        if result==None:
-            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
-            mStr = self.shell_cmd(self.LastCmd)
-            self.Print(mStr)
-            return 1
-
-        self.Print("")
-        self.Print("2) Issue cmd with EstablishContextAndReadLogData=1 in Log Specific Field to create context and get Persistent Event Log Header(512bytes)")
-        LSF = self.LSF_EstablishContextAndReadLogData
-        resultStrList = self.get_log_passthru(LID=0xD, size=512, LSP=LSF, LPO=0) 
-        #resultStrList = self.get_log_passthru(LID=0x2, size=512, LSP=LSF, LPO=0)        # 0xD TODO
-        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
-        if resultStrList==None:
-            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
-            mStr = self.shell_cmd(self.LastCmd)
-            self.Print(mStr)
+        
+        if not self.GetAndParserPEL():
             return 1
         
-        self.Print("")
-        self.Print("3) Parser Persistent Event Log Header")
-        if not self.ParserPersistentEventLogHeader(resultStrList):
-            self.Print("ParserPersistentEventLogHeader fail", "f")
-            return 1
-        self.SetPrintOffset(4)
-        self.Print("Persistent Event Log Header", "b")          
-        allAttrList= self.PELH.getOrderedAttributesList_curr()
-        self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)  
-                         
-        allAttrList= self.PELH.SupportedEventsBitmap.getOrderedAttributesList_curr()
-        self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)    
-        self.SetPrintOffset(0)
-
+        self.Print ("")
+        #self.Print ("Check Time EventTimestamp")
         
-        self.Print("")
-        self.Print("4) Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
-        self.Print("    i.e. cmd with size = 'Total Log Length'(%s), offset = 0"%self.PELH.TLL)        
-        self.SetPrintOffset(4)
-        LSF = self.LSF_ReadLogData
-        TLL = self.PELH.TLL
-        #TLL = 1024 #  TODO delete it
-        resultStrList = self.get_log_passthru(LID=0xD, size=TLL, LSP=LSF, LPO=0)
-        self.Print("CMD: %s"%self.LastCmd)   
-        #resultStrList = self.get_log_passthru(LID=0x2, size=1024, LSP=LSF, LPO=0)        #  TODO (LID=0xD, size=TLL, LSP=LSF, LPO=0)   
-        resultStrList = [int("0x%s"%v, 16) for v in resultStrList]  # conver to int, e.x.  conver string resultStrList["ab", "57"] to resultStrList[0xab, 0x57]
-        if resultStrList==None:
-            self.Print("Command fail, CMD: %s"%self.LastCmd, "f") 
-            mStr = self.shell_cmd(self.LastCmd)
-            self.Print(mStr)
-            return 1 
-        self.Print("Done")
-        size = len(resultStrList)
-        self.Print("Size of log data: %s"%size)
-        self.Print("Check if size of log data = 'Total Log Length'(%s)"%TLL)
-        if size==TLL:
-            self.Print("Pass", "p")
-        else:
-            self.Print("Fail", "f")
-            ret_code = 1    
-        self.SetPrintOffset(0)
-     
-
-        self.Print("")
-        self.Print("5) Parser Persistent Events")
-        self.SetPrintOffset(4)
-        if not self.ParserPersistentEventLogEvents(resultStrList):
-            ret_code = 1
-        self.SetPrintOffset(0)            
-        
-        self.Print("")
-        self.Print("6) Show Persistent Event Log Events", "b")          
-
-        self.Print("")
-        self.SetPrintOffset(4)
-        cnt=0
-        for PersistentEventFormat in self.PELH.PersistentEventN:
-            allAttrList= PersistentEventFormat.getOrderedAttributesList_curr()
-            self.Print("---------------------------------------")
-            self.Print("Persistent Event %s"%cnt, "b")
-            self.Print("Persistent Event Log Event Header", "b")
-            self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
-            self.Print("Persistent Event Log Event Data", "b")
-            allAttrList= PersistentEventFormat.EventData.getOrderedAttributesList_curr()
-            self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
-            cnt+=1
-        self.SetPrintOffset(0)     
+        self.PrintPEL()
+   
             
         return ret_code
 
@@ -609,34 +660,59 @@ class SMI_PersistentEventLog(NVME):
     SubCase2KeyWord = "a temperature that is greater than or equal to TMT1, if any (i.e., light throttling has started)"
     def SubCase2(self):
         ret_code=0
-        LiveT = self.GetLog.SMART.CompositeTemperature
-        self.Print ("CompositeTemperature now: %s °C"%self.KelvinToC(LiveT))            
-        self.Print ("")
-        TMT1bk, TMT2bk = self.GetTMT1_TMT1()
-        self.Print ("TMT1: %s = %s °C"%(TMT1bk,self.KelvinToC(TMT1bk)))
-        self.Print ("TMT2: %s = %s °C"%(TMT2bk,self.KelvinToC(TMT2bk)))
-        self.Print ("")
-        self.Print ("Check if controller is not performing HCTM function")
-        self.Print ("i.e.Thermal Management T1 Total Time and Thermal Management T2 Total Time is not counting")
+        self.Print ("1) Back up Current PersistentEventLog")
+        if not self.GetAndParserPEL():
+            return 1
+        PELH_bk = copy.deepcopy(self.PELH) # backup
+
+        '''
+        self.Print ("2) Back up Current TotalTimeForThermalManagementTemperature1")
         TTTMT1 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
-        TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
-        
+        TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2       
         self.Print ("")
         self.Print ("TTTMT1: %s"%TTTMT1)
-        self.Print ("TTTMT2: %s"%TTTMT2)
+        self.Print ("TTTMT2: %s"%TTTMT2)        
         self.Print ("")
-        self.Print ("Sleep 2 s")
-        sleep(2)
+        self.Print("3) Run Case 7 (Test HCTM functionality) in SMI_FeatureHCTM ")
+        rtcode = self.runSubCase(SMI_FeatureHCTM, 7)    
+        self.Print ("")    
         TTTMT1_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
         TTTMT2_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
         self.Print ("")
-        self.Print ("TTTMT1: %s"%TTTMT1_n)
-        self.Print ("TTTMT2: %s"%TTTMT2_n)
+        self.Print ("-- befor HCTM test --")
+        self.Print ("TTTMT1: %s"%TTTMT1)
+        self.Print ("TTTMT2: %s"%TTTMT2)
+        self.Print ("-- after test --")
+        self.Print ("TMT1TC: %s"%TTTMT1_n)
+        self.Print ("TMT2TC: %s"%TTTMT2_n)
+        self.Print ("") 
+        self.Print ("If TTTMT1 changed, Parser PersistentEventLog")
+        self.Print ("")       
+        if TTTMT1_n==TTTMT1:
+            self.Print ("TTTMT1 not changed, skip")
+            return 255
         
-        if TTTMT1!=TTTMT1_n or TTTMT2!=TTTMT2_n:
-            self.Print("Fail, can't reset HCTM function, quit this test item", "f")
-            ret_code=1
-                    
+        self.Print ("")                       
+        self.Print("4) Get and parser current PersistentEventLog")    
+        if not self.GetAndParserPEL():
+            ret_code =1    
+            
+        '''
+        self.PELH.briefInfo.append("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+        self.Print ("")    
+        self.Print("5) Print PersistentEventLog")        
+        self.Print ("")
+        self.Print ("-- befor test --")
+        self.Print ("briefInfo")
+        for line in self.PELH.briefInfo:
+            self.Print(line)
+        
+        self.Print ("-- after test --")
+        for line in PELH_bk.briefInfo:
+            self.Print(line)    
+        self.Print ("")       
+              
+                          
         return ret_code 
 
     # </define sub item scripts>

@@ -26,7 +26,7 @@ import re
 # Import VCT modules
 from lib_vct.NVME import NVME
 
-class SMI_SmartHealthLog(NVME):
+class SMI_FeatureHCTM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_FeatureHCTM.py"
     Author = "Sam Chan"
@@ -191,7 +191,7 @@ class SMI_SmartHealthLog(NVME):
         # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
-        super(SMI_SmartHealthLog, self).__init__(argv)
+        super(SMI_FeatureHCTM, self).__init__(argv)
         
         # <Parameter>
         self.HCTMA = self.IdCtrl.HCTMA.int
@@ -452,7 +452,7 @@ class SMI_SmartHealthLog(NVME):
     
     
 if __name__ == "__main__":
-    DUT = SMI_SmartHealthLog(sys.argv )
+    DUT = SMI_FeatureHCTM(sys.argv )
     DUT.RunScript()
     DUT.Finish() 
     

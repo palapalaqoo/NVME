@@ -1703,7 +1703,51 @@ class NVMECom():
         if mStr!=0:
             self.Print(mStr)    
         self.SetPrintOffset(currBk)         
-                                    
+
+    def RaisingTempture(self, TargetTemp, TimeOut):
+    # TimeOut = time limit in secend
+    # TargetTemp =temp in Kelvin degree
+    # Return last tempture read from controller
+        TimeCnt=0
+        aa=time.time()
+        TempNow=0
+        while True:                     
+            # writing
+            mThreads=self.nvme_write_multi_thread(thread=4, sbk=0, bkperthr=512, value=0x5A)
+            for process in mThreads:   
+                process.join()
+            
+            TimeCnt= int(time.time()-aa) 
+            PS = self.GetPS()    
+            TempNow = self.GetLog.SMART.CompositeTemperature
+            mSuffix="Temperature: %s C, Power State: %s"%(self.KelvinToC(TempNow), PS)
+            
+            # progressbar
+            if TimeCnt<TimeOut:
+                self.PrintProgressBar(TimeCnt, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
+            else:
+                self.PrintProgressBar(TimeOut, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
+                self.Print ("After %s s, time out !,  stop to increase temperature !"%TimeOut)
+                break
+                    
+            if TempNow>=TargetTemp: 
+                self.Print ("")
+                self.Print ("After %s s, temperature is large then target temperature now, stop to increase temperature !"%TimeCnt)
+                break
+    
+        return TempNow
+
+    def backUpClass(self, clsIn):
+    # copy all clsIn class to CopyOfClk, including static members and dynamic members
+    # ex. A=myClass(), A.value="valueA", B=backUpClass(A)
+        CopyOfClk = type('CopyOfClk', clsIn.__bases__, dict(clsIn.__dict__))
+        inst=CopyOfClk
+        return inst
+    
+    def getFormatTime(self, Timestamp):
+        #      localtime or gmtime
+        mStr=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(Timestamp/1000))
+        return  mStr
 #== end of NVMECom =================================================
 
 class timer_():

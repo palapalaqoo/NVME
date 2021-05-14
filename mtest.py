@@ -233,19 +233,30 @@ class mtest(NVME):
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        CMD = "nvme admin-passthru %s --opcode=0xF0 "\
-        "--cdw12=0xD --cdw13=%s --cdw14=0xFFFF -n 0 -w 2>&1"\
-        %(self.dev_port)
-        mStr, SC = self.shell_cmd_with_sc(CMD)
-
-
+        import copy
+        a=self.color
+        a.WHITE="AAA"             
+        #b=self.backUpClass(a)
+        b = copy.deepcopy(a)
+        
+        a.WHITE="BBB"
+        if a==b:
+            self.Print("Pass")
+        else:
+            self.Print("Fail")
+            
+        self.Print(a.WHITE)
+        self.Print(b.WHITE)
 
 
 
         return 0        
         
-        
-        
+    SubCase2TimeOut = 600
+    def SubCase2(self):        
+        self.Print("BBBBBBBB")
+
+        return 0   
 
 
 
@@ -253,11 +264,6 @@ class mtest(NVME):
     
 if __name__ == "__main__":
 
-    bb= [1,2,3,4,5]
-    cc=bb[1:3]
-    dd=bb[4:7]        
-                       
-    print mtest
 
     DUT = mtest(sys.argv ) 
     DUT.RunScript()
