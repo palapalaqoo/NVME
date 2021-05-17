@@ -10,6 +10,7 @@ import copy
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import OrderedAttributeClass
 from SMI_FeatureHCTM import SMI_FeatureHCTM
+from ftplib import FTP
     
 class SMI_PersistentEventLog(NVME):
     ScriptName = "SMI_PersistentEventLog.py"
@@ -28,7 +29,7 @@ class SMI_PersistentEventLog(NVME):
     class PELH_(OrderedAttributeClass): 
         # define parserFuncs
         def p_getFormatTime(self, value):
-            mStr = "0x%X(%s)"%(value, self.getFormatTime(value&0xFFFFFFFFFFFF)) #remove byte 6 ( TimestampOrigin and Synch)
+            mStr = "0x%X(%s)"%(value, self.getFormatTime(value))
             return mStr
         # end of define parserFuncs     
         LogIdentifier = OrderedAttributeClass.MyOrderedField((0, 0, 0))
@@ -101,7 +102,7 @@ class SMI_PersistentEventLog(NVME):
 
         class PersistentEventFormat_(OrderedAttributeClass):
             def p_getFormatTime(self, value):
-                mStr = "0x%X(%s)"%(value, self.getFormatTime(value&0xFFFFFFFFFFFF)) #remove byte 6 ( TimestampOrigin and Synch)
+                mStr = "0x%X(%s)"%(value, self.getFormatTime(value)) 
                 return mStr         
             EventType = OrderedAttributeClass.MyOrderedField((0, 0, 0))
             EventTypeRevision = OrderedAttributeClass.MyOrderedField((1, 1, 0))
@@ -325,18 +326,22 @@ class SMI_PersistentEventLog(NVME):
         self.Print("Check if EventTimestamp is counting up")
         old = 0xFFFFFFFFFFFF
         curr = 0
+        Timestamp_old  = ""
         cnt=0
         for Event in self.PELH.PersistentEventN:
             Timestamp = Event.EventTimestamp
-            searchStr = "(0x\w+)\(.+\)"
-            if re.search(searchStr, Timestamp): # 0x2017968B29BAE(2021-05-14 10:26:46)
-                curr = re.search(searchStr, Timestamp).group(1)
-                curr = int(curr, 16) & 0xFFFFFFFFFFFF # 6byte only
-            if curr>old:
-                self.Print("Fail at No: %s , EventTimestamp: %s "%(cnt, Timestamp), "f")
-                return False              
+            curr , formatedT = self.parserTimestamp(Timestamp)
+
+            if curr>old:                
+                curr_n , formatedT_n = self.parserTimestamp(Timestamp_old)
+                self.Print("Fail at No: %s , formated Timestamp: %s,  Timestamp: %s"%(cnt-1, formatedT_n, curr_n), "f")
+                self.Print("Next at No: %s , formated Timestamp: %s,  Timestamp: %s"%(cnt, formatedT, curr), "f")
+                self.Print("")
+                if not self.mTestModeOn:
+                    return False              
             cnt+=1
             old = curr
+            Timestamp_old = Timestamp
         self.Print("Pass", "p")
 
         return True
@@ -546,19 +551,19 @@ class SMI_PersistentEventLog(NVME):
         if not self.ParserPersistentEventLogHeader(resultStrList):
             self.Print("ParserPersistentEventLogHeader fail", "f")
             return False
-        self.SetPrintOffset(4)     
+        self.SetPrintOffset(4, "add")     
         allAttrList= self.PELH.getOrderedAttributesList_curr()
         self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)  
                          
         allAttrList= self.PELH.SupportedEventsBitmap.getOrderedAttributesList_curr()
         self.PrintListWithAlign(allAttrList, S0length=60, S1length=60)    
-        self.SetPrintOffset(0)
+        self.SetPrintOffset(-4, "add")
 
         
         self.Print("")
         self.Print("4) Issue cmd with ReadLogData=1 in Log Specific Field to get Persistent Event Log Header and Persistent Event Log Events")
         self.Print("    i.e. cmd with size = 'Total Log Length'(%s), offset = 0"%self.PELH.TLL)        
-        self.SetPrintOffset(4)
+        self.SetPrintOffset(4, "add")
         LSF = self.LSF_ReadLogData
         TLL = self.PELH.TLL
         #TLL = 1024 #  TODO delete it
@@ -580,22 +585,22 @@ class SMI_PersistentEventLog(NVME):
         else:
             self.Print("Fail", "f")
             return False    
-        self.SetPrintOffset(0)
+        self.SetPrintOffset(-4, "add")
      
 
         self.Print("")
         self.Print("5) Parser Persistent Events")
-        self.SetPrintOffset(4)
+        self.SetPrintOffset(4, "add")
         if not self.ParserPersistentEventLogEvents(resultStrList):
             return False
-        self.SetPrintOffset(0)
+        self.SetPrintOffset(-4, "add")
         self.Print("")
         return True    
     
     def PrintPEL(self):        
         self.Print("Show Persistent Event Log Events")          
         self.Print("")
-        self.SetPrintOffset(4)
+        self.SetPrintOffset(4, "add")
         cnt=0
         for PersistentEventFormat in self.PELH.PersistentEventN:
             allAttrList= PersistentEventFormat.getOrderedAttributesList_curr()
@@ -607,7 +612,21 @@ class SMI_PersistentEventLog(NVME):
             allAttrList= PersistentEventFormat.EventData.getOrderedAttributesList_curr()
             self.PrintListWithAlign(allAttrList, S0length=60, S1length=60) 
             cnt+=1
-        self.SetPrintOffset(0)          
+        self.SetPrintOffset(-4, "add")          
+    
+    def parserTimestamp(self, Timestamp):
+        # Timestamp has remove byte 6 ( TimestampOrigin and Synch), ex. '0x017968B29BAE(2021-05-14 10:26:46)'
+        # return int(Timestamp) and formated Timestamp, ex. 0x017968B29BAE, '2021-05-14 10:26:46'
+        intT = 0
+        fT = "None"
+        searchStr = "(0x\w+)\((.+)\)"
+        if re.search(searchStr, Timestamp): 
+            intT = re.search(searchStr, Timestamp).group(1) 
+            intT = int(intT, 16)
+            intT = intT&0xFFFFFFFFFFFF # remove byte 6 ( TimestampOrigin and Synch)
+            fT = re.search(searchStr, Timestamp).group(2)
+        return intT, fT
+
     
     def __init__(self, argv):
         # initial parent class
@@ -661,9 +680,11 @@ class SMI_PersistentEventLog(NVME):
     def SubCase2(self):
         ret_code=0
         self.Print ("1) Back up Current PersistentEventLog")
+        self.SetPrintOffset(4, "add")
         if not self.GetAndParserPEL():
             return 1
-        PELH_bk = copy.deepcopy(self.PELH) # backup
+        self.SetPrintOffset(-4, "add")
+        PELH_bk = copy.deepcopy(self.PELH) # backup self.PELH
 
         '''
         self.Print ("2) Back up Current TotalTimeForThermalManagementTemperature1")
@@ -698,20 +719,52 @@ class SMI_PersistentEventLog(NVME):
             ret_code =1    
             
         '''
-        self.PELH.briefInfo.append("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+        self.PELH.briefInfo.insert(1, "TTTTTTTTTTTT")
+        self.PELH.briefInfo.insert(1, "UUUUUUUUUUU")
+        self.PELH.briefInfo.insert(1, "VVVVVVVVV")
         self.Print ("")    
-        self.Print("5) Print PersistentEventLog")        
+        self.Print("5) Print brief PersistentEventLog")        
         self.Print ("")
-        self.Print ("-- befor test --")
-        self.Print ("briefInfo")
-        for line in self.PELH.briefInfo:
-            self.Print(line)
+        self.SetPrintOffset(4, "add")
         
-        self.Print ("-- after test --")
-        for line in PELH_bk.briefInfo:
-            self.Print(line)    
-        self.Print ("")       
-              
+        if len(self.PELH.PersistentEventN)==0:
+            self.Print ("Current number of PersistentEvent is 0, skip", "w")
+            return 255
+        
+        #self.Print ("Find new PersistentEvent")
+        OldList = PELH_bk.briefInfo[1:-1] # remove 1th line( title )
+        for i in range(0, len(OldList)): 
+            OldList[i] = re.sub("^\d+", "n/a", OldList[i]) # replace number to 'n/a' because number will be changed
+            
+        NewList = self.PELH.briefInfo[1:-1] # remove 1th line( title )
+        for i in range(0, len(NewList)): 
+            NewList[i] = re.sub("^\d+", "n/a", NewList[i]) # replace number to 'n/a' because number will be changed
+                    
+        pos = self.findStopAddrForFIFOList(NewList , OldList)
+        if pos==-1:
+            self.Print("Fail, can not find new PersistentEvent, please check below PersistentEvent!", "f")
+            self.Print ("-- befor test --")
+            self.Print ("briefInfo")
+            for line in self.PELH.briefInfo:
+                self.Print(line)           
+            self.Print ("-- after test --")
+            for line in PELH_bk.briefInfo:
+                self.Print(line)    
+            self.Print ("")
+            return 1
+        
+        self.Print("New PersistentEvent from event 0 to event %s"%pos)
+        self.Print("")
+        self.Print("Green color: new PersistentEvent, black color, last PersistentEvent")        
+        self.Print("------------------------------------------------------")
+        cnt = 0
+        for line in self.PELH.briefInfo:
+            self.Print(line) if (cnt>pos+1 or cnt==0) else self.Print(line, "p") # +1 for title line
+            cnt +=1
+        self.SetPrintOffset(4, "add")
+        
+        self.Print("")
+        
                           
         return ret_code 
 

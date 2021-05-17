@@ -53,9 +53,8 @@ class NVMECom():
         self.Print() will print self.PrefixString() + PrintOffset + mMsg
     '''
     PrintLoop = None # Loop that will be shown in PrefixString() if PrintLoop != None, "Loop: %s"%self.PrintLoop
-    CurrentOffsetSize= 0    # offset size int 
-    PrintOffset = ""     # using SetPrintOffset(self, offset) to set self.CurrentOffsetSize to generate spaces, ex. self.CurrentOffsetSize=2, PrintOffset='  '
-    PrintOffsetValue = 0
+    PrintOffset = ""     # using SetPrintOffset(self, offset) to set self.PrintOffsetValue to generate spaces, ex. self.PrintOffsetValue=2, PrintOffset='  '
+    PrintOffsetValue = 0 #
     
     def SubItemNum(self):
         self.SubItemNumValue+=1
@@ -598,12 +597,21 @@ class NVMECom():
         return mStr     
         
     
-    def SetPrintOffset(self, offset):        
+    def SetPrintOffset(self, offset, mode="normal"):     
+    # normal: will set to offset 
+    # add: will add offset permanently in subcase, i.e. set to self.GetPrintOffset()+offset  
         self.PrintOffset = ""
-        self.PrintOffsetValue = offset
-        self.CurrentOffsetSize = offset
-        for i in range(offset):
+        if mode=="normal":
+            self.PrintOffsetValue = offset
+        elif mode=="add":
+            self.PrintOffsetValue = self.GetPrintOffset()+offset
+            self.PrintOffsetValue = 0 if self.PrintOffsetValue<0 else self.PrintOffsetValue
+        else:
+            return False
+                    
+        for i in range(self.PrintOffsetValue):
             self.PrintOffset = self.PrintOffset + " "
+        return True
     def GetPrintOffset(self):   
         return self.PrintOffsetValue
     
@@ -613,7 +621,7 @@ class NVMECom():
         MsgList = msg.split("\n")
         if offsetR!=None: # set offset
             offsetBK = self.GetPrintOffset()
-            self.SetPrintOffset(offsetBK + offsetR)    
+            self.SetPrintOffset(offsetBK + offsetR)
                 
         for mMsg in MsgList:
             mMsg = self.PrintOffset + mMsg
@@ -1681,7 +1689,7 @@ class NVMECom():
     def PrintList(self, mList, addOffset = 4, numberPerLine = 16):
     # print int list with offset, where mList = [int, int ,int ..]
         mStr = ""
-        currBk = self.CurrentOffsetSize
+        currBk = self.PrintOffsetValue
         self.SetPrintOffset(currBk + addOffset)
         maxV = max(mList)
         maxV = "0x%X "%maxV
@@ -1746,8 +1754,38 @@ class NVMECom():
     
     def getFormatTime(self, Timestamp):
         #      localtime or gmtime
-        mStr=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(Timestamp/1000))
+        mStr=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime((Timestamp&0xFFFFFFFFFFFF)/1000)) # remove byte 6 ( TimestampOrigin and Synch)
         return  mStr
+    
+    def find_sub_list(self, l, sl):
+    # e.x.  A_list=["123", "abc", "456", "def", "abc", "456"]
+    #         B_list=[ "abc", "456"]
+    #         C= self.find_sub_list(A_list, B_list)
+    #         return [(1, 2), (4, 5)] 
+        results=[]
+        sll=len(sl)
+        for ind in (i for i,e in enumerate(l) if e==sl[0]):
+            if l[ind:ind+sll]==sl:
+                results.append((ind,ind+sll-1))    
+        return results
+    
+    def findStopAddrForFIFOList(self, NewList, OldList):
+    # return -1 if not find
+    # return stop address for NewList compare with OldList(FIFO list)
+        rtNewStop = -1
+        N_len = len(NewList)
+        O_len = len(OldList)
+        for i in range(O_len):     
+            O_subList = OldList[0:O_len-i]   
+            findList= self.find_sub_list(NewList, O_subList)
+            if len(findList)!=0: # if find
+                lastFind=findList[-1]        
+                start = lastFind[0]
+                stop=lastFind[1]
+                # if find sublist, old list start < new list and old list stop = last (new list) and is not the same(NewList and OldList)
+                if start<N_len and stop==N_len-1 and start!=0:
+                    rtNewStop = start-1
+        return rtNewStop    
 #== end of NVMECom =================================================
 
 class timer_():

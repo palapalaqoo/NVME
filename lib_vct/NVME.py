@@ -1206,8 +1206,8 @@ class NVME(object, NVMECom):
     # mode = por/spor
         self.status="reset"
         success = True
-        PrintOffsetBK = self.CurrentOffsetSize
-        if showMsg: self.SetPrintOffset(self.CurrentOffsetSize + 4) # make console print align to plus 4 spaces
+        PrintOffsetBK = self.PrintOffsetValue
+        if showMsg: self.SetPrintOffset(self.PrintOffsetValue + 4) # make console print align to plus 4 spaces
         #power off, and check if device was removed by OS(10 time)
         cnt=0
         if showMsg: self.Print("Start to power off device..")

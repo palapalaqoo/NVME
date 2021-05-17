@@ -230,23 +230,34 @@ class mtest(NVME):
             print AttributesDataStructure
             
         return AttributesDataStructure    
+    def is_sublist(self, a, b):
+        if not a: return True
+        if not b: return False
+        return b[:len(a)] == a or self.is_sublist(a, b[1:])   
+    
+    def subfinder(self, mylist, pattern):
+        return list(filter(lambda x: x in pattern, mylist))     
+    
+
+                
     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        import copy
-        a=self.color
-        a.WHITE="AAA"             
-        #b=self.backUpClass(a)
-        b = copy.deepcopy(a)
+        S0 = "15 884 5D9"
+        S1 = "AAAA"
+        self.SetPrintOffset(4, "add")
+        self.Print(S1)
+        self.SetPrintOffset(7, "add")
+        self.Print(S1)
+        self.SetPrintOffset(-3, "add")
+        self.Print(S1)                
+        self.SetPrintOffset(-14, "add")
+        self.Print(S1)
+
         
-        a.WHITE="BBB"
-        if a==b:
-            self.Print("Pass")
-        else:
-            self.Print("Fail")
             
-        self.Print(a.WHITE)
-        self.Print(b.WHITE)
+        #self.Print(c)
+
 
 
 
