@@ -168,27 +168,7 @@ class mtest(NVME):
 
             
  
-    class Ordered(OrderedAttributeClass):
 
-        
-        LogIdentifier = OrderedAttributeClass.MyOrderedField((2,3,4))
-        TNEV = OrderedAttributeClass.MyOrderedField((3,3,4))
-        TLL = OrderedAttributeClass.MyOrderedField((4,3,4))
-        
-        def __init__(self):
-            self.LogRevision = OrderedAttributeClass.MyOrderedField([5,6])
-            self.LogHeaderLength = OrderedAttributeClass.MyOrderedField([5,6])
-            self.Timestamp = OrderedAttributeClass.MyOrderedField([5,6])
-        '''
-        LogRevision = OrderedAttributeClass.MyOrderedField([5,6])
-        LogHeaderLength = OrderedAttributeClass.MyOrderedField([5,6])
-        Timestamp = OrderedAttributeClass.MyOrderedField([5,6])
-        POH = OrderedAttributeClass.MyOrderedField([5,6])
-        PowerCycleCount = OrderedAttributeClass.MyOrderedField([5,6])
-        VID = OrderedAttributeClass.MyOrderedField([5,6])  
-        '''
-        def XXXX(self):
-            print "XXXX here"
 
     def GetHMBAttributesDataStructure(self, cdw11=0, sel=0, nsid=1, nsSpec=True):
     # get feature with status code
@@ -236,27 +216,57 @@ class mtest(NVME):
         return b[:len(a)] == a or self.is_sublist(a, b[1:])   
     
     def subfinder(self, mylist, pattern):
-        return list(filter(lambda x: x in pattern, mylist))     
-    
+        return list(filter(lambda x: x in pattern, mylist))
+         
+    class FormatClass():
+        def p_getFormatTime(self, value):
+            mStr = "0x%X(%s)"%(value, self.getFormatTime(value))
+            return mStr
+        def intToHexStr(self, value):
+            return "0x%X"%value                
+            
+    class PELH_(OrderedAttributeClass, TT): 
+        # define parserFuncs
+        TNEV = OrderedAttributeClass.MyOrderedField((7, 4, 0, p_getFormatTime))
+        def p_getFormatTime(self, value):
+            mStr = "0x%X(%s)"%(value, self.getFormatTime(value))
+            return mStr
+        def __init__(self):
+            # end of define parserFuncs     
+            mT = (0, 0, 0)
 
-                
-    
+              
+
+    class PELH_1(OrderedAttributeClass): 
+        # define parserFuncs
+        def p_getFormatTime(self, value):
+            mStr = "0x%X(%s)"%(value, self.getFormatTime(value))
+            return mStr
+        # end of define parserFuncs     
+        LogIdentifier = OrderedAttributeClass.MyOrderedField((0, 0, 0))
+        TNEV = OrderedAttributeClass.MyOrderedField((7, 4, 0))
+        TLL = OrderedAttributeClass.MyOrderedField((15, 8, 0))   
+        def __init__(self):
+
+            self.setOrderedAttributesList_init("TNEV", (111, 9, 0), super(self).subfinder)
+            cc =0
+     
     SubCase1TimeOut = 600
     def SubCase1(self):
-        S0 = "15 884 5D9"
-        S1 = "AAAA"
-        self.SetPrintOffset(4, "add")
-        self.Print(S1)
-        self.SetPrintOffset(7, "add")
-        self.Print(S1)
-        self.SetPrintOffset(-3, "add")
-        self.Print(S1)                
-        self.SetPrintOffset(-14, "add")
-        self.Print(S1)
+        AA = self.PELH_()
 
+        allAttrList= AA.getOrderedAttributesList_init()
+        bb = AA.ordered_fields
+        cc = AA.MyOrderedFieldDynamic((111, 9, 0))
+        mT = (0, 0, 0)
+        AA.B =  OrderedAttributeClass.MyOrderedFieldDynamic(mT)
+        allAttrList= AA.getOrderedAttributesList_init()
+        AA.setOrderedAttributesList_init("TNEV", (9, 9, 0))
+        allAttrList= AA.getOrderedAttributesList_init()
+     
         
             
-        #self.Print(c)
+        self.Print("aaaa")
 
 
 

@@ -1785,7 +1785,7 @@ class SMI_IdentifyCommand(NVME):
             if sc == 0x2:
                 self.Print("CNS: 0x%X, status code: %s, Pass"%(mCNS, sc), "p") 
             else:
-                self.Print("CNS: 0x%X, status code: %s, Fail"%(mCNS, sc), "p")
+                self.Print("CNS: 0x%X, status code: %s, Fail"%(mCNS, sc), "f")
                 ret_code = 1 
         return ret_code
                 

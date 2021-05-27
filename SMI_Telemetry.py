@@ -26,7 +26,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20210415"
+    Version = "20210525"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -136,7 +136,7 @@ class SMI_Telemetry(NVME):
             f.close()           
         self.writeBinaryFileFromList(filePath, mLOG)   
         SavedFileNameList.append(filePath)
-        
+        rtHeader = mLOG
         # save data     
         LastBlock1=(mLOG[9]<<8)+mLOG[8]
         LastBlock2=(mLOG[11]<<8)+mLOG[10]
@@ -167,7 +167,7 @@ class SMI_Telemetry(NVME):
                 f.close()           
             self.writeBinaryFileFromList(filePath, mLOG)   
             SavedFileNameList.append(filePath)
-        return SavedFileNameList
+        return SavedFileNameList, rtHeader
     
     def PrintFWlog(self):
         CMD = "nvme fw-log %s"%self.dev_port
@@ -208,7 +208,7 @@ class SMI_Telemetry(NVME):
     def VerifyTelemetryLogAfterFWcommit(self, CA):
         self.InitFolder("./temp")
         self.Print ("1)-- Save current Telemetry log 0x7 to binary files", "b")
-        SavedFileNameList_before = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
         if len(SavedFileNameList_before)==0:
             self.Print("Fail", "f")
             return False   
@@ -225,7 +225,7 @@ class SMI_Telemetry(NVME):
         
         self.Print ("")
         self.Print ("3)-- Save current Telemetry log 0x7 to binary files", "b")
-        SavedFileNameList_after = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
         if len(SavedFileNameList_after)==0:
             self.Print("Fail", "f")
             return False    
@@ -334,8 +334,9 @@ class SMI_Telemetry(NVME):
     SubCase2Desc = "Test Command Dword 10 -- Log Specific Field, Log ID=07"    
     def SubCase2(self):
         ret_code = 0
-        self.Print ("check Command Dword 10 -- Log Specific Field for 'Create Telemetry Host-Initiated Data'"                )
-        if len(self.LOG07_0) == 512 and len(self.LOG07_1) == 512 and len(self.LOG08_0) == 512 and len(self.LOG08_1) == 512 :
+        self.Print ("check Command Dword 10 -- Log Specific Field for 'Create Telemetry Host-Initiated Data'")
+        self.Print ("Verify if get log command with Log Specific Field=0 and Log Specific Field=1 are successed")
+        if len(self.LOG07_0) == 512 and len(self.LOG07_1) == 512 :
             self.Print("PASS", "p")
         else:
             self.Print("Fail", "f")
@@ -707,8 +708,8 @@ class SMI_Telemetry(NVME):
     def SubCase15(self):
         ret_code=0
         self.InitFolder("./temp")
-        self.Print ("Save current Telemetry log 0x7 to binary files")
-        SavedFileNameList_before = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        self.Print ("Save current Telemetry log 0x8 to binary files")
+        SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 8, fileNameAppend = "_beforePOR")
         if len(SavedFileNameList_before)==0:
             self.Print("Fail", "f")
             return 1     
@@ -717,6 +718,9 @@ class SMI_Telemetry(NVME):
         for mList in SavedFileNameList_before:
             self.Print(mList)
         self.SetPrintOffset(0)
+        # Telemetry Controller-Initiated Data Generation Number
+        GNumOld = rtHeader[383]        
+        self.Print("Current Telemetry Controller-Initiated Data Generation Number: %s"%GNumOld)
         
         self.Print ("")
         self.Print ("Do POR")
@@ -725,8 +729,8 @@ class SMI_Telemetry(NVME):
         
         
         self.Print ("")
-        self.Print ("Save current Telemetry log 0x7 to binary files")
-        SavedFileNameList_after = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        self.Print ("Save current Telemetry log 0x8 to binary files")
+        SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 8, fileNameAppend = "_afterPOR")
         if len(SavedFileNameList_after)==0:
             self.Print("Fail", "f")
             return 1     
@@ -735,7 +739,18 @@ class SMI_Telemetry(NVME):
         for mList in SavedFileNameList_after:
             self.Print(mList)
         self.SetPrintOffset(0)        
-        
+        # Telemetry Controller-Initiated Data Generation Number
+        GNumNew = rtHeader[383]        
+        self.Print("Current Telemetry Controller-Initiated Data Generation Number: %s"%GNumNew)
+        self.Print("")
+        self.Print("Check if Telemetry Controller-Initiated Data Generation Number has not changed")
+        if GNumNew==GNumOld:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Warnning, Generation Number has changed"\
+                       "controller may generate new Controller-Initiated Data when doing POR", "w")
+            return 255
+                
         self.Print ("")
         if len(SavedFileNameList_after)!=len(SavedFileNameList_before):
             self.Print("Fail, number of created file is not equal! ", "f")

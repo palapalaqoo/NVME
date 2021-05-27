@@ -854,15 +854,18 @@ class SMI_SmartHealthLog(NVME):
         self.Print("--------------------------------------------------------------------------------------------------------")
         slbaPtr=0
         elbaPtr=0
+        AvailableSpareBK=self.GetLog.SMART.AvailableSpare
         totalNum = len(self.getMarkBadBlkRange())
         # example, issue cmd, using pointer(slbaPtr/elbaPtr) to get MarkBadBlk value, after every 3 cmd, print info
         for i in range(totalNum):
             lba = LBAlist[i]
             self.markBadBlk(lba)
+            CriticalWarningList = self.byte2List(self.GetLog.SMART.CriticalWarning) # convert to bit list
+            isBelowThreshold = True if CriticalWarningList[0] ==1 else False
             elbaPtr = i
             # ex, PrintMsgEveryXcommand=3, print info after every 3 time of markBadBlk cmd
-            # if is last cmd of markBadBlk, print info
-            if (elbaPtr+1)%PrintMsgEveryXcommand==0 or elbaPtr==totalNum:
+            # if is last cmd of markBadBlk, or spare below threshold(bit0), print info
+            if (elbaPtr+1)%PrintMsgEveryXcommand==0 or elbaPtr==totalNum or isBelowThreshold:
                 slba = LBAlist[slbaPtr]
                 elba = LBAlist[elbaPtr]
                 CriticalWarning=self.GetLog.SMART.CriticalWarning
@@ -874,10 +877,14 @@ class SMI_SmartHealthLog(NVME):
                 # save to list, note 3th =CriticalWarningList and 5th =EGCWSlist
                 mList.append([slba, elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist]) 
                 slbaPtr = elbaPtr +1
-            if elbaPtr==totalNum:
+            if elbaPtr==totalNum or isBelowThreshold:
                 break            
   
-        self.Print("--------------------------------------------------------------------------------------------------------")      
+        self.Print("--------------------------------------------------------------------------------------------------------") 
+        AvailableSpare=self.GetLog.SMART.AvailableSpare
+        if (AvailableSpareBK == AvailableSpare):
+            self.Print("Warnning! AvailableSpare has no changed!, skip", "w")
+            return 255        
         self.Print("Done!")
         self.Print("")
             
@@ -885,9 +892,10 @@ class SMI_SmartHealthLog(NVME):
         lastValue=100
         isPass=True
         for item in mList:
-            if item[3]<lastValue: 
+            if item[3]>lastValue: 
                 isPass=False
-                break    
+                break
+            lastValue =  item[3]  
         if isPass:
             self.Print("Pass", "p")
         else:
@@ -929,7 +937,7 @@ class SMI_SmartHealthLog(NVME):
             ret_code=1
  
         self.Print("5) Check Endurance Group Critical Warning Summary")
-        if False: # TODO not EnduranceGroupSupported:
+        if not EnduranceGroupSupported:
             self.Print("EnduranceGroupSupported: No, skip", "w")
         else:
             self.Print("EnduranceGroupSupported: Yes", "p")  

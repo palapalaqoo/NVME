@@ -1659,11 +1659,11 @@ class NVMECom():
             mStr = self.GetAlignString(S0=mList[0], S0length=S0length, S1=mList[1], S1length=S1length)
             self.Print(mStr)
             
-    def PrintListWithAlign(self, List, S0length=40, S1length=40):
+    def PrintListWithAlign(self, List, S0length=40, S1length=40, Ctype="d"):
     # print list that is similar to [[A, B], [C, D], ..], that will force A/B/C/D to str type
         for mList in List:
             mStr = self.GetAlignString(S0=str(mList[0]), S0length=S0length, S1=str(mList[1]), S1length=S1length)
-            self.Print(mStr)
+            self.Print(mStr, Ctype)
 
     def hexdump(self, src, length=16): 
     # input is binary, ex, src = "\x15\xab\x33", self.hexdump(src)
@@ -1921,8 +1921,13 @@ class OrderedAttributeClass(object): # snchan
             self.creation_counter = OrderedAttributeClass.MyOrderedField.creation_counter
             # Increment the class's counter for future instances
             OrderedAttributeClass.MyOrderedField.creation_counter += 1
-            
-
+    '''        
+    def addfieldTest(self, ArgTuple):
+        bb = self.ordered_fields  
+        self.ordered_fields.append(ArgTuple)
+        bb = self.ordered_fields  
+        return bb          
+    '''
     def getOrderedAttributesList_curr(self):
         # read name and current value, ex, if after setting A=0x1, B=0x2, return [[A, 0x1], [C, 0x2], ..]
         listBuf = []

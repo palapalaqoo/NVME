@@ -210,7 +210,7 @@ class SMI_Sanitize(NVME):
                     rtCode=1           
 
                 self.Print ("")
-                self.Print ("Check if Completed Passes Counter in Sanitize Status (SSTAT) is working")
+                self.Print ("Check if Completed Passes Counter in Sanitize Status (SSTAT) is working(expect CompletedPassesCount = 2)")
                 self.Print ("CompletedPassesCount: %s"%CompletedPassesCount)
                 expectedCPC = 0 if OWPASS==0 else (OWPASS-1)
                 if CompletedPassesCount == expectedCPC and FlowStatus!=FlowSanitizeStatus.OverWriteCompletedPassesCountCountError:

@@ -1884,10 +1884,15 @@ class NVME(object, NVMECom):
         return True
     
     def setReadOnlyMode(self):
-
+        succ = False
         for lba in self.getMarkBadBlkRange():
             self.markBadBlk(blk=lba)
-        return True
+            CriticalWarningList = self.byte2List(self.GetLog.SMART.CriticalWarning) # convert to bit list
+            isROmode = True if CriticalWarningList[3] ==1 else False
+            if isROmode:
+                succ = True
+                break
+        return succ
     
     
     def backUpEnvironment(self):
