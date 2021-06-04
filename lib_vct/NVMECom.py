@@ -384,7 +384,7 @@ class NVMECom():
         n=2
         return [line[i:i+n] for i in range(0, len(line), n)]       
     
-    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1, NVMEobj=None):
+    def get_log_passthru(self, LID, size, RAE=0, LSP=0, LPO=0, ReturnType=0, BytesOfElement=1, NVMEobj=None, LSI=0):
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=0, ex, byte[0]=0x89, byte[1]=0xab, return ["89", "ab"]
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=2, ex, byte[0]=0x89, byte[1]=0xab, return [0x89, 0xab]
     #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] ,if ReturnType=0
@@ -395,8 +395,10 @@ class NVMECom():
     #--RAE: Retain Asynchronous Event
     #--LSP: Log Specific Field
     #--LPO: Log Page Offset in byte
+    #--LSI: Log Specific Identifier in cdw11[31:16]
         NUMDL=int(size/4-1) & 0xFFFF
         NUMDU=int(size/4-1) >>16
+        CDW11 = NUMDU+LSI<<16
         CDW10_int= (NUMDL<<16) + (RAE<<15) + (LSP <<8) + LID
         CDW10= '0x{:02x}'.format(CDW10_int)
         
@@ -405,7 +407,8 @@ class NVMECom():
         
         #cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=0x007F0008 -l 512 2>&1 "%mNVME.dev
         self.device = NVMEobj.device if NVMEobj!= None else self.device
-        cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "%(self.device, CDW10, NUMDU, LPOL, LPOU, size)
+        cmd="nvme admin-passthru %s --opcode=0x2 -r --cdw10=%s --cdw11=%s --cdw12=%s --cdw13=%s -l %s 2>&1 "\
+        %(self.device, CDW10, CDW11, LPOL, LPOU, size)
         mbuf, sc=self.shell_cmd_with_sc(cmd)
         if sc!=0: # cmd fail
             return None
@@ -1685,7 +1688,19 @@ class NVMECom():
         else:
             mStr = ''.join([chr(x) for x in rawDataList])
         return mStr
-
+    
+    def ByteListToLongInt(self, byteList, byteorder = "little"):
+        result = 0
+        if byteorder == "little":
+            i = 0
+            for b in byteList:
+                result = result + (int(b) <<( i*8 ))
+                i +=1
+        else:
+            for b in byteList:
+                result = result * 256 + int(b)            
+        return result
+    
     def PrintList(self, mList, addOffset = 4, numberPerLine = 16):
     # print int list with offset, where mList = [int, int ,int ..]
         mStr = ""

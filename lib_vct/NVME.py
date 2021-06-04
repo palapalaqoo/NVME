@@ -1921,6 +1921,25 @@ class NVME(object, NVMECom):
         inst.RunScript(isRunSubCase=True, parentSubCasePoint=self.SubCasePoint)  # run and do not print report for SMI_Identify
         self.restoreEnvironment()
         return inst.rtCode      
+    
+    def getTimeStamp(self):
+    # return isSuccess, Timestamp, Origin, Synch, FormatedTimestamp
+    # e.x. isSuccess, Timestamp, Origin, Synch, FormatedTimestamp = self.getTimeStamp()
+        isSuccess = False
+        Origin = 0
+        Synch = 0
+        FormatedTimestamp = ""
+        CMD ="nvme admin-passthru %s --opcode=0xA --data-len=8 -r --cdw10=0xE 2>&1"%(self.dev)
+        mStr, sc = self.shell_cmd_with_sc(CMD)
+        if sc==0:
+            DS = self.AdminCMDDataStrucToListOrString(mStr, 2)  
+            isSuccess = True
+            Timestamp = self.ByteListToLongInt(DS) 
+            Synch = DS[6]&1 
+            Origin = (DS[6]>>1)&0b111     
+            FormatedTimestamp = self.getFormatTime(Timestamp)
+            
+        return isSuccess, Timestamp, Origin, Synch, FormatedTimestamp
 # end of NVME    
 # ==============================================================    
 class SmartCheck_():  

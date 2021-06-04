@@ -8,6 +8,7 @@ from lib_vct.NVMECom import NVMECom
 class RegType(object):
     hex=0x0   # hex
     decimal=0x1     # decimal
+    str=0x1     # string
 
 class RegDescriptor(object,NVMECom):  
     
@@ -57,8 +58,19 @@ class RegDescriptor(object,NVMECom):
     
     @property
     def str(self):
-        hex_str=hex(self.int)[2:]
-        return hex_str
+        if self.regtype==RegType.str: # if is string type
+            mstr=self.get_reg(cmd=self.cmd, reg=self.reg, gettype=1, nsSpec=self.nsspec)
+            if mstr=="":
+                self._NVME.Print("Error read  %s %s, CMD : %s"%(self.cmd, self.reg, self.lastCMD), "f")  
+                self._NVME.Print("try to issue CMD : %s"%(self.lastNvmeCMD), "f")
+                mStr = self._NVME.shell_cmd(self.lastNvmeCMD)
+                self._NVME.Print(mStr)            
+                return 'None'     
+            else:
+                return mstr      
+        else: # is int or hex
+            hex_str=hex(self.int)[2:]
+            return hex_str
 
     
     @property

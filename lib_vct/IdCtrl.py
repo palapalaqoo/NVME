@@ -11,8 +11,8 @@ class IdCtrl_(object, NVMECom):
     def __init__(self, obj):        
         self.VID=RegDescriptor("id-ctrl", "vid", nsSpec=False, NVMEobj=obj)
         self.SSVID=RegDescriptor("id-ctrl", "ssvid", nsSpec=False, NVMEobj=obj)
-        self.SN=RegDescriptor("id-ctrl", "sn", nsSpec=False, NVMEobj=obj)
-        self.MN=RegDescriptor("id-ctrl", "mn", nsSpec=False, NVMEobj=obj)
+        self.SN=RegDescriptor("id-ctrl", "sn", nsSpec=False, NVMEobj=obj, regType=RegType.str)
+        self.MN=RegDescriptor("id-ctrl", "mn", nsSpec=False, NVMEobj=obj, regType=RegType.str)
         self.FR=RegDescriptor("id-ctrl", "fr", nsSpec=False, NVMEobj=obj)
         self.RAB=RegDescriptor("id-ctrl", "rab", nsSpec=False, NVMEobj=obj)
         self.IEEE=RegDescriptor("id-ctrl", "ieee", nsSpec=False, NVMEobj=obj)
@@ -63,7 +63,7 @@ class IdCtrl_(object, NVMECom):
         self.NVSCC=RegDescriptor("id-ctrl", "nvscc", nsSpec=False, NVMEobj=obj)
         self.ACWU=RegDescriptor("id-ctrl", "acwu", nsSpec=False, NVMEobj=obj)
         self.SGLS=RegDescriptor("id-ctrl", "sgls", nsSpec=False, NVMEobj=obj)
-        self.SUBNQN=RegDescriptor("id-ctrl", "subnqn", nsSpec=False, NVMEobj=obj)
+        self.SUBNQN=RegDescriptor("id-ctrl", "subnqn", nsSpec=False, NVMEobj=obj, regType=RegType.str)
     
            
 

@@ -14,7 +14,7 @@ from SMI_Format import SMI_Format
 class SMI_Dell_vendor_feature(NVME):
     ScriptName = "SMI_Dell_vendor_feature.py"
     Author = "Sam"
-    Version = "20210413"         
+    Version = "20210531"         
     
     def SetAndVerifyHCTM(self,TMT1, TMT2):
         self.Print ("Issue command to set TMT1=MXTMT-2( %s), TMT2=MXTMT-1( %s)"%(TMT1, TMT2))
@@ -89,23 +89,12 @@ class SMI_Dell_vendor_feature(NVME):
     SubCase3KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-788"
     def SubCase3(self):
         return self.runSubCase(SMI_Sanitize, 17, appendCMD=["-v", "dellx16"])
-    
-    SubCase4TimeOut = 60000
-    SubCase4Desc =  "[Hynix SRS] Sanitize Command-Read only mode"   
-    SubCase4KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-788"
-    def SubCase4(self):
-        return self.runSubCase(SMI_Sanitize, 18, appendCMD=["-iknowwhatiamdoing"])            
-        
-    SubCase5TimeOut = 60000
-    SubCase5Desc =  "[Hynix SRS] Format NVM requirement"   
-    SubCase5KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-743"
-    def SubCase5(self):
-        return self.runSubCase(SMI_Format, 18, appendCMD=["-iknowwhatiamdoing"])      
+     
 
-    SubCase6TimeOut = 60000
-    SubCase6Desc =  "[Hynix SRS] HCTM Persistancy for item 12.9"   
-    SubCase6KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-891"
-    def SubCase6(self):
+    SubCase4TimeOut = 60000
+    SubCase4Desc =  "[Hynix SRS] HCTM Persistancy for item 12.9"   
+    SubCase4KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-891"
+    def SubCase4(self):
         ret_code = 0
         if self.IdCtrl.HCTMA.int==1:
             self.Print( "Controller support HCTM", "p")
