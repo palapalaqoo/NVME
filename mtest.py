@@ -240,8 +240,11 @@ class mtest(NVME):
                  
     SubCase1TimeOut = 600
     def SubCase1(self):
+<<<<<<< HEAD
         print self.GetLog.EnduranceGroupLog.EnduranceEstimate
         '''
+=======
+>>>>>>> d7107173a76a1355ed9841b609c9d018e5ef8f88
         self.Print ("Assign a thread for event request cmd")
         async_result = self.thread_asynchronous_event_request_cmd() 
         self.Print("CMD : nvme admin-passthru /dev/nvme0n1 --opcode=0xC 2>&1")       
@@ -259,7 +262,10 @@ class mtest(NVME):
             if self.timer.time>65:
                 break
         self.Print ("65 second time up")
+<<<<<<< HEAD
         '''
+=======
+>>>>>>> d7107173a76a1355ed9841b609c9d018e5ef8f88
         return 0        
 
 
