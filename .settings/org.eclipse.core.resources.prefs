@@ -14,6 +14,7 @@ encoding/SMI_FeatureNumberofQueues.py=utf-8
 encoding/SMI_FeatureTimestamp.py=utf-8
 encoding/SMI_Format.py=utf-8
 encoding/SMI_GetLogPageCMD.py=utf-8
+encoding/SMI_HP_SecurityEventLog.py=utf-8
 encoding/SMI_HP_vendor_feature.py=utf-8
 encoding/SMI_Identify.py=utf-8
 encoding/SMI_LENOVO_vendor_feature.py=utf-8

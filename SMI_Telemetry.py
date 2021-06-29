@@ -26,7 +26,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20210525"
+    Version = "20210602"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -92,9 +92,12 @@ class SMI_Telemetry(NVME):
             else:
                 self.Print ("Data Area 1: from block %s to block %s"%("0", LastBlock1))
                 for i in range(1, LastBlock1+1):
-                    LOG=self.get_log_passthru(7, 512, 0, 0, 512*i)
-                    self.Print ("Data Area 1, block %s"%i)
-                    print LOG
+                    LOG=self.get_log_passthru(7, 512, 0, 0, 512*i) # here LOG is string list 
+                    self.Print ("Data Area 1, block %s"%i, "b")
+                    CMD = re.sub(";.*", "", self.LastCmd) #remove ; echo $?
+                    self.SetPrintOffset(4, "add")
+                    self.Print (self.shell_cmd(CMD)) # using LastCmd to get log again and print directly
+                    self.SetPrintOffset(-4, "add")
 
             self.Print ("")
             self.Print ("-------- Read Data Areas 2 --------")
@@ -104,8 +107,11 @@ class SMI_Telemetry(NVME):
                 self.Print ("Data Area 2: from block %s to block %s"%(LastBlock1+1, LastBlock2))
                 for i in range(LastBlock1+1, LastBlock2+1):
                     LOG=self.get_log_passthru(7, 512, 0, 0, 512*i)
-                    self.Print ("Data Area 2, block %s"%i)
-                    print LOG
+                    self.Print ("Data Area 2, block %s"%i, "b")
+                    CMD = re.sub(";.*", "", self.LastCmd) #remove ; echo $?
+                    self.SetPrintOffset(4, "add")
+                    self.Print (self.shell_cmd(CMD)) # using LastCmd to get log again and print directly
+                    self.SetPrintOffset(-4, "add")
 
             self.Print ("")
             self.Print ("-------- Read Data Areas 3 --------")
@@ -115,8 +121,12 @@ class SMI_Telemetry(NVME):
                 self.Print ("Data Area 3: from block %s to block %s"%(LastBlock2+1, LastBlock3)  )
                 for i in range(LastBlock2+1, LastBlock3+1):
                     LOG=self.get_log_passthru(7, 512, 0, 0, 512*i)
-                    self.Print ("Data Area 3, block %s"%i)
-                    print LOG
+                    self.Print ("Data Area 3, block %s"%i, "b")
+                    CMD = re.sub(";.*", "", self.LastCmd) #remove ; echo $?
+                    self.SetPrintOffset(4, "add")
+                    self.Print (self.shell_cmd(CMD)) # using LastCmd to get log again and print directly
+                    self.SetPrintOffset(-4, "add")
+                    
         return True if ret==0 else False
     
     def getReasonIdentifier(self, ID):
@@ -204,8 +214,9 @@ class SMI_Telemetry(NVME):
         self.Print("Current FW log", "b")
         self.PrintFWlog()  
         return True
-            
-    def VerifyTelemetryLogAfterFWcommit(self, CA):
+
+    def VerifyTelemetryLogPersistence(self, triggerFunc, mArgs):
+    # triggerFunc: function that will be run for verify Log Persistence
         self.InitFolder("./temp")
         self.Print ("1)-- Save current Telemetry log 0x7 to binary files", "b")
         SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
@@ -217,11 +228,12 @@ class SMI_Telemetry(NVME):
             self.Print(mList, "d", 4)     
         
         self.Print ("")
-        self.Print ("2)-- Commit FW", "b")
-        self.SetPrintOffset(4)
-        if not self.FW_DownloadAndCommit(CA):
-            return False  
-        self.SetPrintOffset(0)
+        self.Print ("2)-- Try to run function: %s(%s)"%(triggerFunc.__name__, mArgs), "b")
+        self.SetPrintOffset(4, "add")
+        triggerFunc(mArgs)        
+        self.Print ("Done")
+        self.SetPrintOffset(-4, "add")
+
         
         self.Print ("")
         self.Print ("3)-- Save current Telemetry log 0x7 to binary files", "b")
@@ -230,10 +242,10 @@ class SMI_Telemetry(NVME):
             self.Print("Fail", "f")
             return False    
         self.Print ("Below files was been created")
-        self.SetPrintOffset(4)
+        self.SetPrintOffset(4, "add")
         for mList in SavedFileNameList_after:
             self.Print(mList)
-        self.SetPrintOffset(0)        
+        self.SetPrintOffset(-4, "add")        
         
         self.Print ("")
         if len(SavedFileNameList_after)!=len(SavedFileNameList_before):
@@ -250,20 +262,130 @@ class SMI_Telemetry(NVME):
                 CMD = "hexdump %s"%(before)
                 self.Print( "Do shell command to hexdump file: %s"%before) 
                 aa= self.shell_cmd(CMD)
-                self.SetPrintOffset(4)
+                self.SetPrintOffset(4, "add")
                 self.Print(aa)
-                self.SetPrintOffset(0)  
+                self.SetPrintOffset(-4, "add")  
                 CMD = "hexdump %s"%(after)
                 self.Print( "Do shell command to hexdump file: %s"%after) 
                 aa= self.shell_cmd(CMD)
-                self.SetPrintOffset(4)
+                self.SetPrintOffset(4, "add")
                 self.Print(aa)
-                self.SetPrintOffset(0)                  
+                self.SetPrintOffset(-4, "add")                  
+   
+                return False
+        return True   
+            
+    def VerifyTelemetryLogAfterFWcommit(self, CA):
+        self.InitFolder("./temp")
+        self.Print ("1)-- Save current Telemetry log 0x7 to binary files", "b")
+        SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        if len(SavedFileNameList_before)==0:
+            self.Print("Fail", "f")
+            return False   
+        self.Print ("Below files was been created")
+        for mList in SavedFileNameList_before:
+            self.Print(mList, "d", 4)     
+        
+        self.Print ("")
+        self.Print ("2)-- Commit FW", "b")
+        self.SetPrintOffset(4, "add")
+        if not self.FW_DownloadAndCommit(CA):
+            return False  
+        self.SetPrintOffset(-4, "add")
+        
+        self.Print ("")
+        self.Print ("3)-- Save current Telemetry log 0x7 to binary files", "b")
+        SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        if len(SavedFileNameList_after)==0:
+            self.Print("Fail", "f")
+            return False    
+        self.Print ("Below files was been created")
+        self.SetPrintOffset(4, "add")
+        for mList in SavedFileNameList_after:
+            self.Print(mList)
+        self.SetPrintOffset(-4, "add")        
+        
+        self.Print ("")
+        if len(SavedFileNameList_after)!=len(SavedFileNameList_before):
+            self.Print("Fail, number of created file is not equal! ", "f")
+            return False  
+        
+        self.Print ("")        
+        self.Print ("4)-- Compare all log data ..",  "b")
+        for before, after in zip(SavedFileNameList_before, SavedFileNameList_after):
+            if self.isFileTheSame(before, after)==None:
+                self.Print("Pass: %s, %s"%(before, after), "p")        
+            else:
+                self.Print("Fail: %s, %s"%(before, after), "f")      
+                CMD = "hexdump %s"%(before)
+                self.Print( "Do shell command to hexdump file: %s"%before) 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4, "add")
+                self.Print(aa)
+                self.SetPrintOffset(-4, "add")  
+                CMD = "hexdump %s"%(after)
+                self.Print( "Do shell command to hexdump file: %s"%after) 
+                aa= self.shell_cmd(CMD)
+                self.SetPrintOffset(4, "add")
+                self.Print(aa)
+                self.SetPrintOffset(-4, "add")                  
    
                 return False
         return True        
         
-            
+    def SetPS(self, value):
+        self.Print("Set power stat to %s"%value)
+        mStr, SC = self.set_feature_with_sc(fid = 2, value = value)
+        if SC!=0:
+            self.Print("Fail to set feature", "f")
+            return False
+        V, SC = self.GetFeatureValueWithSC(fid = 2)
+        if SC!=0:
+            self.Print("Fail to get feature", "f")
+            return False
+        self.Print("Get power stat: %s"%V)
+        if V == value:
+            return True
+        else:
+            return False
+        
+    def GetFeatureValueWithSC(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False):
+    # get feature with status code
+        Value=0 
+        mStr="0"        
+        if fid==0xE: # Timestamp, datalen=8, data is milliseconds
+            buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec, dataLen=8) 
+            Value= buf
+            # if command success
+            if SC==0:
+                if sel==3:
+                    mStr="capabilities value:(.+)"               
+                    if re.search(mStr, buf):
+                        Value=int(re.search(mStr, buf).group(1),16)
+                else: # sel=0, 1, 2
+                    patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", buf)            
+                    patten1= ''.join(patten)
+                    line=patten1.replace(" ", "")
+                    # return list
+                    # put patten in to list type
+                    n=2
+                    rawData = [line[i:i+n] for i in range(0, len(line), n)]
+                    if len(rawData)==8:
+                        Value=int("0x%s"%rawData[5],16) # e.x. 0000: fe 49 02 15 78 01 02 00  , using 01 as value 
+        else:
+            buf, SC = self.get_feature_with_sc(fid = fid, cdw11=cdw11, sel = sel, nsid = nsid, nsSpec=nsSpec) 
+            if sel==0:
+                mStr="Current value:(.+)"
+            if sel==1:
+                mStr="Default value:(.+)"
+            if sel==2:
+                mStr="Saved value:(.+)"
+            if sel==3:
+                mStr="capabilities value:(.+)"                          
+            if re.search(mStr, buf):
+                Value=int(re.search(mStr, buf).group(1),16)
+
+        return Value, SC            
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     def __init__(self, argv):
@@ -588,6 +710,8 @@ class SMI_Telemetry(NVME):
     def SubCase14(self):
         ret_code=0    
         self.Print ("Async event test and controller-initiated telemetry test(log page 0x8)" )
+        self.Print ("Skip because of linux platform")
+        return 0
         self.Print (""    )
         # save Telemetry Controller-Initiated Data Generation Number
         LOG08=self.get_log_passthru(8, 512, 0, 0)
@@ -706,6 +830,68 @@ class SMI_Telemetry(NVME):
     SubCase15TimeOut = 600
     SubCase15Desc = "Check Telemtry Log Across PowerState"        
     def SubCase15(self):
+        npss = self.IdCtrl.NPSS.int
+        self.Print("NPSS in id-ctrl: %s"%npss)
+        ps_bk, sc = self.GetFeatureValueWithSC(fid = 2)
+        if sc!=0:
+            self.Print("Fail, can not get current power state, CMD: %s"%self.LastCmd, "f")
+            return 1
+        else:
+            self.Print("Current power state: %s"%ps_bk)
+            
+        isPass = True
+        for ps in range(npss+1):
+            self.Print("")
+            self.Print("Verify Telemetry Log with ps = %s"%ps, "b")
+            self.SetPrintOffset(4, "add")
+            isPass = self.VerifyTelemetryLogPersistence(triggerFunc = self.SetPS, mArgs = ps)
+            self.SetPrintOffset(-4, "add")           
+            if isPass:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail, skip", "f")
+        
+        self.Print("")
+        if isPass:
+            
+            self.Print("PASS", "p") 
+        else:
+            self.Print("Fail", "f") 
+        self.Print("")  
+                  
+        self.Print("Restore power state")
+        self.SetPS(ps_bk)
+   
+        return 0 if isPass else 1
+ 
+
+
+    SubCase16TimeOut = 600
+    SubCase16Desc = "Compare Telemetry log after Firmware Commit(CA0~3)"        
+    def SubCase16(self):
+        ret_code=0
+        NumOfFWslot = int(self.IdCtrl.FRMW.bit(3, 1), 2)
+        self.Print("Number of firmware slots: %s"%NumOfFWslot)
+        self.Print("FWimage: %s"%self.FWimage)
+        if not self.isfileExist(self.FWimage):
+            self.Print("FWimage( %s ) not exist in current directory, please check or assign FWimage name with -f option"%self.FWimage, "w")
+            self.Print("For more informat , run 'python SMI_Telemetry.py'", "w")
+            return 255
+
+        for CA in range(0,4):
+            self.Print("")
+            # print prefix
+            self.PrintLoop = CA            
+            self.Print("Compare Telemetry log after Firmware Commit with Commit Action (CA) = %s"%CA, "b")
+            if not self.VerifyTelemetryLogAfterFWcommit(CA):
+                return 1
+        
+        self.PrintLoop = ""
+        self.Print("")
+
+    SubCase17TimeOut = 600
+    SubCase17Desc = "Check Telemtry Log Across PowerState(POR)"        
+    def SubCase17(self):
         ret_code=0
         self.InitFolder("./temp")
         self.Print ("Save current Telemetry log 0x8 to binary files")
@@ -714,10 +900,10 @@ class SMI_Telemetry(NVME):
             self.Print("Fail", "f")
             return 1     
         self.Print ("Below files was been created")
-        self.SetPrintOffset(4)
+        self.SetPrintOffset(4, "add")
         for mList in SavedFileNameList_before:
             self.Print(mList)
-        self.SetPrintOffset(0)
+        self.SetPrintOffset(-4, "add")
         # Telemetry Controller-Initiated Data Generation Number
         GNumOld = rtHeader[383]        
         self.Print("Current Telemetry Controller-Initiated Data Generation Number: %s"%GNumOld)
@@ -735,10 +921,10 @@ class SMI_Telemetry(NVME):
             self.Print("Fail", "f")
             return 1     
         self.Print ("Below files was been created")
-        self.SetPrintOffset(4)
+        self.SetPrintOffset(4, "add")
         for mList in SavedFileNameList_after:
             self.Print(mList)
-        self.SetPrintOffset(0)        
+        self.SetPrintOffset(-4, "add")        
         # Telemetry Controller-Initiated Data Generation Number
         GNumNew = rtHeader[383]        
         self.Print("Current Telemetry Controller-Initiated Data Generation Number: %s"%GNumNew)
@@ -765,47 +951,18 @@ class SMI_Telemetry(NVME):
                 CMD = "hexdump %s"%(before)
                 self.Print( "Do shell command to hexdump file: %s"%before) 
                 aa= self.shell_cmd(CMD)
-                self.SetPrintOffset(4)
+                self.SetPrintOffset(4, "add")
                 self.Print(aa)
-                self.SetPrintOffset(0)  
+                self.SetPrintOffset(-4, "add")  
                 CMD = "hexdump %s"%(after)
                 self.Print( "Do shell command to hexdump file: %s"%after) 
                 aa= self.shell_cmd(CMD)
-                self.SetPrintOffset(4)
+                self.SetPrintOffset(4, "add")
                 self.Print(aa)
-                self.SetPrintOffset(0)                  
+                self.SetPrintOffset(-4, "add")                  
    
                 ret_code=1 
-        return ret_code     
-
-
-    SubCase16TimeOut = 600
-    SubCase16Desc = "Compare Telemetry log after Firmware Commit(CA0~3)"        
-    def SubCase16(self):
-        ret_code=0
-        NumOfFWslot = int(self.IdCtrl.FRMW.bit(3, 1), 2)
-        self.Print("Number of firmware slots: %s"%NumOfFWslot)
-        self.Print("FWimage: %s"%self.FWimage)
-        if not self.isfileExist(self.FWimage):
-            self.Print("FWimage( %s ) not exist in current directory, please check or assign FWimage name with -f option"%self.FWimage, "w")
-            self.Print("For more informat , run 'python SMI_Telemetry.py'", "w")
-            return 255
-
-        for CA in range(0,4):
-            self.Print("")
-            # print prefix
-            self.PrintLoop = CA            
-            self.Print("Compare Telemetry log after Firmware Commit with Commit Action (CA) = %s"%CA, "b")
-            if not self.VerifyTelemetryLogAfterFWcommit(CA):
-                return 1
-        
-        self.PrintLoop = ""
-        self.Print("")
-        self.Print("")
-        self.Print("")
-        self.Print("")
-        
-        
+        return ret_code          
         
         return ret_code  
         

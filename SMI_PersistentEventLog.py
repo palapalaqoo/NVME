@@ -235,7 +235,7 @@ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 class SMI_PersistentEventLog(NVME):
     ScriptName = "SMI_PersistentEventLog.py"
     Author = ""
-    Version = "20210526"
+    Version = "20210528"
     
     def getPELHvalue(self, name):
         for i in range(len(self.PELH)):
@@ -629,6 +629,120 @@ class SMI_PersistentEventLog(NVME):
         self.Print("")
         return True    
     
+    def VerifyHeaderFields(self):
+        isPass = True
+        self.Print("Persistent Event Log -> Log Identifier : %s"%self.PELH.LogIdentifier)
+        self.Print("Check if Log Identifier = 0xD")
+        if self.PELH.LogIdentifier==0xD:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "p")
+            isPass = False
+        
+        self.Print("")
+        self.Print("Persistent Event Log -> Log Revision : %s"%self.PELH.LogRevision)
+        self.Print("Check if Log Identifier = 0x1")
+        if self.PELH.LogRevision==0x1:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "p")
+            isPass = False
+            
+        self.Print("")
+        TimestampPEL, formatT = self.parserTimestamp(self.PELH.Timestamp)
+        self.Print("Persistent Event Log -> Log Timestamp : 0x%X"%TimestampPEL)
+        curr , formatedT = self.parserTimestamp(self.PELH.Timestamp)
+        isSuccess, TimestampFeature, Origin, Synch, FormatedTimestamp = self.getTimeStamp()
+        if not isSuccess:
+            self.Print("Fail to get feature timestamp, CMD: %s "%self.LastCmd, "p"); return 1
+        self.Print("Feature -> Timestamp : 0x%X"%TimestampFeature)
+        self.Print("Check if Timestamp in Persistent Event Log  is approximately equal to Feature Timestamp(tolerance: 1 second )")       
+        if (TimestampPEL+1000)>TimestampFeature:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False    
+            
+        self.Print("")
+        self.Print("Persistent Event Log -> Power on Hours (POH) : %s"%self.PELH.POH)
+        POH_smart = self.GetLog.SMART.PowerOnHours
+        self.Print("SMART/Health Log -> Power on Hours (POH) : %s"%POH_smart)
+        self.Print("Check if POH in Persistent Event Log  is equal to POH in SMART/Health Log ")
+        if self.PELH.POH==POH_smart:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False            
+            
+        self.Print("")
+        self.Print("Persistent Event Log -> Power Cycle Count : %s"%self.PELH.PowerCycleCount)
+        PC = self.GetLog.SMART.PowerCycles
+        self.Print("SMART/Health Log -> Power Cycle : %s"%PC)
+        self.Print("Check if Power Cycle in Persistent Event Log  is equal to Power Cycle in SMART/Health Log ")
+        if self.PELH.PowerCycleCount==PC:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False  
+
+        self.Print("")
+        self.Print("Persistent Event Log -> PCI Vendor ID (VID) : %s"%self.PELH.VID)
+        VID = self.IdCtrl.VID.int
+        self.Print("Identify -> VID : %s"%VID)
+        self.Print("Check if VID in Persistent Event Log  is equal to VID in identify data structure ")
+        if self.PELH.VID==VID:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False 
+
+        self.Print("")
+        self.Print("Persistent Event Log -> PCI Subsystem Vendor ID (SSVID) : %s"%self.PELH.SSVID)
+        SSVID = self.IdCtrl.SSVID.int
+        self.Print("Identify -> SSVID : %s"%SSVID)
+        self.Print("Check if SSVID in Persistent Event Log  is equal to SSVID in identify data structure ")
+        if self.PELH.SSVID==SSVID:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False 
+
+        self.Print("")
+        self.Print("Persistent Event Log -> Serial Number (SN): %s"%self.PELH.SN)
+        SN = self.IdCtrl.SN.str
+        self.Print("Identify -> SN : %s"%SN)
+        self.Print("Check if SN in Persistent Event Log  is equal to SN in identify data structure ")
+        if self.PELH.SN==SN:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False 
+
+        self.Print("")
+        self.Print("Persistent Event Log -> Model Number (MN): %s"%self.PELH.MN)
+        MN = self.IdCtrl.MN.str
+        self.Print("Identify -> MN : %s"%MN)
+        self.Print("Check if MN in Persistent Event Log  is equal to MN in identify data structure ")
+        if self.PELH.MN==MN:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False 
+            
+        self.Print("")
+        self.Print("Persistent Event Log -> NVM Subsystem NVMe Qualified Name (SUBNQN): %s"%self.PELH.SUBNQN)
+        SUBNQN = self.IdCtrl.SUBNQN.str
+        self.Print("Identify -> SUBNQN : %s"%SUBNQN)
+        self.Print("Check if SUBNQN in Persistent Event Log  is equal to SUBNQN in identify data structure ")
+        if self.PELH.SUBNQN==SUBNQN:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            isPass = False             
+                    
+        return isPass
+    
+    
     def PrintPEL(self):        
         self.Print("Show Persistent Event Log Events")          
         self.Print("")
@@ -647,7 +761,7 @@ class SMI_PersistentEventLog(NVME):
         self.SetPrintOffset(-4, "add")          
     
     def parserTimestamp(self, Timestamp):
-        # Timestamp has remove byte 6 ( TimestampOrigin and Synch), ex. '0x017968B29BAE(2021-05-14 10:26:46)'
+        # Timestamp: value(formated time),  ex. '0x017968B29BAE(2021-05-14 10:26:46)'
         # return int(Timestamp) and formated Timestamp, ex. 0x017968B29BAE, '2021-05-14 10:26:46'
         intT = 0
         fT = "None"
@@ -907,8 +1021,10 @@ class SMI_PersistentEventLog(NVME):
             return 1
         
         self.Print ("")
+        if  not self.VerifyHeaderFields():
+            ret_code = 1
         #self.Print ("Check Time EventTimestamp")
-        
+        self.Print ("")
         self.PrintPEL()
    
             

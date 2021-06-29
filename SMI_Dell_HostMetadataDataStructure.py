@@ -22,12 +22,12 @@ class HostMetadataDataStructure(Structure):
     _pack_=1
     _fields_=[('NumberofMetadataElementDescriptors',c_ubyte),
             ('Reserved',c_ubyte),
-            ('ElementType',c_ubyte,6),
+            ('ElementType',c_ubyte,6), # 6 bit
             ('Reserved_7_6',c_ubyte,2),
             ('ElementRevision',c_ubyte,4),
             ('Reserved_15_12',c_ubyte,4),
             ('ElementLength',c_ushort),
-            ('ElementValue',c_char * 128)]  
+            ('ElementValue',c_char * 128)]  # 128 byte
     def hexdumpMetadataElementDescriptor(self):
         mStr = string_at(addressof(self),sizeof(self))
         mStr = self.mNVME.hexdump(src=mStr)

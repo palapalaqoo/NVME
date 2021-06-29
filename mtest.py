@@ -28,14 +28,17 @@ import mtest1
 from lib_vct.NVME import NVME
 
 from lib_vct.NVMECom import OrderedAttributeClass
+from lib_vct.NVMECom import NVMECom
 
+
+import Queue
 class mtest(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "mtest.py"
     Author = "Sam Chan"
     Version = "20191030"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    
+    que = Queue.Queue()
     def getDW10_DW11(self, slba):
         dw10=slba&0xFFFFFFFF
         dw11=slba>>32
@@ -224,60 +227,41 @@ class mtest(NVME):
             return mStr
         def intToHexStr(self, value):
             return "0x%X"%value                
-            
-    class PELH_(OrderedAttributeClass, TT): 
-        # define parserFuncs
-        TNEV = OrderedAttributeClass.MyOrderedField((7, 4, 0, p_getFormatTime))
-        def p_getFormatTime(self, value):
-            mStr = "0x%X(%s)"%(value, self.getFormatTime(value))
-            return mStr
-        def __init__(self):
-            # end of define parserFuncs     
-            mT = (0, 0, 0)
 
-              
-
-    class PELH_1(OrderedAttributeClass): 
-        # define parserFuncs
-        def p_getFormatTime(self, value):
-            mStr = "0x%X(%s)"%(value, self.getFormatTime(value))
-            return mStr
-        # end of define parserFuncs     
-        LogIdentifier = OrderedAttributeClass.MyOrderedField((0, 0, 0))
-        TNEV = OrderedAttributeClass.MyOrderedField((7, 4, 0))
-        TLL = OrderedAttributeClass.MyOrderedField((15, 8, 0))   
-        def __init__(self):
-
-            self.setOrderedAttributesList_init("TNEV", (111, 9, 0), super(self).subfinder)
-            cc =0
-     
+    def asynchronous_event_request_cmd(self): 
+        mstr =  self.shell_cmd(" nvme admin-passthru %s --opcode=0xC 2>&1"%(self.dev))   
+        self.que.put(mstr)
+    def thread_asynchronous_event_request_cmd(self):
+        # return thread        
+        t = threading.Thread(target = self.asynchronous_event_request_cmd)
+        t.start()   
+       
+        return t 
+                 
     SubCase1TimeOut = 600
     def SubCase1(self):
-        AA = self.PELH_()
-
-        allAttrList= AA.getOrderedAttributesList_init()
-        bb = AA.ordered_fields
-        cc = AA.MyOrderedFieldDynamic((111, 9, 0))
-        mT = (0, 0, 0)
-        AA.B =  OrderedAttributeClass.MyOrderedFieldDynamic(mT)
-        allAttrList= AA.getOrderedAttributesList_init()
-        AA.setOrderedAttributesList_init("TNEV", (9, 9, 0))
-        allAttrList= AA.getOrderedAttributesList_init()
-     
+        print self.GetLog.EnduranceGroupLog.EnduranceEstimate
+        '''
+        self.Print ("Assign a thread for event request cmd")
+        async_result = self.thread_asynchronous_event_request_cmd() 
+        self.Print("CMD : nvme admin-passthru /dev/nvme0n1 --opcode=0xC 2>&1")       
         
-            
-        self.Print("aaaa")
-
-
-
-
+        self.Print ("")
+        self.Print ("Issue CMD: nvme id-ctrl /dev/nvme0 2>&1; echo $?")
+        self.Print ("For 65 second, if status code!=0, print status")
+        self.timer.start("int")        
+        while True:
+            mStr, SC = self.shell_cmd_with_sc("nvme id-ctrl %s 2>&1"%self.dev_port)
+            if SC!=0:
+                self.Print("SC : %s"%SC, "f")
+                self.Print(mStr)
+                self.Print ("")
+            if self.timer.time>65:
+                break
+        self.Print ("65 second time up")
+        '''
         return 0        
-        
-    SubCase2TimeOut = 600
-    def SubCase2(self):        
-        self.Print("BBBBBBBB")
 
-        return 0   
 
 
 

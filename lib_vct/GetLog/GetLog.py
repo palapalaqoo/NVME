@@ -7,7 +7,7 @@ Created on Aug 10, 2018
 from SanitizeStatus import SanitizeStatus_
 from DeviceSelfTest import DeviceSelfTest_
 from SMART import SMART_
-
+from EnduranceGroupLog import EnduranceGroupLog_
 
 
    
@@ -19,4 +19,5 @@ class GetLog_():
         self.SanitizeStatus=SanitizeStatus_(obj)  
         self.DeviceSelfTest=DeviceSelfTest_(obj)
         self.SMART=SMART_(obj)
+        self.EnduranceGroupLog=EnduranceGroupLog_(obj)
     

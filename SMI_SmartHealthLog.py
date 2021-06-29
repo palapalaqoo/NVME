@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20210506"
+    Version = "20210614"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -220,8 +220,8 @@ class SMI_SmartHealthLog(NVME):
             self.Print("FAIL", "f")
             return False        
 
-    def PrintAlignString(self,S0="", S1="", S2="", S3="", S4="", S5="", PF="default"):            
-        mStr = "{:<16}{:<16}{:<34}{:<16}{:<24}{:<34}".format(S0, S1, S2, S3, S4,S5 )
+    def PrintAlignString(self,S0="", S1="", S2="", S3="", S4="", S5="", S6="", PF="default"):            
+        mStr = "{:<8}{:<8}{:<28}{:<8}{:<8}{:<28}{:<28}".format(S0, S1, S2, S3, S4, S5, S6)
         if PF=="pass":
             self.Print( mStr , "p")        
         elif PF=="fail":
@@ -824,6 +824,7 @@ class SMI_SmartHealthLog(NVME):
         
     SubCase15TimeOut = (4000)
     SubCase15Desc = "[Read only mode] Test Critical Warning in Read only mode"      
+    SubCase15KeyWord = "VCTDEPT-851"
     def SubCase15(self):
         ret_code=0
         self.Print ("Verify Critical Warning in Read only mode ")
@@ -844,28 +845,44 @@ class SMI_SmartHealthLog(NVME):
         self.Print ("Issue VU CMD to markBadBlk and verify Critical Warning bit0 and bit3")
         self.Print("bit 0 (available spare capacity has fallen below the threshold)")
         self.Print("bit 3 (the media has been placed in read only mode)")
+        self.Print("If any field changed, print all field")
         self.Print("")
         mList = []
         AvailableSpareT = self.GetLog.SMART.AvailableSpareThreshold 
         LBAlist = self.getMarkBadBlkRange() # self.getMarkBadBlkRange() will get list of blocks
-        PrintMsgEveryXcommand=len(self.getMarkBadBlkRange())/10 # ten times 
-        self.PrintAlignString("markBadBlk_SLBA", "markBadBlk_ELBA", "CriticalWarning[bit0,bit1..bit7]", "AvailableSpare", "AvailableSpareThreshold",\
-                              "EnduranceGroupCriticalWarningSummary[bit0,bit1..bit7]")
+        # print title
+        self.PrintAlignString("markBadBlk_SLBA")
+        self.PrintAlignString("|", "markBadBlk_ELBA")
+        self.PrintAlignString("|", "|", "CriticalWarning[bit0,bit1..bit7]")
+        self.PrintAlignString("|", "|", "|", "AvailableSpare")
+        self.PrintAlignString("|", "|", "|", "|", "AvailableSpareThreshold")
+        self.PrintAlignString("|", "|", "|", "|", "|", "EnduranceGroupCriticalWarningSummary")
+        # if EnduranceGroupSupported, print title
+        if EnduranceGroupSupported: self.PrintAlignString("|", "|", "|", "|", "|", "|","CriticalWarning in EnduranceGroupLog(LID=0x9)")
+        if EnduranceGroupSupported: self.PrintAlignString("|", "|", "|", "|", "|", "|","|")         
         self.Print("--------------------------------------------------------------------------------------------------------")
         slbaPtr=0
         elbaPtr=0
         AvailableSpareBK=self.GetLog.SMART.AvailableSpare
         totalNum = len(self.getMarkBadBlkRange())
-        # example, issue cmd, using pointer(slbaPtr/elbaPtr) to get MarkBadBlk value, after every 3 cmd, print info
+        listOld = []
+        # example, issue cmd, using pointer(slbaPtr/elbaPtr) to get MarkBadBlk value
         for i in range(totalNum):
             lba = LBAlist[i]
             self.markBadBlk(lba)
+            # get fields
             CriticalWarningList = self.byte2List(self.GetLog.SMART.CriticalWarning) # convert to bit list
+            AvailableSpare=self.GetLog.SMART.AvailableSpare
+            EGCWSlist = self.byte2List(self.GetLog.SMART.EnduranceGroupCriticalWarningSummary)
+            E_CriticalWarningList = "" if not EnduranceGroupSupported else self.byte2List(self.GetLog.EnduranceGroupLog.CriticalWarning)
+            listCurr = [CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist, E_CriticalWarningList]
+            haveChanged = True if listCurr!=listOld else False
+            listOld = listCurr
             isBelowThreshold = True if CriticalWarningList[0] ==1 else False
             elbaPtr = i
             # ex, PrintMsgEveryXcommand=3, print info after every 3 time of markBadBlk cmd
-            # if is last cmd of markBadBlk, or spare below threshold(bit0), print info
-            if (elbaPtr+1)%PrintMsgEveryXcommand==0 or elbaPtr==totalNum or isBelowThreshold:
+            # if is last cmd of markBadBlk, or any field changed, print info
+            if haveChanged or elbaPtr==totalNum:
                 slba = LBAlist[slbaPtr]
                 elba = LBAlist[elbaPtr]
                 CriticalWarning=self.GetLog.SMART.CriticalWarning
@@ -873,12 +890,14 @@ class SMI_SmartHealthLog(NVME):
                 CriticalWarningList = self.byte2List(CriticalWarning) # convert to bit list
                 EnduranceGroupCriticalWarningSummary=self.GetLog.SMART.EnduranceGroupCriticalWarningSummary
                 EGCWSlist = self.byte2List(EnduranceGroupCriticalWarningSummary)                                
-                self.PrintAlignString("0x%X"%slba, "0x%X"%elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist)
+                self.PrintAlignString("0x%X"%slba, "0x%X"%elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist, E_CriticalWarningList)
                 # save to list, note 3th =CriticalWarningList and 5th =EGCWSlist
-                mList.append([slba, elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist]) 
+                mList.append([slba, elba, CriticalWarningList, AvailableSpare, AvailableSpareT, EGCWSlist, E_CriticalWarningList]) 
                 slbaPtr = elbaPtr +1
+            # if is last cmd of markBadBlk or spare below threshold(bit0), print info
             if elbaPtr==totalNum or isBelowThreshold:
-                break            
+                break   
+            #if AvailableSpare<=85: break         # test
   
         self.Print("--------------------------------------------------------------------------------------------------------") 
         AvailableSpare=self.GetLog.SMART.AvailableSpare
@@ -956,8 +975,25 @@ class SMI_SmartHealthLog(NVME):
                 self.Print("Fail", "f")   
                 ret_code=1                
                     
-  
-
+        self.Print("6) Check Critical Warning field in Endurance Group Log, log ID = 0x9")
+        if not EnduranceGroupSupported:
+            self.Print("EnduranceGroupSupported: No, skip", "w")
+        else:
+            self.Print("EnduranceGroupSupported: Yes", "p")  
+            self.Print("Verify Critical Warning in Endurance Group Log, bit [0,2,3] must the same as CriticalWarning")       
+            isPass=True
+            for item in mList:
+                CriticalWarning = item[2]
+                E_CriticalWarning = item[6]
+                # compare bit 0,2,3
+                if E_CriticalWarning[0]!=CriticalWarning[0]:isPass=False; break
+                if E_CriticalWarning[2]!=CriticalWarning[2]:isPass=False; break
+                if E_CriticalWarning[3]!=CriticalWarning[3]:isPass=False; break
+            if isPass:
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")   
+                ret_code=1       
                                 
         return ret_code        
 
