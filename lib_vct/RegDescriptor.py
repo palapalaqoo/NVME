@@ -3,7 +3,7 @@ Created on Aug 30, 2018
 
 @author: root
 '''
-
+import re
 from lib_vct.NVMECom import NVMECom
 class RegType(object):
     hex=0x0   # hex
@@ -44,15 +44,25 @@ class RegDescriptor(object,NVMECom):
         if cmd == "show-regs":
             DEV=self.device_port
         #DEV=self.device if cmd=="id-ns" else self.device_port
-        mStr="nvme %s %s |grep '^%s ' |cut -d ':' -f 2 |sed 's/[^0-9a-zA-Z]*//g'" %(cmd, DEV, reg)
+        mStr="nvme %s %s |grep '^%s '" %(cmd, DEV, reg)
         self.lastNvmeCMD = "nvme %s %s" %(cmd, DEV)
         self.lastCMD= mStr
         if gettype==0:
-            return self.shell_cmd(mStr)[::-1]
-        if gettype==1:
-            return self.shell_cmd(mStr)
+            rtStr = self.shell_cmd(mStr)[::-1]
+        elif gettype==1:
+            rtStr = self.shell_cmd(mStr)
         elif gettype==16:
-            return int(self.shell_cmd(mStr), 16)
+            rtStr = int(self.shell_cmd(mStr), 16)
+        else:
+            print "fail at RegDescripter: gettype mismatch"
+        mStr="%s\s*:(.*)"%reg
+        if re.search(mStr, rtStr): # find all string after ':'
+            rtStr=re.search(mStr, rtStr).group(1) 
+            rtStr = rtStr.strip() # remove front and tail spaces
+            return rtStr
+        else:
+            print "fail at RegDescripter: %s"%rtStr
+            return rtStr          
     
     
     

@@ -14,7 +14,7 @@ from SMI_Format import SMI_Format
 class SMI_Dell_vendor_feature(NVME):
     ScriptName = "SMI_Dell_vendor_feature.py"
     Author = "Sam"
-    Version = "20210531"         
+    Version = "20210720"         
     
     def SetAndVerifyHCTM(self,TMT1, TMT2):
         self.Print ("Issue command to set TMT1=MXTMT-2( %s), TMT2=MXTMT-1( %s)"%(TMT1, TMT2))
@@ -128,8 +128,8 @@ class SMI_Dell_vendor_feature(NVME):
         self.Print( "Issue nvme reset")
         self.nvme_reset()                    
         TMT1rt, TMT2rt = self.GetTMT1_TMT1()
-        self.Print ("Returned current TMT1, TMT2 value is : %s, %s "%(TMT1rt, TMT2rt)) 
-        self.Print ("Check if feature is maintained( current TMT1, TMT2 =  %s, %s)"%(TMT1, TMT2))
+        self.Print ("Read and get current TMT1, TMT2 value is : %s, %s "%(TMT1rt, TMT2rt)) 
+        self.Print ("Check if feature is maintained( i.e. expect TMT1, TMT2 =  %s, %s)"%(TMT1, TMT2))
         if TMT1rt==TMT1 and TMT2rt==TMT2:
             self.Print("Pass", "p")
         else:

@@ -26,7 +26,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20210525"
+    Version = "20210701"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -143,7 +143,7 @@ class SMI_Format(NVME):
         rtc=0
         nn=self.IdCtrl.NN.int
         TNVMCAP=self.IdCtrl.TNVMCAP.int
-        TotalBlocks=TNVMCAP/512
+        TotalBlocks=TNVMCAP/self.OneBlockSize
         
         for i in range(1, nn+1):        
             # delete NS
@@ -179,7 +179,7 @@ class SMI_Format(NVME):
     # compare block, return true if equal 
             return self.fio_isequal(0,"64k", value, nsid)        
         
-    def Test_FFFFFFFF(self, SES):
+    def Test_Allnamespacesattachedtothecontroller(self, SES):
         ret_code=0
         self.Print ("  write 64k data to all namespaces with data=0x5c")
         for nsid in range(1, self.StopNs+1):
@@ -202,7 +202,7 @@ class SMI_Format(NVME):
             self.Print("  Fail", "p")
             ret_code = 1
         return ret_code
-    def Test_AllOtherValidValues(self, SES):
+    def Test_Particularnamespacespecified(self, SES):
         ret_code=0
         self.Print ("  write 64k data to all namespaces with data=0x5c")
         for nsid in range(1, self.StopNs+1):
@@ -215,8 +215,10 @@ class SMI_Format(NVME):
         self.Print ("  And other namespaces  should not be modified")
         TestResult=0
         for nsid in range(1, self.StopNs+1):  
-            
+            self.Print ("")
+            self.Print ("Issue format command with nsid = %s, SES = %s"%(nsid, SES))
             self.Format(nsid, 0, SES)
+            #self.PrintAlignString("nsid", "")
             
             # if not first loop, test data in the front of the formating ns  ,should be formatted
             if nsid!=1:
@@ -242,7 +244,7 @@ class SMI_Format(NVME):
             ret_code = 1                    
         return ret_code
 
-    def Test_AllValidValues(self, SES):
+    def Test_AllnamespacesintheNVMsubsystem(self, SES):
         ret_code=0
         self.Print ("  write 64k data to all namespaces with data=0x5c")
         for nsid in range(1, self.StopNs+1):
@@ -265,7 +267,22 @@ class SMI_Format(NVME):
             ret_code = 1    
         return ret_code
 
+    def PrintNStable(self, listIn):
+        if len(listIn)>4:
+            return False
+        # title
+        S0 = "nsid"; S1 = "|"; S2 = ""; S3 = ""; S4 = ""; S5 = ""
+        self.PrintAlignString(S0, S1, S2, S3, S4, S5)
+        self.Print("------------------------------------------------")
+        # value
+        S0 = "nsid"; S1 = "|"; S2 = ""; S3 = ""; S4 = ""; S5 = ""
+        self.PrintAlignString(S0, S1, S2, S3, S4, S5)        
+ 
 
+    def PrintAlignString(self,S0, S1, S2, S3, S4, S5):
+        #PO: print option: p/f/b/d .. etc, i.e. p=pass, f=fail, b=bold, d=default
+        mStr = "{:<6}\t{:<2}\t{:<6}\t{:<6}\t{:<6}\t{:<6}".format(S0, S1, S2, S3, S4, S5)
+        self.Print(mStr)
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
         # initial parent class
@@ -276,7 +293,7 @@ class SMI_Format(NVME):
         self.FNA=self.IdCtrl.FNA.int
         self.NN=self.IdCtrl.NN.int
         self.LBAF=self.GetAllLbaf()
-        self.SecureEraseSupported=True if  self.IdCtrl.FNA.bit(2)=="1" else False
+        self.CryptographicEraseSupported=True if  self.IdCtrl.FNA.bit(2)=="1" else False
         self.DPC=self.IdNs.DPC.int
         self.Type1Supported=True if self.IdNs.DPC.bit(0)=="1" else False
         self.Type2Supported=True if self.IdNs.DPC.bit(1)=="1" else False
@@ -300,7 +317,7 @@ class SMI_Format(NVME):
         self.Print ("Number of LBA formats (self.NLBAF): %s"%self.NLBAF)
         self.Print ("formatted LBA Size (self.FLBAS): %s"%self.FLBAS)
         self.Print ("Number of Namespaces (NN): %s"%self.NN    )
-        self.Print ("Cryptographic erase is supported" if self.SecureEraseSupported else "Cryptographic erase is not supported" )
+        self.Print ("Cryptographic erase is supported" if self.CryptographicEraseSupported else "Cryptographic erase is not supported" )
         self.Print ("-----------------------------------------------------------------------------------"       )
         self.Print ("")
         return True
@@ -383,8 +400,8 @@ class SMI_Format(NVME):
         self.Print (""       )
         self.Print ("Send format command with SES=010b (Cryptographic Erase:)")
         mStr=self.Format(1, 0, 2);
-        self.Print ("Check return code, expected returned status code: %s"%("Success" if self.SecureEraseSupported else "Fail"))
-        if self.SecureEraseSupported:
+        self.Print ("Check return code, expected returned status code: %s"%("Success" if self.CryptographicEraseSupported else "Fail"))
+        if self.CryptographicEraseSupported:
             ret_code = ret_code if self.CheckResult(mStr, self.Expected_Success) else 1
         else:
             ret_code = ret_code if self.CheckResult(mStr, self.Expected_Fail) else 1        
@@ -702,13 +719,13 @@ class SMI_Format(NVME):
     SubCase12KeyWord = "format NVM - format Scope, format NVM - Secure Erase Scope"
     def SubCase12(self): 
         ret_code=0
-    
+        
         # geneate vaild namespaces
         # check if controller supports the Namespace Management and Namespace Attachment commands or not
         NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False
         if NsSupported:
             self.Print ("controller supports the Namespace Management and Namespace Attachment commands")
-            print  "try to create namespace" 
+            self.Print (  "try to create namespace" )
             # function CreateMultiNs() will create namespace less then 8 NS
             MaxNs = self.CreateMultiNs()
             if MaxNs ==1:
@@ -716,37 +733,81 @@ class SMI_Format(NVME):
                 self.NsReady=False
             else:
                 self.Print ("namespaces nsid from 1 to %s have been created"%MaxNs)
-                self.StopNs=MaxNs                            
+                self.StopNs=MaxNs
+        else:
+            self.Print ("controller do not supports the Namespace Management and Namespace Attachment commands")
         
         if self.NsReady:
-            print  ""
-            print  "format NVM - format Scope"
-            if self.FNAbit_0=="0":
-                print  "  self.FNA bit0=0, test NSID=0xFFFFFFFF, All namespaces attached to the controller"
-                ret_code=ret_code if self.Test_FFFFFFFF(0)==0 else 1
-                print  "  self.FNA bit0=0, test NSID=All other valid values, Particular namespace specified"
-                ret_code=ret_code if self.Test_AllOtherValidValues(0)==0 else 1
-            else:
-                print  "  self.FNA bit0=1, test NSID=All valid values, All namespaces in the NVM subsystem"
-                ret_code=ret_code if self.Test_AllValidValues(0)==0 else 1
+            self.Print (  "" )
+            if True:      # always do 'No secure erase operation requested' if format command is supported     
+                SES = 0       
+                self.Print (  "format NVM - format Scope with No secure erase" )
+                self.SetPrintOffset(4, "add")
+                if self.FNAbit_0=="0":
+                    self.Print (  "FNA bit0=0, test NSID=0xFFFFFFFF, All namespaces attached to the controller" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_Allnamespacesattachedtothecontroller(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                    
+                    self.Print (  "FNA bit0=0, test NSID=All other valid values, Particular namespace specified" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_Particularnamespacespecified(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                else:
+                    self.Print (  "FNA bit0=1, test NSID=All valid values, All namespaces in the NVM subsystem" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_AllnamespacesintheNVMsubsystem(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                self.SetPrintOffset(-4, "add")
             
             self.Print ("")
-            if self.SecureEraseSupported:      
-                print  " format NVM - Secure Erase Scope"
+            if True:      # always do User Data Erase if format command is supported
+                SES = 1
+                self.Print (  "format NVM - Secure Erase Scope with User Data Erase" )
+                self.SetPrintOffset(4, "add")
                 if self.FNAbit_1=="0":
-                    print  " self.FNA bit1=0, test NSID=0xFFFFFFFF, All namespaces attached to the controller"
-                    ret_code=ret_code if self.Test_FFFFFFFF(1)==0 else 1
-                    print  "  self.FNA bit1=0, test NSID=All other valid values, Particular namespace specified"
-                    ret_code=ret_code if self.Test_AllOtherValidValues(1)==0 else 1
+                    self.Print (  "FNA bit1=0, test NSID=0xFFFFFFFF, All namespaces attached to the controller" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_Allnamespacesattachedtothecontroller(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                    
+                    self.Print (  "FNA bit1=0, test NSID=All other valid values, Particular namespace specified" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_Particularnamespacespecified(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
                 else:
-                    print  "  self.FNA bit1=1, test NSID=All valid values, All namespaces in the NVM subsystem"
-                    ret_code=ret_code if self.Test_AllValidValues(1)==0 else 1
+                    self.Print (  "FNA bit1=1, test NSID=All valid values, All namespaces in the NVM subsystem" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_AllnamespacesintheNVMsubsystem(SES)==0 else 1  
+                    self.SetPrintOffset(-4, "add")
+                self.SetPrintOffset(-4, "add")     
+                     
+            self.Print ("")
+            if self.CryptographicEraseSupported:  
+                SES = 2    
+                self.Print (  "format NVM - Secure Erase Scope with Cryptographic Erase" )
+                self.SetPrintOffset(4, "add")
+                if self.FNAbit_1=="0":
+                    self.Print (  "FNA bit1=0, test NSID=0xFFFFFFFF, All namespaces attached to the controller" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_Allnamespacesattachedtothecontroller(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                    self.Print (  "FNA bit1=0, test NSID=All other valid values, Particular namespace specified" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_Particularnamespacespecified(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                else:
+                    self.Print (  "FNA bit1=1, test NSID=All valid values, All namespaces in the NVM subsystem" )
+                    self.SetPrintOffset(4, "add")
+                    ret_code=ret_code if self.Test_AllnamespacesintheNVMsubsystem(SES)==0 else 1
+                    self.SetPrintOffset(-4, "add")
+                self.SetPrintOffset(-4, "add")
             else:
-                print  "Secure Erase not Supported, will not verify format NVM - Secure Erase Scope"     
-        
-        # reset name spaces to 1 ns only
-        print  "Reset all namespaces to namespace 1 and kill other namespaces"
-        self.ResetNameSpaces()       
+                self.Print (  "Cryptographic Erase not Supported, will not verify format NVM - Secure Erase Scope with Cryptographic Erase"     )
+        if NsSupported:
+            # reset name spaces to 1 ns only
+            self.Print (  "Reset all namespaces to namespace 1 and kill other namespaces" )
+            self.ResetNameSpaces()       
         return ret_code
 
     SubCase13TimeOut = 600
@@ -774,21 +835,18 @@ class SMI_Format(NVME):
     def SubCase14(self): 
         ret_code=0
         self.Print ("Check data After the format NVM command successfully completes with SES=0x1 (User Data Erase)")
-        if not self.SecureEraseSupported:
-            self.Print ("Secure Erase is not Supported, quite this test")
+        self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
+        self.write_SML_data(0xab)
+        self.Print ("send format command with SES=0x1(User Data Erase)")
+        self.Print( self.Format(1, 0, 1) )
+        self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff, then pass the test"%(self.start_SB, self.middle_SB, self.last_SB))
+        if self.isequal_SML_data(0x0):
+            self.Print("PASS", "p")
+        elif self.isequal_SML_data(0xff):
+            self.Print("PASS", "p")        
         else:
-            self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
-            self.write_SML_data(0xab)
-            self.Print ("send format command with SES=0x1(User Data Erase)")
-            self.Print( self.Format(1, 0, 1) )
-            self.Print ("Check data at block %s, %s and %s, if data is 0x0 or 0xff, then pass the test"%(self.start_SB, self.middle_SB, self.last_SB))
-            if self.isequal_SML_data(0x0):
-                self.Print("PASS", "p")
-            elif self.isequal_SML_data(0xff):
-                self.Print("PASS", "p")        
-            else:
-                self.Print("FAIL", "f")
-                ret_code = 1
+            self.Print("FAIL", "f")
+            ret_code = 1
         return ret_code
 
     SubCase15TimeOut = 600
@@ -798,8 +856,8 @@ class SMI_Format(NVME):
         ret_code=0
         self.Print ("Check data After the format NVM command successfully completes with SES=0x2 (Cryptographic Erase )")
         self.Print ("This is accomplished by deleting the encryption key.")
-        if not self.SecureEraseSupported:
-            self.Print ("Secure Erase is not Supported, quite this test")
+        if not self.CryptographicEraseSupported:
+            self.Print ("Cryptographic Erase is not Supported, quite this test")
         else:
             self.Print ("write data at block %s, %s and %s, size=1M, patten=%s"%(self.start_SB, self.middle_SB, self.last_SB, "0xab"))
             self.write_SML_data(0xab)

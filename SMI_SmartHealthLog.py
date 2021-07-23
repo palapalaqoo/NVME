@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20210614"
+    Version = "20210712"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1053,7 +1053,41 @@ class SMI_SmartHealthLog(NVME):
             
         return ret_code
             
-                              
+    SubCase17TimeOut = (4000)
+    SubCase17Desc = "Test Critical Warning -> 'NVM subsystem reliability'"
+    def SubCase17(self):
+        ret_code=0
+        self.Print("According to https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-855")
+        self.Print("Before test, SSD must set 'Wear Leveling Count Threshold' to 1")
+        self.Print("And 'Retire PE (0 means GRTPE)' to 2")
+        self.Print("")
+        CriticalWarning = self.GetLog.SMART.CriticalWarning
+        reliability = self.byte2List(CriticalWarning)[2] # convert to bit list
+        self.Print("Current CriticalWarning: 0x%X, NVM subsystem reliability: %s"%(CriticalWarning, reliability))
+        self.Print("")
+        if reliability==1:
+            self.Print("before test, 'NVM subsystem reliability' = 1, skip", "p")
+            return 255
+                    
+        self.Print("Write whole disk..")
+        self.fio_precondition(pattern=0xAB, showProgress=True)
+        self.Print("Done", "p")
+        self.Print("")
+        CriticalWarning = self.GetLog.SMART.CriticalWarning
+        reliability = self.byte2List(CriticalWarning)[2] # convert to bit list
+        self.Print("Current CriticalWarning: 0x%X, NVM subsystem reliability: %s"%(CriticalWarning, reliability))
+                
+        self.Print("Check if 'NVM subsystem reliability' = 1 or not")
+        if reliability==1:
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")
+            ret_code = 1
+                   
+                   
+        
+        
+        return ret_code                     
     # </sub item scripts>
     
     

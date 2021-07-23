@@ -1623,6 +1623,23 @@ class NVMECom():
         for row in mList:
             mStr += "".join(word.ljust(col_width) for word in row) + "\n"       
         return mStr
+
+    def GetAlignStringWithList(self,listIn="", alignLengthList=None, alignType="left"):
+    # S0/S1: string 0, string 1
+    # S0alignType/S1alignType: align to left or right
+    # S0length/S1length: offset for strings        
+        type = "<" if alignType=="left" else ">"
+        rtStr = ""
+        i=0
+        if alignLengthList!= None and len(alignLengthList)!=len(listIn): # if input alignLengthList then len(alignLengthList) must =  len(listIn)
+            return False
+        for mStr in listIn:            
+            length = 8 if alignLengthList == None else alignLengthList[i] # default value if not input alignLengthList, else using alignLengthList
+            i = i+1
+            buf = "{:%s%ss}"%(type, length)
+            buf = buf.format("%s"%mStr) # format to string
+            rtStr = rtStr + buf
+        return rtStr
     
     def GetAlignString(self,S0="", S0length=40, S0alignType="left", S1="", S1length=40, S1alignType="left"):    
     # S0/S1: string 0, string 1

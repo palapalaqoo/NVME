@@ -32,7 +32,7 @@ class SMI_SetGetFeatureCMD(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SetGetFeatureCMD.py"
     Author = "Sam Chan"
-    Version = "20210330"
+    Version = "20210715"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -242,7 +242,8 @@ class SMI_SetGetFeatureCMD(NVME):
         
         description = "Software Progress Marker"
         fid = 0x80
-        supported = True
+        capabilities , SC=self.GetFeatureSupportedCapabilities(fid)
+        supported = True if SC ==0 else False
         if not supported:
             self.TestItems.append([description, fid, 0, 0, 0, supported])
         else:         
@@ -903,7 +904,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 if nsidTypeIn == self.nsidType.ActiveNS:
                     rtSC = FEATURE_NOT_PER_NS
                 if nsidTypeIn == self.nsidType.InActiveNS:
-                    rtSC = INVALID_FIELD      
+                    rtSC = FEATURE_NOT_PER_NS #INVALID_FIELD      
                 if nsidTypeIn == self.nsidType.InValidNS:
                     rtSC = INVALID_FIELD
                     '''
@@ -921,7 +922,7 @@ class SMI_SetGetFeatureCMD(NVME):
                 if nsidTypeIn == self.nsidType.ActiveNS:
                     rtSC = CMD_SUCCESS
                 if nsidTypeIn == self.nsidType.InActiveNS:
-                    rtSC = INVALID_FIELD      
+                    rtSC = CMD_SUCCESS #INVALID_FIELD      
                 if nsidTypeIn == self.nsidType.InValidNS:
                     rtSC = INVALID_FIELD
                     '''

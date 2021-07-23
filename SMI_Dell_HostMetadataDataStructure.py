@@ -44,24 +44,16 @@ class HostMetadataDataStructure(Structure):
         Data = ""
         for mByte in hex_chars:
             Data = Data+"\\x%X"%mByte
-        #TODO 
-        #print Data
-        return "", 0
             
         mStr, sc = self.mNVME.set_feature_with_sc(fid=0xDA, value=CDW11, SV=self.CDW10_SV, Data=Data, nsid=0)
         return mStr, sc
 
     def IssueGetFeatureCMD(self):
-    # return true/false
-        mStr = string_at(addressof(self),sizeof(self))
-        hex_chars = map(ord,mStr)
-        Data = ""
-        for mByte in hex_chars:
-            Data = Data+"\\x%X"%mByte        
+    # return true/false       
         #TODO fid
-        rawDataList, SC = self.mNVME.GetFeatureValueWithSC(fid=0xE, cdw11=self.GetFeature_CDW11_ElementType, sel=0, nsid=0, nsSpec=False, dataLen=134, data=Data)
+        rawDataList, SC = self.mNVME.GetFeatureValueWithSC(fid=0xDA, cdw11=self.GetFeature_CDW11_ElementType, sel=0, nsid=0, nsSpec=False)
         if SC !=0:
-            self.mNVME.Print("Get feature with dataLen=134 fail","f")
+            self.mNVME.Print("Get feature fail","f")
             return False
         # convert hex to string
         mStr = self.mNVME.HexListToStr(rawDataList)
@@ -97,7 +89,7 @@ class HostMetadataDataStructure(Structure):
 class SMI_Dell_HostMetadataDataStructure(NVME):
     ScriptName = "SMI_Dell_HostMetadataDataStructure.py"
     Author = ""
-    Version = "20210316"
+    Version = "20210707"
   
     def GetFeatureValueWithSC(self, fid, cdw11=0, sel=0, nsid=1, nsSpec=False, dataLen=134, data=None):
     # get feature with status code
@@ -131,29 +123,30 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         mData_Get = HostMetadataDataStructure(self)# get feature structure   
         for MED in self.MEDlist:
             mData_Set.ElementType = MED[self.MED_Value]
-            mData_Set.ElementValue="This is the pattern for ElementType %s with appendPattern=%s"%(MED[self.MED_Value], appendPattern) # message will be write
+            mData_Set.ElementValue="ElementType %s with appendPattern=%s"%(MED[self.MED_Value], appendPattern) # message will be write
             self.Print("")
-            self.Print("-- Verify ElementType = %s"%MED[self.MED_Value], "b")
-            self.Print("1. Set feature with Metadata Element Descriptor")
-            self.SetPrintOffset(8)
+            self.Print("ElementType = %s"%MED[self.MED_Value], "b")
+            self.SetPrintOffset(4, "add")
+            self.Print("1. Set feature with Metadata Element Descriptor as below")
+            self.SetPrintOffset(4, "add")
             # print title and data
             mData_Set.PrintMetadataElementDescriptorTitle("d")
             mData_Set.PrintMetadataElementDescriptor("d")
-            self.SetPrintOffset(4)
             mStr, sc = mData_Set.IssueSetFeatureCMD()
             if sc!=0:
                 self.Print("Set feature CMD fail!","f")
                 self.Print("Metadata Element Descriptor:")
                 self.Print( mData_Set.hexdumpMetadataElementDescriptor("d"))
                 return False
-            
+            self.SetPrintOffset(-4, "add")
             mData_Get.GetFeature_CDW11_ElementType = MED[self.MED_Value]
             if not mData_Get.IssueGetFeatureCMD():
                 self.Print("Get feature CMD fail!","f")
                 return False
             else:
-                self.Print("2. Get feature returned Metadata Element Descriptor")
-                self.SetPrintOffset(8)
+                self.SetMEDtoMEDlist(mData_Get.GetFeature_CDW11_ElementType, mData_Get.getMetadataElementDescriptorInHexList()) # save                
+                self.Print("2. Get feature returned Metadata Element Descriptor and print as below")
+                self.SetPrintOffset(4, "add")
                 # print title and data
                 mData_Get.PrintMetadataElementDescriptorTitle("d")
                 # if MetadataElementDescriptor from get feature is not equal to set feature command.
@@ -162,17 +155,20 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
                     rtCode = False
                 else:
                     mData_Get.PrintMetadataElementDescriptor("d") # bold
-                    self.SetMEDtoMEDlist(mData_Get.GetFeature_CDW11_ElementType, mData_Get.getMetadataElementDescriptorInHexList()) # save
-            self.Print("------------------------------------------------------------------------------------------", "p")   
             if not rtCode:
-                self.Print("Fail!, MetadataElementDescriptor from get feature is not equal to MetadataElementDescriptor of set feature command.","f") 
-            else:
-                self.Print("Pass", "p")
+                self.Print("Fail!, MetadataElementDescriptor from get feature is not equal to MetadataElementDescriptor of set feature command.","f")
+                return  False
             
-            self.SetPrintOffset(4)
+            self.SetPrintOffset(-4, "add")
             self.Print("3. Check if the other entrys remain unchanged.")
-            if not self.CheckAllMEDwithMEDlist(): return False
-        self.SetPrintOffset(0)
+            self.SetPrintOffset(4, "add")
+            if not self.CheckAllMEDwithMEDlist(MED):
+                self.Print("Fail", "f")  
+                return False  
+            else:
+                self.Print("Pass", "p") 
+            self.SetPrintOffset(-8, "add")
+        self.SetPrintOffset(0)               
         return rtCode
 
     def VerifySV(self, appendPattern):
@@ -185,16 +181,17 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         mData_Get = HostMetadataDataStructure(self)# get feature structure   
         for MED in self.MEDlist:
             mData_Set.ElementType = MED[self.MED_Value]
-            mData_Set.ElementValue="This is the pattern for ElementType %s with appendPattern=%s"%(MED[self.MED_Value], appendPattern) # message will be write
+            mData_Set.ElementValue="ElementType %s with appendPattern=%s"%(MED[self.MED_Value], appendPattern) # message will be write
             self.Print("")
-            self.Print("-- Verify ElementType = %s"%MED[self.MED_Value], "b")
-            self.Print("1. Set feature with Metadata Element Descriptor with SV=1")
+            self.Print("Verify ElementType = %s"%MED[self.MED_Value], "b")
+            self.SetPrintOffset(4, "add")
+            self.Print("1. Set feature with Metadata Element Descriptor as below with SV=1")
             mData_Set.CDW10_SV=1
-            self.SetPrintOffset(8)
+            self.SetPrintOffset(4, "add")
             # print title and data
             mData_Set.PrintMetadataElementDescriptorTitle("d")
             mData_Set.PrintMetadataElementDescriptor("d")
-            self.SetPrintOffset(4)
+            self.Print("")
             mStr, sc = mData_Set.IssueSetFeatureCMD()
             self.Print("Return status:%s "%mStr)
             self.Print("Check status, expected status code = 0xD(Feature Identifier Not Savable)'")
@@ -206,19 +203,27 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
                 return False
             
             mData_Get.GetFeature_CDW11_ElementType = MED[self.MED_Value]            
-            self.SetPrintOffset(4)
+            self.SetPrintOffset(-4, "add")
             self.Print("2. Check if the other entrys remain unchanged.")
-            if not self.CheckAllMEDwithMEDlist(): return False               
-
+            self.SetPrintOffset(4, "add")
+            if not self.CheckAllMEDwithMEDlist(MED):
+                self.Print("Fail", "f")  
+                return False  
+            else:
+                self.Print("Pass", "p")   
+            self.SetPrintOffset(-8, "add")          
+        self.SetPrintOffset(0)
         return rtCode
     
-    def CheckAllMEDwithMEDlist(self, skipEventType=None):
+    def CheckAllMEDwithMEDlist(self, MEDskip=None):
     # compare all MED with MEDlist, expect data is the same
+        skipEventType = MEDskip[self.MED_Value]
         mData_Get = HostMetadataDataStructure(self)# get feature structure  
-        for MED in self.MEDlist:
-            mData_Get.GetFeature_CDW11_ElementType = MED[self.MED_Value]
-            if mData_Get.GetFeature_CDW11_ElementType == skipEventType: # skip
+        for MED in self.MEDlist:            
+            if MED[self.MED_Value] == skipEventType: # skip
                 continue
+            # set ElementType and issue get feature
+            mData_Get.GetFeature_CDW11_ElementType = MED[self.MED_Value]
             if not mData_Get.IssueGetFeatureCMD():
                 self.Print("Get feature CMD fail at ElementType = %s"%mData_Get.GetFeature_CDW11_ElementType,"f")
                 return False
@@ -258,20 +263,24 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
             self.Print("Get feature CMD fail!","f")
             return False
         else:
+            self.SetMEDtoMEDlist(mData.GetFeature_CDW11_ElementType, mData.getMetadataElementDescriptorInHexList()) # save
             # Check if all Element Value is zero
-            isPass = True
+            if mData.ElementValue=="":
+                isPass = True
+            else:
+                isPass = False
+            '''
             cnt = 0
             for value in mData.getMetadataElementDescriptorInHexList():
                 cnt +=1
-                # TODO
-                if cnt <=7: #if cnt <=6: # skip first 6 byte, Element Value start at 6th byte of MetadataElementDescriptor
+                if cnt <=6: # skip first 6 byte(byte 0 to byte 6), Element Value start at 6th byte(byte 7) of MetadataElementDescriptor
                     continue
                 if value!=0x0:
                     isPass = False
+            '''
             # print        
             if isPass:
                 mData.PrintMetadataElementDescriptor(PO="p")
-                self.SetMEDtoMEDlist(mData.GetFeature_CDW11_ElementType, mData.getMetadataElementDescriptorInHexList()) # save
                 '''        
                 for MED in self.MEDlist: 
                     print MED[self.MED_RawData]
@@ -289,24 +298,37 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         mData.ElementLength = 0
         for MED in self.MEDlist:
             mData.ElementType = MED[self.MED_Value]
-            self.Print("1. Issue set feature to delete ElementType %s .."%mData.ElementType)
+            self.Print("Delete ElementType %s .."%mData.ElementType, "b")
+            self.SetPrintOffset(4, "add")
+            self.Print("1. Issue set feature to delete ElementType %s"%mData.ElementType)
             mStr, sc = mData.IssueSetFeatureCMD()
             if sc!=0:
                 self.Print("Set feature CMD fail!","f")
                 self.Print("Metadata Element Descriptor:")
                 self.Print( mData.hexdumpMetadataElementDescriptor())
                 return False
+            self.SetPrintOffset(4, "add")
             self.Print("Done")
-            self.Print("2. Issue get feature to check if ElementType %s was deleted(return zero (NULL character) as the Element Value)")
+            self.SetPrintOffset(-4, "add")
+            self.Print("2. Issue get feature to check if ElementType %s was deleted(return zero (NULL character) as the Element Value)"%mData.ElementType)
+            self.SetPrintOffset(4, "add")
             if not self.CheckIfIsEmptyEntry(MED):
+                self.Print("Fail", "f")    
                 return False  
-            self.Print("Pass")     
+            else:
+                self.Print("Pass", "p")    
+            self.SetPrintOffset(-4, "add") 
 
             self.Print("3. Issue get feature to check if all the other entrys remain unchanged.")
+            self.SetPrintOffset(4, "add")
             if not self.CheckAllMEDwithMEDlist(MED):
+                self.Print("Fail", "f")  
                 return False  
-            self.Print("Pass")  
-            self.Print("")                          
+            else:
+                self.Print("Pass", "p")  
+            self.SetPrintOffset(-4, "add")
+            self.Print("")
+            self.SetPrintOffset(-4, "add")                          
         return True    
     
     def __init__(self, argv):
@@ -317,7 +339,7 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         self.MED_Value = 0
         self.MED_Definition = 1
         self.MED_RawData = 2 # MetadataElementDescriptors raw data
-        self.MEDlist = []
+        self.MEDlist = []   # Element Type, desc, raw data(MetadataElementDescriptorInHexList)
         self.MEDlist.append([0x1, "Operating System Host Name", None])
         self.MEDlist.append([0x2, "Operating System Driver Name", None])
         self.MEDlist.append([0x3, "Operating System Driver Version:", None])
@@ -340,7 +362,7 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         return 0            
 
     # <define sub item scripts>
-    SubCase1TimeOut = 60
+    SubCase1TimeOut = 6000
     SubCase1Desc = "[Hynix SRS][Dell] Host Metadata Log"
     SubCase1KeyWord = ""   
     def SubCase1(self):
@@ -357,7 +379,7 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         value = DS[3108] + (DS[3109]<<8)
         
         # TODO
-        value = 0x8003
+        #value = 0x8003
         
         self.Print("")
         self.Print("Parser Dell Unique Features field")
@@ -388,6 +410,7 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
                 self.Print("CMD fail!","f")
                 return 1
             else:
+                self.SetMEDtoMEDlist(mData.GetFeature_CDW11_ElementType, mData.getMetadataElementDescriptorInHexList()) # save                
                 mData.PrintMetadataElementDescriptor()
         self.SetPrintOffset(0)
         
@@ -399,10 +422,10 @@ class SMI_Dell_HostMetadataDataStructure(NVME):
         
         self.Print("")
         self.Print("3) Add the entrys one by one and check the MetadataElementDescriptor of get feature CMD, and check if the other entrys remain unchanged.")
-        if not self.WriteOrReplaceAllEntry(appendPattern="Step 4"): return 1
+        if not self.WriteOrReplaceAllEntry(appendPattern="Add in Step 3"): return 1
         self.Print("")
         self.Print("4) Replace the entrys one by one and check the MetadataElementDescriptor of get feature CMD, and check if the other entrys remain unchanged.")
-        if not self.WriteOrReplaceAllEntry(appendPattern="Step 5"): return 1  
+        if not self.WriteOrReplaceAllEntry(appendPattern="Replace in Step 4"): return 1  
 
         self.Print("")
         self.Print("5) Delete the host meta data log one by one and and check if the other entrys remain unchanged.")

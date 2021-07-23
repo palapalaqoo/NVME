@@ -240,32 +240,18 @@ class mtest(NVME):
                  
     SubCase1TimeOut = 600
     def SubCase1(self):
-<<<<<<< HEAD
-        print self.GetLog.EnduranceGroupLog.EnduranceEstimate
-        '''
-=======
->>>>>>> d7107173a76a1355ed9841b609c9d018e5ef8f88
-        self.Print ("Assign a thread for event request cmd")
-        async_result = self.thread_asynchronous_event_request_cmd() 
-        self.Print("CMD : nvme admin-passthru /dev/nvme0n1 --opcode=0xC 2>&1")       
+        DS=[0,1,2,3,4,5,6,7]
+        cc=DS[0:6]
         
-        self.Print ("")
-        self.Print ("Issue CMD: nvme id-ctrl /dev/nvme0 2>&1; echo $?")
-        self.Print ("For 65 second, if status code!=0, print status")
-        self.timer.start("int")        
-        while True:
-            mStr, SC = self.shell_cmd_with_sc("nvme id-ctrl %s 2>&1"%self.dev_port)
-            if SC!=0:
-                self.Print("SC : %s"%SC, "f")
-                self.Print(mStr)
-                self.Print ("")
-            if self.timer.time>65:
-                break
-        self.Print ("65 second time up")
-<<<<<<< HEAD
-        '''
-=======
->>>>>>> d7107173a76a1355ed9841b609c9d018e5ef8f88
+        aa =  self.IdCtrl.MN.int
+        #bb = self.GetAlignString(S0=5, S1=9)
+        aa = self.GetAlignStringWithList([1,2,3,4,5], [6,5,4,3,2])
+        self.Print(aa)
+        aa = self.GetAlignStringWithList([1,2,3,4,5])
+        self.Print(aa)
+        aa = self.GetAlignStringWithList([1,2,3,4,5], [1,2,3,4,5])
+        self.Print(aa)        
+        
         return 0        
 
 

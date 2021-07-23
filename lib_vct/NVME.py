@@ -1934,8 +1934,8 @@ class NVME(object, NVMECom):
         if sc==0:
             DS = self.AdminCMDDataStrucToListOrString(mStr, 2)  
             isSuccess = True
-            Timestamp = self.ByteListToLongInt(DS) 
-            Synch = DS[6]&1 
+            Timestamp = self.ByteListToLongInt(DS[0:6]) # byte 0 to 5
+            Synch = DS[6]&1 # byte 6
             Origin = (DS[6]>>1)&0b111     
             FormatedTimestamp = self.getFormatTime(Timestamp)
             

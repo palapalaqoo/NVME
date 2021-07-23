@@ -6,6 +6,7 @@ import sys
 import re
 from time import sleep
 import copy
+import string
 # Import VCT modules
 from lib_vct.NVME import NVME
 from lib_vct.NVMECom import OrderedAttributeClass
@@ -235,7 +236,7 @@ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 class SMI_PersistentEventLog(NVME):
     ScriptName = "SMI_PersistentEventLog.py"
     Author = ""
-    Version = "20210528"
+    Version = "20210715"
     
     def getPELHvalue(self, name):
         for i in range(len(self.PELH)):
@@ -259,6 +260,10 @@ class SMI_PersistentEventLog(NVME):
                 setattr(classIn, name, None)
             else:
                 value = self.GetBytesFromList(listRawData, stopByte, startByte, isString)
+                if isString: # if is string, remove not printable char, e.g. 0x0
+                    printable = set(string.printable)
+                    value = filter(lambda x: x in printable, value)
+                    value = value.strip() # remove front and tail spaces
                 if parserFunc!=None: # if provided, value = parserFunc(value)
                     value = parserFunc(self, value)
                 setattr(classIn, name, value)
@@ -350,10 +355,10 @@ class SMI_PersistentEventLog(NVME):
             cnt=0
             for Event in self.PELH.PersistentEventN:
                 Timestamp = Event.EventTimestamp
-                curr , formatedT = self.parserTimestamp(Timestamp)
+                curr , os, formatedT = self.parserTimestamp(Timestamp)
     
                 if curr>old:                
-                    curr_n , formatedT_n = self.parserTimestamp(Timestamp_old)
+                    curr_n , os, formatedT_n = self.parserTimestamp(Timestamp_old)
                     self.Print("Fail at No: %s , formated Timestamp: %s,  Timestamp: %s"%(cnt-1, formatedT_n, curr_n), "f")
                     self.Print("Next at No: %s , formated Timestamp: %s,  Timestamp: %s"%(cnt, formatedT, curr), "f")
                     self.Print("")
@@ -649,13 +654,13 @@ class SMI_PersistentEventLog(NVME):
             isPass = False
             
         self.Print("")
-        TimestampPEL, formatT = self.parserTimestamp(self.PELH.Timestamp)
+        TimestampPEL, OS, formatT = self.parserTimestamp(self.PELH.Timestamp)
         self.Print("Persistent Event Log -> Log Timestamp : 0x%X"%TimestampPEL)
-        curr , formatedT = self.parserTimestamp(self.PELH.Timestamp)
         isSuccess, TimestampFeature, Origin, Synch, FormatedTimestamp = self.getTimeStamp()
         if not isSuccess:
             self.Print("Fail to get feature timestamp, CMD: %s "%self.LastCmd, "p"); return 1
         self.Print("Feature -> Timestamp : 0x%X"%TimestampFeature)
+        # will not check Origin/Synch because ssd may fall into P4 mode, thus it may set or clear Synch
         self.Print("Check if Timestamp in Persistent Event Log  is approximately equal to Feature Timestamp(tolerance: 1 second )")       
         if (TimestampPEL+1000)>TimestampFeature:
             self.Print("Pass", "p")
@@ -761,17 +766,20 @@ class SMI_PersistentEventLog(NVME):
         self.SetPrintOffset(-4, "add")          
     
     def parserTimestamp(self, Timestamp):
-        # Timestamp: value(formated time),  ex. '0x017968B29BAE(2021-05-14 10:26:46)'
-        # return int(Timestamp) and formated Timestamp, ex. 0x017968B29BAE, '2021-05-14 10:26:46'
+        # Timestamp: string for PEL, format = value(formated time),  ex. '0x2017968B29BAE(2021-05-14 10:26:46)'
+        # return int(Timestamp), int(TimestampOrigin and Synch) and string(formated Timestamp)
+        # ex. 0x2017968B29BAE, '2021-05-14 10:26:46'
         intT = 0
+        intOS = 0
         fT = "None"
         searchStr = "(0x\w+)\((.+)\)"
         if re.search(searchStr, Timestamp): 
             intT = re.search(searchStr, Timestamp).group(1) 
             intT = int(intT, 16)
-            intT = intT&0xFFFFFFFFFFFF # remove byte 6 ( TimestampOrigin and Synch)
+            intOS = (intT>>48)&0xFF # TimestampOrigin and Synch
+            intT = intT&0xFFFFFFFFFFFF # remove byte 6 ( TimestampOrigin and Synch)            
             fT = re.search(searchStr, Timestamp).group(2)
-        return intT, fT
+        return intT, intOS, fT
 
     def CheckNewPELwithTypeAndData(self, Range, Type, fieldInData): 
     # Range: last new PEL address, ex, new PEL at Persistent Event 0 to 4, set Range to 4
@@ -860,9 +868,9 @@ class SMI_PersistentEventLog(NVME):
         for Event in self.PELH.PersistentEventN:          
             NewList.append(Event.EventTimestamp) 
             cnt +=1 
-            # sometimes old event will be delete, so check first 10 event is ok
+            # sometimes old event will be delete, so check first 20 event is ok
             # keyword 'The number of events supported is vendor specific'
-            if cnt ==10: break             
+            if cnt ==20: break             
         lastNewPos = self.findStopAddrForFIFOList(NewList , OldList) # e.x. 0~4 is new created, lastNewPos will be 4
         if lastNewPos==-1:
             self.Print("Fail, can not find new PersistentEvent, please check below PersistentEvent!", "f")
@@ -904,7 +912,7 @@ class SMI_PersistentEventLog(NVME):
         self.Print ("-- befor HCTM test --")
         self.Print ("TotalTimeForThermalManagementTemperature1: %s"%TTTMT1)
         self.Print ("-- after test --")
-        self.Print ("TMT1TC: %s"%TTTMT1_n)
+        self.Print ("TotalTimeForThermalManagementTemperature1: %s"%TTTMT1_n)
         return True if TTTMT1_n>TTTMT1 else False
    
                                 
@@ -1013,7 +1021,7 @@ class SMI_PersistentEventLog(NVME):
     # <define sub item scripts>
     SubCase1TimeOut = 6000
     SubCase1Desc = "Parser Current Persistent Event log"   
-    SubCase1KeyWord = ""
+    SubCase1KeyWord = "https://jira.siliconmotion.com.tw:8443/browse/VCTDEPT-763"
     def SubCase1(self):
         ret_code=0
                 

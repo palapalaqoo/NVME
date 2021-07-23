@@ -37,10 +37,7 @@ class EnduranceGroupLog_(Structure):
             if name==key:
                 # start
                 if not self.IssueGetFeatureCMD():
-<<<<<<< HEAD
                     print "IssueGetFeatureCMD fail"
-=======
->>>>>>> d7107173a76a1355ed9841b609c9d018e5ef8f88
                     return 0                
                 v = super(EnduranceGroupLog_, self).__getattribute__(key)
                 v = self.mNVME.ByteListToLongInt(v) # wrape
@@ -59,11 +56,7 @@ class EnduranceGroupLog_(Structure):
     # return true/false
         rawDataList = self.mNVME.get_log_passthru(LID=0x9, size=512, LSI=self.ID) # e.x.rawDataList = ["ab", "1d"]
         if rawDataList ==None:
-<<<<<<< HEAD
             self.mNVME.Print("Get feature cmd fail, CMD: %s"%self.mNVME.LastCmd,"f")
-=======
-            self.mNVME.Print("Get feature cmd fail, CMD: %s"%self.LastCmd,"f")
->>>>>>> d7107173a76a1355ed9841b609c9d018e5ef8f88
             return False
         # convert hex to string
         cc =rawDataList[3]
