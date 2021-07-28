@@ -26,7 +26,7 @@ class SMI_Telemetry(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Telemetry.py"
     Author = "Sam Chan"
-    Version = "20210602"
+    Version = "20210727"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -137,6 +137,7 @@ class SMI_Telemetry(NVME):
         return rStr              
     
     def SaveToBinary(self, ID, fileNameAppend=""):
+        isSuccess = True
         SavedFileNameList = []
         filePath = "./temp/Telemetry_id%s_block0%s.bin"%(ID, fileNameAppend)        
         # save header             
@@ -151,33 +152,25 @@ class SMI_Telemetry(NVME):
         LastBlock1=(mLOG[9]<<8)+mLOG[8]
         LastBlock2=(mLOG[11]<<8)+mLOG[10]
         LastBlock3=(mLOG[13]<<8)+mLOG[12]
-        for i in range(1, LastBlock1+1):
+        if not self.supportsExtendedData:
+            self.Print("Warnning!, controller do not suppport LPO field in get log command!", "w")
+        for i in range(1, LastBlock3+1): # start from 1 to LastBlock3, i.e. data are contiue blocks
             mLOG=self.get_log_passthru(ID, 512, 0, 0, 512*i, ReturnType=2)
+            if mLOG==None: # fail to get log with LPO, break and fail
+                self.Print("Fail to get log with LPO=%s(%s th block)!"%(512*i, i), "f")
+                self.Print("CMD: %s"%self.LastCmd)
+                mstr, sc = self.shell_cmd_with_sc(self.LastCmd)
+                self.Print("%s"%mstr)
+                isSuccess = False
+                break
             filePath = "./temp/Telemetry_id%s_block%s%s.bin"%(ID, i, fileNameAppend)
             if not os.path.exists(filePath):
                 f = open(filePath, "w")
                 f.close()           
             self.writeBinaryFileFromList(filePath, mLOG)   
             SavedFileNameList.append(filePath)
-    
-        for i in range(LastBlock1+1, LastBlock2+1):
-            mLOG=self.get_log_passthru(ID, 512, 0, 0, 512*i, ReturnType=2)
-            filePath = "./temp/Telemetry_id%s_block%s%s.bin"%(ID, i, fileNameAppend)
-            if not os.path.exists(filePath):
-                f = open(filePath, "w")
-                f.close()           
-            self.writeBinaryFileFromList(filePath, mLOG)   
-            SavedFileNameList.append(filePath)    
-            
-        for i in range(LastBlock2+1, LastBlock3+1):
-            mLOG=self.get_log_passthru(ID, 512, 0, 0, 512*i, ReturnType=2)
-            filePath = "./temp/Telemetry_id%s_block%s%s.bin"%(ID, i, fileNameAppend)
-            if not os.path.exists(filePath):
-                f = open(filePath, "w")
-                f.close()           
-            self.writeBinaryFileFromList(filePath, mLOG)   
-            SavedFileNameList.append(filePath)
-        return SavedFileNameList, rtHeader
+
+        return isSuccess, SavedFileNameList, rtHeader
     
     def PrintFWlog(self):
         CMD = "nvme fw-log %s"%self.dev_port
@@ -203,11 +196,10 @@ class SMI_Telemetry(NVME):
         
         self.Print("")
         self.Print("Issue fw-commit CMD to commit to slot2 with Commit Action (CA) = %s"%CA, "b")
-        CMD = "nvme fw-commit %s --slot=2 --action=%s"%(self.dev_port, CA)
+        CMD = "nvme fw-commit %s --slot=2 --action=%s 2>&1"%(self.dev_port, CA)
         mStr, sc = self.shell_cmd_with_sc(CMD)# TODO
         self.Print(mStr, "d" if sc==0 else "f", 4)
         if sc!=0:
-            self.Print(mStr, "f")
             return False        
                 
         self.Print("")
@@ -219,8 +211,8 @@ class SMI_Telemetry(NVME):
     # triggerFunc: function that will be run for verify Log Persistence
         self.InitFolder("./temp")
         self.Print ("1)-- Save current Telemetry log 0x7 to binary files", "b")
-        SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
-        if len(SavedFileNameList_before)==0:
+        isSuccess, SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        if not isSuccess:
             self.Print("Fail", "f")
             return False   
         self.Print ("Below files was been created")
@@ -237,8 +229,8 @@ class SMI_Telemetry(NVME):
         
         self.Print ("")
         self.Print ("3)-- Save current Telemetry log 0x7 to binary files", "b")
-        SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
-        if len(SavedFileNameList_after)==0:
+        isSuccess, SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        if not isSuccess:
             self.Print("Fail", "f")
             return False    
         self.Print ("Below files was been created")
@@ -278,8 +270,8 @@ class SMI_Telemetry(NVME):
     def VerifyTelemetryLogAfterFWcommit(self, CA):
         self.InitFolder("./temp")
         self.Print ("1)-- Save current Telemetry log 0x7 to binary files", "b")
-        SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
-        if len(SavedFileNameList_before)==0:
+        isSuccess, SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_beforePOR")
+        if not isSuccess:
             self.Print("Fail", "f")
             return False   
         self.Print ("Below files was been created")
@@ -295,8 +287,8 @@ class SMI_Telemetry(NVME):
         
         self.Print ("")
         self.Print ("3)-- Save current Telemetry log 0x7 to binary files", "b")
-        SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
-        if len(SavedFileNameList_after)==0:
+        isSuccess, SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 7, fileNameAppend = "_afterPOR")
+        if not isSuccess:
             self.Print("Fail", "f")
             return False    
         self.Print ("Below files was been created")
@@ -422,12 +414,18 @@ class SMI_Telemetry(NVME):
           
         self.AsyncNVME = SMI_AsynchronousEventRequest.SMI_AsynchronousEventRequest(sys.argv )
         
+        self.supportsExtendedData = True if self.IdCtrl.LPA.bit(2)=="1" else False    
+        
     # override PreTest()
     def PreTest(self):
         if DUT.SupportTelemetry:
             self.Print( "Controller support telemetry in Log Page Attributes (LPA)", "p")
         else:
             self.Print( "Controller do not support telemetry in Log Page Attributes (LPA)", "w")
+        if self.supportsExtendedData:
+            self.Print( "Controller supports the Log Page Offset in IdCtrl.LPA.bit(2)", "p")
+        else:
+            self.Print( "Controller don't supports the Log Page Offset in IdCtrl.LPA.bit(2), skip", "w")                
         return DUT.SupportTelemetry
 
     SubCase1TimeOut = 60
@@ -850,6 +848,7 @@ class SMI_Telemetry(NVME):
                 self.Print("Pass", "p")
             else:
                 self.Print("Fail, skip", "f")
+                break
         
         self.Print("")
         if isPass:
@@ -895,8 +894,8 @@ class SMI_Telemetry(NVME):
         ret_code=0
         self.InitFolder("./temp")
         self.Print ("Save current Telemetry log 0x8 to binary files")
-        SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 8, fileNameAppend = "_beforePOR")
-        if len(SavedFileNameList_before)==0:
+        isSuccess, SavedFileNameList_before, rtHeader = self.SaveToBinary(ID= 8, fileNameAppend = "_beforePOR")
+        if not isSuccess:
             self.Print("Fail", "f")
             return 1     
         self.Print ("Below files was been created")
@@ -916,8 +915,8 @@ class SMI_Telemetry(NVME):
         
         self.Print ("")
         self.Print ("Save current Telemetry log 0x8 to binary files")
-        SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 8, fileNameAppend = "_afterPOR")
-        if len(SavedFileNameList_after)==0:
+        isSuccess, SavedFileNameList_after, rtHeader = self.SaveToBinary(ID= 8, fileNameAppend = "_afterPOR")
+        if not isSuccess:
             self.Print("Fail", "f")
             return 1     
         self.Print ("Below files was been created")

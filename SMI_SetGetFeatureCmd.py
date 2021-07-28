@@ -92,7 +92,7 @@ class SMI_SetGetFeatureCMD(NVME):
         
         description = "Error Recovery"
         fid = 5
-        supported = True
+        supported = True # Time Limited Error Recovery (TLER) must supported in spec
         if not supported:
             self.TestItems.append([description, fid, 0, 0, 0, supported])
         else:         

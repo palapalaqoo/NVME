@@ -32,6 +32,7 @@ from lib_vct.NVMECom import NVMECom
 
 
 import Queue
+
 class mtest(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "mtest.py"
@@ -240,17 +241,8 @@ class mtest(NVME):
                  
     SubCase1TimeOut = 600
     def SubCase1(self):
-        DS=[0,1,2,3,4,5,6,7]
-        cc=DS[0:6]
-        
-        aa =  self.IdCtrl.MN.int
-        #bb = self.GetAlignString(S0=5, S1=9)
-        aa = self.GetAlignStringWithList([1,2,3,4,5], [6,5,4,3,2])
-        self.Print(aa)
-        aa = self.GetAlignStringWithList([1,2,3,4,5])
-        self.Print(aa)
-        aa = self.GetAlignStringWithList([1,2,3,4,5], [1,2,3,4,5])
-        self.Print(aa)        
+        self.fio_write(offset=0, size="10G", pattern="0x7C", showProgress=True)
+      
         
         return 0        
 

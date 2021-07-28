@@ -25,12 +25,13 @@ import re
 
 # Import VCT modules
 from lib_vct.NVME import NVME
+from lib_vct.NVME import DevWakeUpAllTheTime
 
 class SMI_FeatureHCTM(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_FeatureHCTM.py"
     Author = "Sam Chan"
-    Version = "20210104"
+    Version = "2021026"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     SubCase1TimeOut = 60
@@ -162,12 +163,11 @@ class SMI_FeatureHCTM(NVME):
         TimeCnt=0
         aa=time.time()
         TempNow=0
+        # using DevWakeUpAllTheTime
+        Inst = DevWakeUpAllTheTime(self, False)
+        Inst.Start() # thread start to read all the time
         while True:                     
-            # writing
-            mThreads=self.nvme_write_multi_thread(thread=4, sbk=0, bkperthr=512, value=0x5A)
-            for process in mThreads:   
-                process.join()
-            
+            sleep(1)            
             TimeCnt= int(time.time()-aa) 
             PS = self.GetPS()    
             TempNow = self.GetLog.SMART.CompositeTemperature
@@ -183,10 +183,21 @@ class SMI_FeatureHCTM(NVME):
                     
             if TempNow>=TargetTemp: 
                 self.Print ("")
-                self.Print ("After %s s, temperature is large then target temperature now, stop to increase temperature !"%TimeCnt)
+                self.Print ("After %s s, temperature is large then target temperature now!"%TimeCnt)
+                self.Print ("wait 3 more second and stop to increase temperature")              
+                sleep(3) 
                 break
-    
+        Inst.Stop()
         return TempNow
+
+    def PrintAlignString(self,S0="", S1="", S2="", S3="", PF="default"):            
+        mStr = "{:<60}\t{:<10}\t{:<10}\t{:<10}".format(S0, S1, S2, S3)
+        if PF=="pass":
+            self.Print( mStr , "p")        
+        elif PF=="fail":
+            self.Print( mStr , "f")      
+        else:
+            self.Print( mStr ) 
         
         # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
@@ -206,9 +217,10 @@ class SMI_FeatureHCTM(NVME):
     def PreTest(self):
         if self.HCTMA==1:
             self.Print( "Controller support HCTM", "p")
-            self.Print ("Current TMT1, TMT2 value is : %s, %s "%(self.TMT1bk, self.TMT2bk))  
-            self.Print ("Minimum Thermal Management Temperature(MNTMT): %s "%self.MNTMT)
-            self.Print ("Maximum Thermal Management Temperature(MXTMT): %s "%self.MXTMT)                            
+            self.Print ("Current TMT1, TMT2 value is : %s(%s °C), %s(%s °C) "\
+                        %(self.TMT1bk, self.KelvinToC(self.TMT1bk), self.TMT2bk, self.KelvinToC(self.TMT2bk)))  
+            self.Print ("Minimum Thermal Management Temperature(MNTMT): %s(%s °C) "%(self.MNTMT, self.KelvinToC(self.MNTMT)) )
+            self.Print ("Maximum Thermal Management Temperature(MXTMT): %s(%s °C) "%(self.MXTMT, self.KelvinToC(self.MXTMT)) )                      
             return True
         else:
             self.Print( "Controller do not support HCTM", "w")
@@ -314,7 +326,8 @@ class SMI_FeatureHCTM(NVME):
         self.Print ("CompositeTemperature now: %s °C"%self.KelvinToC(LiveT))        
         
         
-        self.Print ("Reset HCTM function")
+        self.Print ("1) Reset HCTM function", "b")
+        self.SetPrintOffset(4, "add")
         self.ClearHCTMFunc()
         self.Print ("")
         TMT1bk, TMT2bk = self.GetTMT1_TMT1()
@@ -327,24 +340,30 @@ class SMI_FeatureHCTM(NVME):
         TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
         
         self.Print ("")
-        self.Print ("TTTMT1: %s"%TTTMT1)
-        self.Print ("TTTMT2: %s"%TTTMT2)
+        self.Print ("Total Time For Thermal Management Temperature 1: %s"%TTTMT1)
+        self.Print ("Total Time For Thermal Management Temperature 2: %s"%TTTMT2)
         self.Print ("")
         self.Print ("Sleep 2 s")
         sleep(2)
         TTTMT1_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
         TTTMT2_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
         self.Print ("")
-        self.Print ("TTTMT1: %s"%TTTMT1_n)
-        self.Print ("TTTMT2: %s"%TTTMT2_n)
+        self.Print ("Total Time For Thermal Management Temperature 1: %s"%TTTMT1_n)
+        self.Print ("Total Time For Thermal Management Temperature 2: %s"%TTTMT2_n)
         
         if TTTMT1!=TTTMT1_n or TTTMT2!=TTTMT2_n:
             self.Print("Fail, can't reset HCTM function, quit this test item", "f")
             ret_code=1
+            return 1
         else:
             self.Print ("Controller is not performing HCTM function now")
-            LiveT = self.GetLog.SMART.CompositeTemperature
+            self.Print ("")
+            self.SetPrintOffset(-4, "add")
+            self.Print ("2) Raise temperature to make it large then TMT2", "b")
+            self.SetPrintOffset(4, "add")            
             
+            LiveT = self.GetLog.SMART.CompositeTemperature
+            self.Print ("")
             self.Print ("Minimum Thermal Management Temperature(MNTMT): %s °C"%self.KelvinToC(self.MNTMT))
             self.Print ("Maximum Thermal Management Temperature(MXTMT): %s °C"%self.KelvinToC(self.MXTMT))
             self.Print ("CompositeTemperature now: %s °C"%self.KelvinToC(LiveT))
@@ -356,7 +375,6 @@ class SMI_FeatureHCTM(NVME):
             TMT2TC = self.GetLog.SMART.ThermalManagementTemperature2TransitionCount
             TTTMT1 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
             TTTMT2 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
-            
             
             # TMT min number must large then MNTMT
             if LiveT<self.MNTMT:
@@ -372,7 +390,7 @@ class SMI_FeatureHCTM(NVME):
             
             TargetTemp = mTMT2 + 1
             TimeLimit = 180
-            self.Print ("Writing data to increase temperature to make it large then TMT2(Let's set target temperature = %s °C)"%self.KelvinToC(TargetTemp))
+            self.Print ("Reading data to raise temperature and make it large then TMT2(Let's set target temperature = %s °C)"%self.KelvinToC(TargetTemp))
             self.Print ("Time limit is %s s "%TimeLimit)
             LiveT_n = self.RaisingTempture(TargetTemp, TimeLimit)
             
@@ -383,30 +401,30 @@ class SMI_FeatureHCTM(NVME):
             TTTMT2_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature2
             
             self.Print ("")
-            self.Print ("-- befor test --")
-            self.Print ("Composite Temperature: %s °C"%self.KelvinToC(LiveT))
-            self.Print ("TMT1TC: %s"%TMT1TC)
-            self.Print ("TMT2TC: %s"%TMT2TC)
-            self.Print ("TTTMT1: %s"%TTTMT1)
-            self.Print ("TTTMT2: %s"%TTTMT2)
-            self.Print ("-- after test --")
-            self.Print ("Composite Temperature: %s °C"%self.KelvinToC(LiveT_n))
-            self.Print ("TMT1TC: %s"%TMT1TC_n)
-            self.Print ("TMT2TC: %s"%TMT2TC_n)
-            self.Print ("TTTMT1: %s"%TTTMT1_n)
-            self.Print ("TTTMT2: %s"%TTTMT2_n)
-            
+            self.PrintAlignString("field in SMART", "original value", "current value")
+            self.Print ("--------------------------------------------------------------------------------")
+            self.PrintAlignString("Composite Temperature", self.KelvinToC(LiveT), self.KelvinToC(LiveT_n))
+            self.PrintAlignString("Thermal Management Temperature 1 Transition Count", TMT1TC, TMT1TC_n)
+            self.PrintAlignString("Thermal Management Temperature 2 Transition Count", TMT2TC, TMT2TC_n)
+            self.PrintAlignString("Total Time For Thermal Management Temperature 1", TTTMT1, TTTMT1_n)
+            self.PrintAlignString("Total Time For Thermal Management Temperature 2", TTTMT2, TTTMT2_n)
+            self.Print ("--------------------------------------------------------------------------------")
+            self.Print ("")
+            self.SetPrintOffset(-4, "add")
+            self.Print ("3) If Current Temperature is large then TMT1, verify fields in SMART log relating to Temperature 1 ", "b")
+            self.SetPrintOffset(4, "add")                
             self.Print ("")
             if LiveT_n>=mTMT1:
-                self.Print ("HCTM enter light throttle status, Composite Temperature > TMT1")
-                self.Print ("Check if after the test, TMT1TC += 1")
-                if TMT1TC_n==TMT1TC+1:
+                self.Print ("Current Temperature(%s)>=TMT1(%s)"%(self.KelvinToC(LiveT_n), mTMT1))
+                self.Print ("Expect HCTM enter light throttle status")
+                self.Print ("Check if current 'Thermal Management Temperature 1 Transition Count' > original value")
+                if TMT1TC_n>TMT1TC:
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")
                     ret_code = 1
-                self.Print ("Check if after the test, TTTMT1 changed")
-                if TTTMT1_n!=TTTMT1:
+                self.Print ("Check if current 'Total Time For Thermal Management Temperature 1' >= original value")
+                if TTTMT1_n>=TTTMT1:
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")   
@@ -415,16 +433,20 @@ class SMI_FeatureHCTM(NVME):
                 self.Print("Warning! The temperature has never great then TMT1 in %s s"%TimeLimit, "w")
             
             self.Print ("")
+            self.SetPrintOffset(-4, "add")
+            self.Print ("4) If Current Temperature is large then TMT2, verify fields in SMART log relating to Temperature 2 ", "b")
+            self.SetPrintOffset(4, "add")               
             if LiveT_n>=mTMT2:
-                self.Print ("HCTM enter heavy throttle ststus, Composite Temperature > TMT2")
-                self.Print ("Check if after the test, TMT2TC += 1")
-                if TMT2TC_n==TMT2TC+1:
+                self.Print ("Current Temperature(%s)>=TMT2(%s)"%(self.KelvinToC(LiveT_n), mTMT2))
+                self.Print ("Expect HCTM enter heavy throttle ststus")
+                self.Print ("Check if current 'Thermal Management Temperature 2 Transition Count' > original value")
+                if TMT2TC_n>TMT2TC:
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")
                     ret_code = 1
-                self.Print ("Check if after the test, TTTMT2 changed")
-                if TTTMT2_n!=TTTMT2:
+                self.Print ("Check if current 'Total Time For Thermal Management Temperature 2' >= original value")
+                if TTTMT2_n>=TTTMT2:
                     self.Print("Pass", "p")
                 else:
                     self.Print("Fail", "f")   
@@ -432,12 +454,15 @@ class SMI_FeatureHCTM(NVME):
             else:
                 self.Print("Warning! The temperature has never great then TMT2 in %s s"%TimeLimit, "w")    
                 
-            self.Print (""   )
-            self.Print ("Check if after the test, Composite Temperature has been changed or not")
+            self.Print ("")
+            self.SetPrintOffset(-4, "add")
+            self.Print ("5) Check if after the test, Composite Temperature has been changed or not", "b")
+            self.SetPrintOffset(4, "add")   
+            self.Print ("Current value: %s, original value: %s"%(self.KelvinToC(LiveT_n), self.KelvinToC(LiveT)))
             if LiveT_n!=LiveT:
                 self.Print("Pass", "p")
             else:
-                self.Print("Warning! never changed", "w")                   
+                self.Print("Warning! never changed", "w")
         return ret_code       
 
     # override post test to reset values after test is finish
