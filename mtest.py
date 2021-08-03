@@ -241,9 +241,16 @@ class mtest(NVME):
                  
     SubCase1TimeOut = 600
     def SubCase1(self):
-        self.fio_write(offset=0, size="10G", pattern="0x7C", showProgress=True)
+        CMD="nvme get-log %s --log-id=%s --log-len=512 2>&1"%(self.dev, 7)
+        CMD_Result = self.shell_cmd(CMD)  
+        print       CMD_Result
+        print       CMD_Result
       
-        
+        CMD="nvme get-log %s --log-id=%s --log-len=512 "%(self.dev, 7)
+        CMD_Result = self.shell_cmd(CMD)  
+        print       CMD_Result
+        print       CMD_Result
+                
         return 0        
 
 

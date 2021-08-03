@@ -40,6 +40,8 @@ class Sanitize_():
         self.Mode=FlowSanitizeMode.Normal
         self._Threshold=1000
         self._SANACT=2
+        self.GetEventTriggerStartSPROG=0xFFFF # self._EventTrigger start at
+        self.GetEventTriggerStopSPROG=0xFFFF # self._EventTrigger stop at
          
     def SetEventTrigger(self, EventTrigger=None, *args):    
         self._EventTrigger = EventTrigger
@@ -176,10 +178,13 @@ class Sanitize_():
                 if per>=self._Threshold and event_trigged==0 and self._EventTrigger!=None:                              
                     # excute event  
                     try:
+                        self.GetEventTriggerStartSPROG=per # start _EventTrigger at SPROG
                         if len(self._args)==0:
                             self._EventTrigger()
                         else:                    
                             self._EventTrigger(*self._args)
+                        self.GetEventTriggerStopSPROG=self._mNVME.GetLog.SanitizeStatus.SPROG # stop _EventTrigger at SPROG
+                            
 
                             
                     except Exception as e:

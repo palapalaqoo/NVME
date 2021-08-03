@@ -848,11 +848,28 @@ class NVME(object, NVMECom):
             try:
                 FIOcmdWithPyPlot.RunOneFIOcmdWithProgressStatus(CMD)
             except :  # any issue, kill process for FIO
-                FIOcmdWithPyPlot.killProcess = True         
-                return False         
-            return True            
-            
-    
+                # Old method, process is not killed
+                # FIOcmdWithPyPlot.killProcess = True
+
+                # New method, wait process is done
+                # raise
+                process = FIOcmdWithPyPlot.process
+                timeout = False
+                cnt = 0
+                while True:
+                    # Waiting for fio process is done
+                     rtc = process.poll()
+                     if rtc is not None:
+                         break
+                     time.sleep(1)
+                     cnt += 1
+                     if cnt > 5: # Timeout if over than 5 sec
+                         timeout = True
+                         break
+                if timeout:
+                    return False         # If timeout, return False
+            return True
+
     def fio_isequal(self, offset, size, pattern, nsid=1, fio_bs="64k", devPort=None, fio_direct=1, printMsg=False):
     #-- return boolean
         if devPort==None:

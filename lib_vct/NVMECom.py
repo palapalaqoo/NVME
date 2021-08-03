@@ -1475,6 +1475,7 @@ class NVMECom():
             if self.mNVME.RecordCmdToLogFile:
                 self.mNVME.Logger(command, mfile="cmd")              
             process = subprocess.Popen(commandWith_etaIsalways, stdout=subprocess.PIPE, shell=True, universal_newlines=True)                        
+            self.process = process
             while True:
                 if self.killProcess == True:
                     process.kill()
