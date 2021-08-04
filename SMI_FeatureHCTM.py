@@ -389,7 +389,7 @@ class SMI_FeatureHCTM(NVME):
             self.SetTMT1_TMT2(mTMT1, mTMT2)
             
             TargetTemp = mTMT2 + 1
-            TimeLimit = 180
+            TimeLimit = 5
             self.Print ("Reading data to raise temperature and make it large then TMT2(Let's set target temperature = %s °C)"%self.KelvinToC(TargetTemp))
             self.Print ("Time limit is %s s "%TimeLimit)
             LiveT_n = self.RaisingTempture(TargetTemp, TimeLimit)

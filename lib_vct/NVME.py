@@ -2325,9 +2325,8 @@ class DevWakeUpAllTheTime():
         # ex. nvme read /dev/nvme0n1 -s 0 -z 256000 -c 499  2>&1 >/dev/null 
         CMD="nvme read %s -s 0 -z %s -c %s  2>&1 >/dev/null "%(self._NVME.dev, readBlockSizeInByte, readBlockSize-1)
         if self._ShowMsg:
-            self._NVME.Print("DevWakeUpAllTheTime-> read cmd: %s"%CMD)
-            
-        SubDUT = NVME([self._NVME.dev]) # create new instant to send read command
+            self._NVME.Print("DevWakeUpAllTheTime-> read cmd: %s"%CMD)  
+        SubDUT = NVME(self._NVME.mArgv) # create new instant to send read command, old self._NVME.dev
         SubDUT.RecordCmdToLogFile = self._RecordCmdToLogFile
             
         while self._Start == 1:            

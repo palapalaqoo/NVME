@@ -30,8 +30,9 @@ from lib_vct.NVME import NVME
 from lib_vct.NVMECom import OrderedAttributeClass
 from lib_vct.NVMECom import NVMECom
 
-
+from SMI_Identify import SMI_IdentifyCommand
 import Queue
+from SMI_FeatureHCTM import SMI_FeatureHCTM
 
 class mtest(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -241,15 +242,8 @@ class mtest(NVME):
                  
     SubCase1TimeOut = 600
     def SubCase1(self):
-        CMD="nvme get-log %s --log-id=%s --log-len=512 2>&1"%(self.dev, 7)
-        CMD_Result = self.shell_cmd(CMD)  
-        print       CMD_Result
-        print       CMD_Result
-      
-        CMD="nvme get-log %s --log-id=%s --log-len=512 "%(self.dev, 7)
-        CMD_Result = self.shell_cmd(CMD)  
-        print       CMD_Result
-        print       CMD_Result
+        
+        self.runSubCase(SMI_FeatureHCTM, 7)
                 
         return 0        
 

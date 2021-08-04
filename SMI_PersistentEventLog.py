@@ -236,7 +236,7 @@ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 class SMI_PersistentEventLog(NVME):
     ScriptName = "SMI_PersistentEventLog.py"
     Author = ""
-    Version = "20210715"
+    Version = "20210804"
     
     def getPELHvalue(self, name):
         for i in range(len(self.PELH)):
@@ -868,9 +868,9 @@ class SMI_PersistentEventLog(NVME):
         for Event in self.PELH.PersistentEventN:          
             NewList.append(Event.EventTimestamp) 
             cnt +=1 
-            # sometimes old event will be delete, so check first 20 event is ok
+            # sometimes old event will be delete, so check first 40 event is ok, i.e. Maximum number of event must <40 after doing SpecificEvent
             # keyword 'The number of events supported is vendor specific'
-            if cnt ==20: break             
+            if cnt ==40: break             
         lastNewPos = self.findStopAddrForFIFOList(NewList , OldList) # e.x. 0~4 is new created, lastNewPos will be 4
         if lastNewPos==-1:
             self.Print("Fail, can not find new PersistentEvent, please check below PersistentEvent!", "f")
@@ -906,8 +906,14 @@ class SMI_PersistentEventLog(NVME):
         return ret_code, findList, lastNewPos
     def triggerTotalTimeForThermalManagementTemperature1Change(self):
         TTTMT1 = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1   
-        self.Print("3) Run Case 7 (Test HCTM functionality) in SMI_FeatureHCTM ")
+        self.Print("3) Run Case 7 (Test HCTM functionality) in SMI_FeatureHCTM to change")
+        self.Print("SMARTHealthLog -> TotalTimeForThermalManagementTemperature1 and TotalTimeForThermalManagementTemperature2")
+        self.SetPrintOffset(8, "add")
+        #logPath=self.LogPath + "/HCTM_Case7"  
+        #mCMD=["-p", logPath] # set log path to ./Log/HCTM_Case7
+        #self.runSubCase(SMI_FeatureHCTM, 7, appendCMD=mCMD) # run
         self.runSubCase(SMI_FeatureHCTM, 7)
+        self.SetPrintOffset(-8, "add")
         TTTMT1_n = self.GetLog.SMART.TotalTimeForThermalManagementTemperature1
         self.Print ("-- befor HCTM test --")
         self.Print ("TotalTimeForThermalManagementTemperature1: %s"%TTTMT1)
@@ -1074,28 +1080,28 @@ class SMI_PersistentEventLog(NVME):
         self.Print ("TMT2TC: %s"%TTTMT2_n)
         if TTTMT1==TTTMT1_n: # TTTMT1 has not changed
             self.Print("Warnning, TotalTimeForThermalManagementTemperature1 has not changed, skip", "w") 
-            return 255
+            return 0
         self.SetPrintOffset(-4, "add")        
         if ret_code!=0: return ret_code # if fail
         # else pass TTTMT1 verification, try to verify TTTMT2
 
+        self.Print("")
         EventType = 0xD
         Field="Threshold"
-        ExpectedValue=0x3
-        ExpectedValueDescription="temperature is greater than or equal to TMT1"       
+        ExpectedValue=0x4
+        ExpectedValueDescription="temperature is greater than or equal to TMT2"       
         self.Print("%s) Check '%s' "%(TitleStart, ExpectedValueDescription)); TitleStart += 1 
         self.SetPrintOffset(4, "add")
         if TTTMT2==TTTMT2_n:
             self.Print("TotalTimeForThermalManagementTemperature2 has not changed, skip", "w")
-            return 0               
-        
-        # using findMatchProperty to verify another field after VerifySpecificFieldWithSpecificEvent
-        findList = self.findMatchProperty(lastNewPos, EventType, Field, ExpectedValue, ExpectedValueDescription) 
-        if len(findList)!=0:
-            self.Print("Pass!, No: %s matched"%( findList), "p")
-        else:
-            self.Print("Fail, can not find", "f")
-            ret_code = 1               
+        else:                     
+            # using findMatchProperty to verify another field after VerifySpecificFieldWithSpecificEvent
+            findList = self.findMatchProperty(lastNewPos, EventType, Field, ExpectedValue, ExpectedValueDescription) 
+            if len(findList)!=0:
+                self.Print("Pass!, No: %s matched"%( findList), "p")
+            else:
+                self.Print("Fail, can not find", "f")
+                ret_code = 1               
         self.SetPrintOffset(-4, "add")
         
         return ret_code
