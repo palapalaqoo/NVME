@@ -26,7 +26,7 @@ class SMI_Format(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Format.py"
     Author = "Sam Chan"
-    Version = "20210701"
+    Version = "20210810"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1019,14 +1019,29 @@ class SMI_Format(NVME):
     SubCase18TimeOut = (4000)
     SubCase18Desc = "[Read only mode] Test Secure Erase Settings (SES) with Read only mode"      
     def SubCase18(self):
+        
         self.Print ("Verify format command in Read only mode ")
         if not self.mIKNOWWHATIAMDOING:
             self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
             return 0        
-        self.Print ("Issue VU CMD to set DUT in Read only mode ")
+        self.Print ("1) Issue VU CMD to set DUT in Read only mode ", "b")
         if not self.setReadOnlyMode(): return 1
+        
         self.Print ("Done")
-        return self.SubCase4()                    
+        self.Print ("")
+        self.Print ("2) Do %s"%self.SubCase4Desc, "b")
+        self.SetPrintOffset(4, "add")
+        self.SubCase4() # run
+        self.SetPrintOffset(-4, "add")
+        sleep(1)
+        self.Print ("")
+        self.Print ("3) Check and expect controller is working after sanizite operation in read only mode", "b")
+        if self.ctrl_alive:
+            self.Print ("Pass", "p")
+            return 0
+        else:
+            self.Print ("Fail", "f")
+            return 1                 
 
     # </sub item scripts>
     

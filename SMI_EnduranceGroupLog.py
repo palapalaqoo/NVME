@@ -3,13 +3,14 @@
 
 # Import python built-ins
 import sys
+import types
 # Import VCT modules
 from lib_vct.NVME import NVME
 
 class SMI_EnduranceGroupLog(NVME):
     ScriptName = "SMI_EnduranceGroupLog.py"
     Author = "Sam"
-    Version = "20210615"
+    Version = "20210816"
     
     def getENDGID(self, ns):
         CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, ns)
@@ -19,6 +20,15 @@ class SMI_EnduranceGroupLog(NVME):
             return None
         else:
             return (DS[103]<<8) + DS[102]        
+
+    def getENDGIDMAX(self):
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x1 2>&1"%(self.dev_port)
+        rTDS=self.shell_cmd(CMD)
+        DS=self.AdminCMDDataStrucToListOrString(rTDS, 2)            
+        if DS==None:
+            return None
+        else:
+            return (DS[341]<<8) + DS[340]          
 
     def getEGL(self, ns):
         self.get_log_passthru(LID=0x9, size=512,ReturnType=2)
@@ -437,6 +447,76 @@ class SMI_EnduranceGroupLog(NVME):
     # </define sub item scripts>
 
     # define PostTest           
+
+    SubCase11TimeOut = 6000
+    SubCase11Desc = "Test invalid ENDGID"
+    def SubCase11(self): 
+        ret_code=0      
+        if self.NsSupported:
+            self.Print("Multi ns supported")
+        else:
+            self.Print("Multi ns not supported") 
+        if not self.NsSupported:
+            self.Print ("")
+            ENDGIDMAX = self.getENDGIDMAX()
+            self.Print ("ENDGIDMAX: %s"%ENDGIDMAX)
+            self.Print ("")
+            self.Print ("1) Check if ENDGIDMAX != 0")
+            self.SetPrintOffset(4, "add")
+            if ENDGIDMAX==0:
+                self.Print("Fail", "f")
+                return 1
+            else:
+                self.Print("Pass","p")
+            self.SetPrintOffset(-4, "add")
+                
+                             
+            self.Print ("")
+            self.Print ("2) Get log page with ENDGID less then or equal to ENDGIDMAX, expect command return success(0x0) or Invalid_Field(0x2)")            
+            self.SetPrintOffset(4, "add")
+            for id in range(1, ENDGIDMAX+1):
+                self.Print ("Get log page - endurance group information with ENDGID = %s"%id)
+                self.GetLog.EnduranceGroupLog.SetEnduranceGroupIdentifierInCDW11(id)
+                value = self.GetLog.EnduranceGroupLog.CriticalWarning # issue cmd
+                mstr, sc = self.shell_cmd_with_sc(self.LastCmd)# issue again and get status
+                if sc==0:
+                    self.Print( "Get Feature CMD success(0x0)", "p")
+                elif sc==0x2:
+                    self.Print( "Get Feature CMD fail Invalid_Field(0x2)", "p")
+                else:
+                    self.Print( "Get Feature CMD fail with status: %s"%mstr, "f")
+                    ret_code = 1
+                self.Print ("")
+            self.SetPrintOffset(-4, "add")
+                    
+            self.Print ("")
+            self.Print ("3) Get log page with ENDGID large then ENDGIDMAX, expect command return Invalid_Field(0x2)")            
+            self.SetPrintOffset(4, "add")
+            for id in range(ENDGIDMAX+1, ENDGIDMAX+5): # check 4 times               
+                self.Print ("Get log page - endurance group information with ENDGID = %s"%id)
+                if (id>0xFFFF): # maxium = 0xFFFF
+                    self.Print( "Reach maxium value(0xFFFF), break")
+                    break 
+                self.GetLog.EnduranceGroupLog.SetEnduranceGroupIdentifierInCDW11(id)
+                value = self.GetLog.EnduranceGroupLog.CriticalWarning # issue cmd
+                mstr, sc = self.shell_cmd_with_sc(self.LastCmd)# issue again and get status
+                if sc==0x2:
+                    self.Print( "Get Feature CMD fail Invalid_Field(0x2)", "p")
+                else:
+                    self.Print( "Get Feature CMD return status: %s"%mstr, "f")
+                    ret_code = 1
+                self.Print ("")
+            self.SetPrintOffset(-4, "add")
+                    
+
+            
+            
+            self.Print ("")
+            # reset ENDGID
+            self.GetLog.EnduranceGroupLog.SetEnduranceGroupIdentifierInCDW11(self.ENDGID)
+                           
+        return ret_code            
+    
     def PostTest(self): 
         return True
             

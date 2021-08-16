@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20210802"
+    Version = "20210810"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -593,6 +593,32 @@ class SMI_Sanitize(NVME):
                 self.Print("Set feature fail", "f")
                 return False
         return True        
+
+    def VerifyROmode(self, subCaseFunc, subCaseDesc):
+    # VerifyROmode( self.SubCase7, self.SubCase7Desc)
+    
+        self.Print ("Verify sanitize in Read only mode ")
+        if not self.mIKNOWWHATIAMDOING:
+            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
+            return 0        
+        self.Print ("1) Issue VU CMD to set DUT in Read only mode ", "b")
+        if not self.setReadOnlyMode(): return 1
+
+        self.Print ("Done")
+        self.Print ("")
+        self.Print ("2) Do %s"%subCaseDesc, "b")
+        self.SetPrintOffset(4, "add")
+        subCaseFunc() # run
+        self.SetPrintOffset(-4, "add")
+        sleep(1)
+        self.Print ("")
+        self.Print ("3) Check and expect controller is working after sanizite operation in read only mode", "b")
+        if self.ctrl_alive:
+            self.Print ("Pass", "p")
+            return 0
+        else:
+            self.Print ("Fail", "f")
+            return 1        
 
     def __init__(self, argv):
         self.SetDynamicArgs(optionName="l", optionNameFull="testLoop", helpMsg="for case 12, test Loop, default=1", argType=int) 
@@ -1410,65 +1436,30 @@ class SMI_Sanitize(NVME):
     SubCase18TimeOut = (4000)
     SubCase18Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=0, OWPASS=1"      
     def SubCase18(self):
-        self.Print ("Verify sanitize in Read only mode ")
-        if not self.mIKNOWWHATIAMDOING:
-            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
-            return 0        
-        self.Print ("Issue VU CMD to set DUT in Read only mode ")
-        if not self.setReadOnlyMode(): return 1
-        self.Print ("Done")
-        return self.SubCase7()
-
+        return self.VerifyROmode( self.SubCase7, self.SubCase7Desc)
             
     # timeout 1.1hr
     SubCase19TimeOut = (4000)
     SubCase19Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=1"      
     def SubCase19(self):
-        self.Print ("Verify sanitize in Read only mode ")
-        if not self.mIKNOWWHATIAMDOING:
-            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
-            return 0        
-        self.Print ("Issue VU CMD to set DUT in Read only mode ")
-        if not self.setReadOnlyMode(): return 1
-        self.Print ("Done")
-        return self.SubCase8()
+        
+        return self.VerifyROmode( self.SubCase8, self.SubCase8Desc)
 
     # timeout 1.1hr
     SubCase20TimeOut = (4000)
     SubCase20Desc = "[Read only mode] Test Logical Block Data - Overwrite sanitize operation, OIPBP=1, OWPASS=2"      
     def SubCase20(self):
-        self.Print ("Verify sanitize in Read only mode ")
-        if not self.mIKNOWWHATIAMDOING:
-            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
-            return 0        
-        self.Print ("Issue VU CMD to set DUT in Read only mode ")
-        if not self.setReadOnlyMode(): return 1
-        self.Print ("Done")
-        return self.SubCase9()
+        return self.VerifyROmode( self.SubCase9, self.SubCase9Desc)
         
     SubCase21TimeOut = (4000)
     SubCase21Desc = "[Read only mode] Test Logical Block Data - Block Erase sanitize operation"      
     def SubCase21(self):
-        self.Print ("Verify sanitize in Read only mode ")
-        if not self.mIKNOWWHATIAMDOING:
-            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
-            return 0        
-        self.Print ("Issue VU CMD to set DUT in Read only mode ")
-        if not self.setReadOnlyMode(): return 1
-        self.Print ("Done")
-        return self.SubCase10()
+        return self.VerifyROmode( self.SubCase10, self.SubCase10Desc)
 
     SubCase22TimeOut = (4000)
     SubCase22Desc = "[Read only mode] Test Logical Block Data - Crypto Erase sanitize operation"      
     def SubCase22(self):
-        self.Print ("Verify sanitize in Read only mode ")
-        if not self.mIKNOWWHATIAMDOING:
-            self.Print ("Please run script with option '-iknowwhatiamdoing', it will make DUT into RO mode")
-            return 0        
-        self.Print ("Issue VU CMD to set DUT in Read only mode ")
-        if not self.setReadOnlyMode(): return 1
-        self.Print ("Done")
-        return self.SubCase11()
+        return self.VerifyROmode( self.SubCase11, self.SubCase11Desc)
 
     # </sub item scripts> 
                

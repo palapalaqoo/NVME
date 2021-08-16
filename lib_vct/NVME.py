@@ -374,7 +374,8 @@ class NVME(object, NVMECom):
                 self.UserSubItems.append(i)
         
         if isRunSubCase: self.SubCasePoint=parentSubCasePoint # set case no. to parent 
-        if isRunSubCase: self.PrintLoop = "Case %s"%self.SubCasePoint #show    
+        if isRunSubCase: self.PrintLoop = "  "
+        # if isRunSubCase: self.PrintLoop = "Case %s"%self.SubCasePoint #show   ,modify to show PrintLoop in runSubCase() 
         
         if isRunSubCase:
             sys.stdout = NVMECom.tee(NVMECom.LogName_ConsoleOut)   
@@ -858,14 +859,14 @@ class NVME(object, NVMECom):
                 cnt = 0
                 while True:
                     # Waiting for fio process is done
-                     rtc = process.poll()
-                     if rtc is not None:
-                         break
-                     time.sleep(1)
-                     cnt += 1
-                     if cnt > 5: # Timeout if over than 5 sec
-                         timeout = True
-                         break
+                    rtc = process.poll()
+                    if rtc is not None:
+                        break
+                    time.sleep(1)
+                    cnt += 1
+                    if cnt > 5: # Timeout if over than 5 sec
+                        timeout = True
+                        break
                 if timeout:
                     return False         # If timeout, return False
             return True
@@ -1935,7 +1936,13 @@ class NVME(object, NVMECom):
         mArgv = [self.dev, '%s'%targetCase, "-p", "Log/SubLogs/SubCase%s"%self.SubCasePoint]
         mArgv = mArgv + appendCMD
         inst = targetClass(mArgv)
-        inst.RunScript(isRunSubCase=True, parentSubCasePoint=self.SubCasePoint)  # run and do not print report for SMI_Identify
+        # print black bar
+        inst.PrintLoop = "                  Console output for Case %s of %s                   "%(targetCase, targetClass) 
+        inst.Print("")
+        # run script
+        inst.RunScript(isRunSubCase=True, parentSubCasePoint=self.SubCasePoint)  # run and do not print report for SMI_Identify 
+        inst.PrintLoop = "                   End of Console output for Case %s of %s           "%(targetCase, targetClass) 
+        inst.Print("")          
         self.restoreEnvironment()
         return inst.rtCode      
     

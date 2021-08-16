@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210720"
+    Version = "20210816"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -528,7 +528,21 @@ class SMI_IdentifyCommand(NVME):
                     else:
                         self.Print("    Fail", "f")
                         subRt=1
-
+                        
+                if Name == "TNVMCAP":
+                    self.Print("Check %s"%Name)
+                    NsSupported=True if self.IdCtrl.OACS.bit(3)=="1" else False     
+                    self.Print("    Namespace Management Supported") if NsSupported else self.Print("    Namespace Management not Supported")
+                    if not NsSupported:
+                        self.Print("    Skip due to Namespace Management is not Supported")
+                    else:
+                        self.Print("    TNVMCAP must > 0 because Namespace Management is Supported")
+                        self.Print("    TNVMCAP: %s"%ValueC)
+                        if int(ValueC, 16)>0:
+                            self.Print("    Pass", "p")
+                        else:
+                            self.Print("    Fail", "f")
+                            subRt=1
                                                                   
         return True if subRt==0 else False
     

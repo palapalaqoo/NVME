@@ -37,8 +37,8 @@ class EnduranceGroupLog_(Structure):
             if name==key:
                 # start
                 if not self.IssueGetFeatureCMD():
-                    print "IssueGetFeatureCMD fail"
-                    return 0                
+                    self.mNVME.Print( "EnduranceGroupLog_ -> __getattribute__: IssueGetFeatureCMD fail", "w")
+                    return False                
                 v = super(EnduranceGroupLog_, self).__getattribute__(key)
                 v = self.mNVME.ByteListToLongInt(v) # wrape
                 return v

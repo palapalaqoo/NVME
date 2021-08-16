@@ -239,11 +239,55 @@ class mtest(NVME):
         t.start()   
        
         return t 
-                 
+    def nvme_reset(self):
+        self.status="reset"
+        #implement in SMI_NVMEReset.py
+        CC= self.MemoryRegisterBaseAddress+0x14
+        CChex=hex(CC)
+        sleep(0.5)
+        self.shell_cmd("devmem2 %s w 0x00460000"%CChex)         
+        sleep(0.01)       
+        self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
+        self.status="normal"
+        return 0                  
+    
+    def GetEN(self):
+        #return self.CR.CC.bit(0)       
+        CC= self.MemoryRegisterBaseAddress+0x14
+        CChex=hex(CC)
+        rtStr = self.shell_cmd("devmem2 %s"%CChex)
+        mStr=":\s0x(\w+)"   #  Value at address 0xa1100014: 0x00460001
+        if re.search(mStr, rtStr):
+            rtStr=int(re.search(mStr, rtStr).group(1),16)
+        else:
+            print "GetEN error"
+            rtStr=int(0)
+
+        CC_EN = rtStr & 0x1
+        return CC_EN     
+    
+    def GetRDY(self):
+        #return self.CR.CSTS.bit(0) 
+        CC= self.MemoryRegisterBaseAddress+0x1C
+        CChex=hex(CC)
+        CSTS = self.shell_cmd("devmem2 %s"%CChex)
+        mStr=":\s0x(\w+)"   # Value at address 0xa110001c: 0x00000001
+        if re.search(mStr, CSTS):
+            CSTS=int(re.search(mStr, CSTS).group(1),16)
+        else:
+            print "GetRDY error"
+            CSTS=int(0)
+
+        RDY = CSTS & 0x1
+        return RDY       
+    
     SubCase1TimeOut = 600
     def SubCase1(self):
-        
-        self.runSubCase(SMI_FeatureHCTM, 7)
+        for i in range(1000):
+            AvailableSpare=self.GetLog.SMART.AvailableSpare
+            self.Print ("AvailableSpare: %s"%AvailableSpare)
+            sleep(1)
+        print "done"
                 
         return 0        
 

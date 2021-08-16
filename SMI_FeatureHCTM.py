@@ -389,7 +389,7 @@ class SMI_FeatureHCTM(NVME):
             self.SetTMT1_TMT2(mTMT1, mTMT2)
             
             TargetTemp = mTMT2 + 1
-            TimeLimit = 5
+            TimeLimit = 180
             self.Print ("Reading data to raise temperature and make it large then TMT2(Let's set target temperature = %s °C)"%self.KelvinToC(TargetTemp))
             self.Print ("Time limit is %s s "%TimeLimit)
             LiveT_n = self.RaisingTempture(TargetTemp, TimeLimit)
@@ -466,6 +466,71 @@ class SMI_FeatureHCTM(NVME):
         return ret_code       
 
     # override post test to reset values after test is finish
+
+    SubCase8TimeOut = 600
+    SubCase8Desc = "[YMTC CTA-413] Smart log(Thermal Management Temperature 1 Transition Count) increase with set feature(power state=PS1)"   
+    SubCase8KeyWord = ""
+    def SubCase8(self):
+        ret_code = 0
+        # get value from smart log 
+        TMT1TC = self.GetLog.SMART.ThermalManagementTemperature1TransitionCount
+        TMT2TC = self.GetLog.SMART.ThermalManagementTemperature2TransitionCount        
+        self.Print ("Current 'Thermal Management Temperature 1 Transition Count' : %s"%TMT1TC)
+        self.Print ("Current 'Thermal Management Temperature 2 Transition Count' : %s"%TMT2TC)
+        self.Print ("")
+        
+        self.Print ("1) Issue Set Feature(Power Management) with power state=PS1", "b")
+        mstr, sc = self.set_feature_with_sc(fid=2, value=1)
+        self.SetPrintOffset(4, "add")
+        self.Print ("Return state: %s"%mstr)
+        if sc!=0:
+            self.Print ("Fail to set feature", "f")
+            return 1
+        else:
+            self.Print ("Done", "p")
+        self.Print ("")
+        self.SetPrintOffset(-4, "add")
+        
+        self.Print ("2) Issue Get Log Page(Smart info), check field Thermal Management Temperature 1 Transition Count", "b")
+        TMT1TC_n = self.GetLog.SMART.ThermalManagementTemperature1TransitionCount   
+        self.SetPrintOffset(4, "add")    
+        self.Print ("Current 'Thermal Management Temperature 1 Transition Count' : %s"%TMT1TC_n)      
+        self.Print ("Check if Transition Count remains unchanged")
+        if TMT1TC_n==TMT1TC:
+            self.Print ("Pass", "p")
+        else:
+            self.Print ("Fail", "f")
+            ret_code = 1
+        self.Print ("")
+        self.SetPrintOffset(-4, "add")            
+            
+        self.Print ("3) Issue Set Feature(Power Management) with power state=PS2", "b")
+        mstr, sc = self.set_feature_with_sc(fid=2, value=2)
+        self.SetPrintOffset(4, "add")
+        self.Print ("Return state: %s"%mstr)
+        if sc!=0:
+            self.Print ("Fail to set feature", "f")
+            return 1
+        else:
+            self.Print ("Done", "p")
+        self.Print ("")
+        self.SetPrintOffset(-4, "add")        
+        
+        self.Print ("4) Issue Get Log Page(Smart info), check field Thermal Management Temperature 2 Transition Count", "b")
+        TMT2TC_n = self.GetLog.SMART.ThermalManagementTemperature2TransitionCount       
+        self.SetPrintOffset(4, "add")
+        self.Print ("Current 'Thermal Management Temperature 2 Transition Count' : %s"%TMT2TC_n)      
+        self.Print ("Check if Transition Count remains unchanged")
+        if TMT2TC_n==TMT2TC:
+            self.Print ("Pass", "p")
+        else:
+            self.Print ("Fail", "f")
+            ret_code = 1
+        self.Print ("")
+        self.SetPrintOffset(-4, "add")   
+                
+        return ret_code
+        
     def PostTest(self):
         self.ResetHCTM()
     

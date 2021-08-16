@@ -27,7 +27,7 @@ class SMI_NVMeReset(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_NVMeReset.py"
     Author = "Sam Chan"
-    Version = "20210107"
+    Version = "20210809"
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -172,15 +172,9 @@ class SMI_NVMeReset(NVME):
             find="0x"+re.search(mStr, buf).group(1)   
         return find 
      
-    def nvme_reset(self):
-        self.status="reset"
-        #implement in SMI_NVMEReset.py
-        CC= self.MemoryRegisterBaseAddress+0x14
-        CChex=hex(CC)
-        sleep(0.5)
-        self.shell_cmd("devmem2 %s w 0x00460000"%CChex)                
-        self.shell_cmd("  nvme reset %s "%(self.dev_port), 0.5) 
-        self.status="normal"
+    def nvme_reset_with_delay(self):
+        sleep(0.1)
+        self.nvme_reset()
         return 0                
     
     def GetTestItem(self, ResetType):
@@ -395,10 +389,21 @@ class SMI_NVMeReset(NVME):
         AQA = self.CR.AQA.str    
         ASQ = self.CR.ASQ.str   
         ACQ = self.CR.ACQ.str    
+
+        '''
+        ++ nvme reset command time slot in seconds(reference)
+        
+        0.657428: nvme_setup_cmd: nvme0: qid=0, cmdid=19, nsid=0, flags=0x0, meta=0x0, cmd=(nvme_admin_delete_sq sqid=1)
+        0.662209: nvme_setup_cmd: nvme0: qid=0, cmdid=21, nsid=0, flags=0x0, meta=0x0, cmd=(nvme_admin_delete_cq cqid=1)
+        
+        0.700230: nvme_setup_cmd: nvme0: qid=0, cmdid=28, nsid=0, flags=0x0, meta=0x0, cmd=(nvme_admin_create_cq cqid=1, qsize=255, cq_flags=0x3, irq_vector=1)
+        0.701252: nvme_setup_cmd: nvme0: qid=0, cmdid=29, nsid=0, flags=0x0, meta=0x0, cmd=(nvme_admin_create_sq sqid=1, qsize=255, sq_flags=0x1, cqid=1)        
+        '''
                       
         self.Print ("Issue NVME reset (Controller disable)"        )
         self.Print ("")
-        t = threading.Thread(target = self.nvme_reset)
+        # delay 0.1 prevent thred run before self.GetEN
+        t = threading.Thread(target = self.nvme_reset_with_delay)
         t.start()
         
         self.Print ("Wait for CC.EN = 0")
