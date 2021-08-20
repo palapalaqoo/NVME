@@ -26,7 +26,7 @@ class SMI_Sanitize(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_Sanitize.py"
     Author = "Sam Chan"
-    Version = "20210810"
+    Version = "20210817"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1384,7 +1384,7 @@ class SMI_Sanitize(NVME):
         self.Print ("1) Check if No-Deallocate Inhibited (NDI) set to 1 for DELL")
         if NDI!=1:
             self.Print ("Fail!", "f")
-            return 0
+            return 1
         else:
             self.Print ("Pass", "p")          
                                    

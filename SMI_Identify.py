@@ -28,7 +28,7 @@ class SMI_IdentifyCommand(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_IdentifyCommand.py"
     Author = "Sam Chan"
-    Version = "20210816"
+    Version = "20210820"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -88,6 +88,7 @@ class SMI_IdentifyCommand(NVME):
         value=None
         if UserFile!=None:
             for mItem in UserFile:
+                if len(mItem)<2: continue
                 if self.RemoveSpaces(mItem[0].upper()) == self.RemoveSpaces(idName.upper()):
                     value=mItem[1]
                     break
@@ -104,7 +105,7 @@ class SMI_IdentifyCommand(NVME):
             
     def CheckValuesFromControllerWithCsvFile(self, CNS):
     # return True/False
-        ParseCfg = self.IdentifyLists[CNS][0]
+        ParseCfg = self.IdentifyLists[CNS][0] # field that will be parsered
         UserFileName = self.IdentifyLists[CNS][1]
         CMD = self.IdentifyLists[CNS][2]
         ParseFunc = self.IdentifyLists[CNS][3]        
@@ -112,6 +113,19 @@ class SMI_IdentifyCommand(NVME):
         OUT_UserFileFullPath=self.OutPath+UserFileName
         IN_UserFileFullPath=self.InPath+UserFileName
         
+        if self.binFileIn!="":
+            self.Print("Convert %s to %s"%(self.binFileIn, IN_UserFileFullPath), "b")
+            self.SetPrintOffset(4, "add")
+            DS = self.ReadFile(self.binFileIn)            
+            DS=self.hexdump(DS) # after here, the format of DS is the same as nvme id-ctrl /dev/nvme0n1 for bin file               
+            if self.SaveIdentifyFromListToCSVFile(DS, ParseCfg, IN_UserFileFullPath, ParseFunc):
+                self.SetPrintOffset(-4, "add")
+            else:
+                self.Print("Fail, please check file: %s"%self.binFileIn, "f")
+                self.SetPrintOffset(-4, "add")
+                return False
+            
+        self.Print("")
         subRt=True
         self.Print("Check if file %s exist or not(for comparing identify data if applicable, else show current identify data only)"%IN_UserFileFullPath)
         InUserFile=self.ReadCSVFile(IN_UserFileFullPath)
@@ -132,7 +146,8 @@ class SMI_IdentifyCommand(NVME):
             self.Print( "")
             self.Print( "Start to check values ..")
             self.Print("------------------------------------------------------------------------------------------------------------")   
-            self.PrintAlignString("Name", "Controller", IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)", "[Bytes][Bits]", "default")
+            self.PrintAlignString("Name", "Controller", "Expected value", "[Bytes][Bits]", "default")
+            self.PrintAlignString("", "%s"%OUT_UserFileFullPath, IN_UserFileFullPath if InUserFile!=None else IN_UserFileFullPath+"(missing)", "", "")
             self.Print("------------------------------------------------------------------------------------------------------------")   
 
 
@@ -183,43 +198,62 @@ class SMI_IdentifyCommand(NVME):
         # end of for mItem in BuileInFile:    
         return subRt  
 
-
-                
     def SaveIdentifyFromControllerToCSVFile(self, CNS):
     # return True/False
     # BuileInFileName, BuileIn File Name
     # UserFileName,  user file name        
-        ParseCfg = self.IdentifyLists[CNS][0]
+        ParseCfg = self.IdentifyLists[CNS][0] # field that will be parsered
         UserFileName = self.IdentifyLists[CNS][1]
         CMD = self.IdentifyLists[CNS][2]
         ParseFunc = self.IdentifyLists[CNS][3]
         
         OUT_UserFileFullPath=self.OutPath+UserFileName
 
+        self.Print( "Issue identify command to get data structure")
+        # returnd data structure
+        rTDS, sc=self.shell_cmd_with_sc(CMD)
+        if sc!=0:
+            self.Print("Command fail, status: %s"%rTDS)
+            return False
+        else:
+            self.Print("Command success")
+        # format data structure to list 
+        if not self.SaveIdentifyFromListToCSVFile( rTDS, ParseCfg, OUT_UserFileFullPath, ParseFunc):
+            return False
+        else:
+            if CNS==0x0:
+                self.SaveVenderSpecRawData(CMD, OUT_UserFileFullPath)
+            return True 
+                
+    def SaveIdentifyFromListToCSVFile(self, DataStructureListIn, ParseCfg, OUT_UserFileFullPath, ParseFunc):
+    # return True/False
+    # BuileInFileName, BuileIn File Name
+    # UserFileName,  user file name        
+        
         if ParseCfg!=None:
-            self.Print( "Check if BuileInFile exist or not(%s)"%SMI_IdentifyCommand.File_BuildIn_Identify_CNS01)
+            self.Print( "TestCase will using fields in  %s to parser data structure"%SMI_IdentifyCommand.File_BuildIn_Identify_CNS01)
             BuileInFile = self.ReadCSVFile(ParseCfg)
             if BuileInFile==None:
                 self.Print( "BuileInFile is not exist(%s), quit !"%ParseCfg,"f")
                 return False
-            else:            
-                self.Print( "BuileInFile exist", "p")
-        
-        self.Print( "Issue identify command to get data structure")
-        # returnd data structure
-        rTDS=self.shell_cmd(CMD)
-        # format data structure to list 
-        DS=self.AdminCMDDataStrucToListOrString(rTDS, 0)            
-        if DS==None:
-            self.Print( "Fail to get data structure, quit !","f")
-            return False
-        else:
-            self.Print( "Success to get data structure")
+            else: 
+                pass           
+                # self.Print( "BuileInFile exist", "p")
 
-            self.Print( "Parse and save data structure to csv file(%s)"%OUT_UserFileFullPath )
+        # format data structure to list 
+        DS=self.AdminCMDDataStrucToListOrString(DataStructureListIn, 0)            
+        if DS==None:
+            self.Print( "Fail to get data structure in AdminCMDDataStrucToListOrString(), quit !","f")
+            return False
+        else:           
+            self.Print( "Start to parser and save data structure to csv file(%s)"%OUT_UserFileFullPath )
             ParseFunc(ParseCfg, OUT_UserFileFullPath, DS)
-            if CNS==0x0:
-                rTDS=self.yield_shell_cmd(CMD)
+            self.Print( "Done")
+        return True
+    
+    def SaveVenderSpecRawData(self, CMD, OUT_UserFileFullPath):
+            if True:
+                self.Print( "Start to parser VenderSpecRawData and save to csv file(%s)"%OUT_UserFileFullPath )
                 mStr = "^(0\w\w\w):"
                 self.CNS00_VenderSpecRawDataList = []
                 for line in self.yield_shell_cmd(CMD):
@@ -234,9 +268,8 @@ class SMI_IdentifyCommand(NVME):
                         ByteAndBit = "[%s:%s][:]"%(stopByte, startByte)
                         self.CNS00_VenderSpecRawDataList.append([line, ByteAndBit] )  #record
                         # save to csv file
-                        self.SaveToCSVFile(OUT_UserFileFullPath, "VenderSpecRawData", line, ByteAndBit)                        
-                    
-            
+                        self.SaveToCSVFile(OUT_UserFileFullPath, "VenderSpecRawData", line, ByteAndBit)
+                self.Print("Done")
             return True       
         
     def ParseFuncCNS_0x0_0x1(self, ParseCfg, UserFile, DataStructIn):
@@ -691,36 +724,42 @@ class SMI_IdentifyCommand(NVME):
     # return True/False       
     # test with  ParseCfg file
         subRt=True
-        self.Print ("Try to Save Identify From Controller To CSVFile")
+        self.Print ("Try to Save Identify From Controller To CSVFile", "b")
+        self.SetPrintOffset(4, "add")
         Success = self.SaveIdentifyFromControllerToCSVFile(CNS)
         if Success:
             self.Print( "Success !","p")
         else:            
             self.Print( "Fail !","f")
             return False
+        self.SetPrintOffset(-4, "add")
             
         if Success:
             self.Print ("")
-            self.Print ("Check values From Controller with csv file")
+            self.Print ("Check values From Controller with csv file", "b")
+            self.SetPrintOffset(4, "add")
             if self.CheckValuesFromControllerWithCsvFile(CNS):
                 self.Print( "Pass !","p")
             else:            
                 self.Print( "Fail !","f")
                 subRt = False
-                
+            self.SetPrintOffset(-4, "add")    
+            
             self.Print ("")    
-            self.Print ("Check Correctness")
+            self.Print ("Check Correctness", "b")
+            self.SetPrintOffset(4, "add")
             if self.CheckCorrectness(CNS):
                 self.Print( "Pass !","p")
             else:            
                 self.Print( "Fail !","f")
                 subRt = False
-                
+            self.SetPrintOffset(-4, "add")    
             self.Print ("")    
-            self.Print ("Check SANICAP")     
+            self.Print ("Check SANICAP", "b")   
+            self.SetPrintOffset(4, "add")  
             if not self.CheckSanicap():
                 subRt = False
-                        
+            self.SetPrintOffset(-4, "add")            
         return subRt
         
             
@@ -1156,12 +1195,19 @@ class SMI_IdentifyCommand(NVME):
         VersionDdfault = VersionDefine[0]
         self.SetDynamicArgs(optionName="v", optionNameFull="version", \
                             helpMsg="nvme spec version, %s, default= %s, ex. '-v %s'"%(VersionDefine, VersionDdfault, VersionDdfault), argType=str, default=VersionDdfault)
+        self.SetDynamicArgs(optionName="b", optionNameFull="binFileIn", \
+                            helpMsg="Bin file for identify, will convert to csv and replace ./CSV/In/Identify_CNS00.csv for case1"\
+                            "\nor ./CSV/In/Identify_CNS01.csv for case2, ex. '-b PC300_v081_IdentifyController.bin'", argType=str, default="")
+
+        
         # initial parent class
         super(SMI_IdentifyCommand, self).__init__(argv)
 
         self.specVersion = self.GetDynamicArgs(0)
         if not self.specVersion in VersionDefine:   # if input is not in VersionDefine, e.g keyin wrong version
             self.specVersion = VersionDdfault
+            
+        self.binFileIn = self.GetDynamicArgs(1)
 
         if self.specVersion=="1.4":
             SMI_IdentifyCommand.File_BuildIn_Identify_CNS01 = "./lib_vct/CSV/CNS01_IdentifyControllerDataStructure_V1_4.csv"
@@ -1186,7 +1232,12 @@ class SMI_IdentifyCommand(NVME):
         
     # override
     def PreTest(self):   
-
+        if self.binFileIn!="":
+            if self.isfileExist(self.binFileIn):
+                self.Print("%s exist"%self.binFileIn)
+            else:
+                self.Print("%s not exist"%self.binFileIn, "f")
+                self.binFileIn=""
         return True
 
             

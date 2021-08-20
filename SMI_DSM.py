@@ -440,6 +440,7 @@ class SMI_DSM(NVME):
             self.Print("")
             self.Print("Issue dsm(deallocate) command")
             CMD = "nvme dsm %s -s %s -b %s -a %s -d 2>&1"%(self.device, CMD_s, CMD_b, CMD_a)
+            self.Print("CMD: %s"%CMD)
             rtStatus = self.shell_cmd(CMD)
             if bool(re.search("Success", rtStatus)) or bool(re.search("success", rtStatus)):
                 self.Print("Command success", "p")

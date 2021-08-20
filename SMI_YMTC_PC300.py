@@ -10,6 +10,15 @@ class SMI_YMTC_PC300(NVME):
     ScriptName = "SMI_YMTC_PC300.py"
     Author = "Sam"
     Version = "20210204"
+
+    def getENDGID(self, ns):
+        CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, ns)
+        rTDS=self.shell_cmd(CMD)
+        DS=self.AdminCMDDataStrucToListOrString(rTDS, 2)            
+        if DS==None:
+            return None
+        else:
+            return (DS[103]<<8) + DS[102]  
     
     def __init__(self, argv):
         # initial parent class
@@ -96,12 +105,60 @@ class SMI_YMTC_PC300(NVME):
         return ret_code
 
     SubCase3TimeOut = 600
-    SubCase3Desc = "[CTA-214] Margining Ready bit is not 1"   
+    SubCase3Desc = "[YMTC CTA-296] Endurance Group Identifier (ENDGID) should not be 0"   
     SubCase3KeyWord = ""
     def SubCase3(self):
         ret_code = 0
-        self.Print("PCI Express Capability offset(PXCAP): %s"%self.PXCAP)
+        self.Print("Expect:")
+        self.SetPrintOffset(4, "add")
+        self.Print("Endurance Group Identifier (ENDGID) value should be 1.")
+        self.Print("Controller Attributes (CTRATT) Bit 4 is 1.")
+        self.Print("Asynchronous Events Supported (OAES）bit14 is 1.")
+        self.SetPrintOffset(-4, "add")
+        self.Print("")
+        
+        self.Print("Actual:")
+        self.SetPrintOffset(4, "add")        
+        ENDGID = self.getENDGID(ns=1)
+        self.Print("ENDGID: %s"%ENDGID)
+        self.Print("Check if ENDGID = 1")
+        if ENDGID==1:
+            self.Print("Pass", "p")  
+        else:
+            self.Print("Fail", "f")         
+            ret_code = 1
+        
+        self.Print("")
+        CTRATT =  self.IdCtrl.CTRATT.int            
+        self.Print("CTRATT: %s(%s)"%(CTRATT, self.intToBinaryStr(CTRATT)))
+        self.Print("Check if CTRATT bit 4 = 1")
+        if self.IdCtrl.CTRATT.bit(4)=="1":
+            self.Print("Pass", "p")  
+        else:
+            self.Print("Fail", "f")         
+            ret_code = 1        
+        
+        self.Print("")
+        OAES =  self.IdCtrl.OAES.int
+        self.Print("OAES: %s(%s)"%(OAES, self.intToBinaryStr(OAES)))
+        self.Print("Check if OAES bit 14 = 1")
+        if self.IdCtrl.OAES.bit(14)=="1":
+            self.Print("Pass", "p")  
+        else:
+            self.Print("Fail", "f")         
+            ret_code = 1        
+                    
+        self.Print("")
+        self.SetPrintOffset(-4, "add")
         return ret_code
+        
+    SubCase4TimeOut = 600
+    SubCase4Desc = "[YMTC CTA-296] Endurance Group Identifier (ENDGID) should not be 0"   
+    SubCase4KeyWord = ""
+    def SubCase4(self):
+        ret_code = 0
+        pass
+        return ret_code        
         
     # </define sub item scripts>
 

@@ -10,7 +10,7 @@ from lib_vct.NVME import NVME
 class SMI_EnduranceGroupLog(NVME):
     ScriptName = "SMI_EnduranceGroupLog.py"
     Author = "Sam"
-    Version = "20210816"
+    Version = "20210819"
     
     def getENDGID(self, ns):
         CMD = "nvme admin-passthru %s --opcode=0x6 --data-len=4096 -r --cdw10=0x0 --namespace-id=%s 2>&1"%(self.dev_port, ns)
@@ -198,6 +198,11 @@ class SMI_EnduranceGroupLog(NVME):
         ret_code=0  
         self.Print ("Issue command to get log data for EnduranceGroupLog and print")
         self.Print("")
+        # verify if get log command success
+        CriticalWarning = self.GetLog.EnduranceGroupLog.CriticalWarning
+        if isinstance(CriticalWarning, types.BooleanType):   
+            self.Print("Fail to get EnduranceGroupLog", "f")
+            return 1
         self.PrintAlignString("", "", "CriticalWarning", self.GetLog.EnduranceGroupLog.CriticalWarning)
         self.PrintAlignString("", "", "Reserved_2_1", self.GetLog.EnduranceGroupLog.Reserved_2_1)
         self.PrintAlignString("", "", "AvailableSpare", self.GetLog.EnduranceGroupLog.AvailableSpare)
@@ -449,7 +454,7 @@ class SMI_EnduranceGroupLog(NVME):
     # define PostTest           
 
     SubCase11TimeOut = 6000
-    SubCase11Desc = "Test invalid ENDGID"
+    SubCase11Desc = "Test ENDGID"
     def SubCase11(self): 
         ret_code=0      
         if self.NsSupported:

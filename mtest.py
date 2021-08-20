@@ -280,14 +280,30 @@ class mtest(NVME):
 
         RDY = CSTS & 0x1
         return RDY       
+    def pb(self, x):
+    # x = 12322, return 2'b 0011 0000 0010 0010
+        bres = bin(x).replace('0b', '').replace('-', '') # If no minus, second replace doesn't do anything
+        lres = len(bres) # We need the length to see how many 0s we need to add to get a quadruplets
+        # We adapt the number of added 0s to get full bit quadruplets.
+        # The '-' doesn't count since we want to handle it separately from the bit string
+        bres = bres.zfill(lres + (4-lres%4))
+        out=""
+        size = len(bres)
+        for i in range(size):
+            out += bres[i]
+            if i%4==3 and i!=size-1:
+                out += " " # add space
+                
+        out = "2'b " + ('-' if x < 0 else '') + out # add 2'b then add  '-' if is less then 0
+        
     
+        return out    
     SubCase1TimeOut = 600
     def SubCase1(self):
-        for i in range(1000):
-            AvailableSpare=self.GetLog.SMART.AvailableSpare
-            self.Print ("AvailableSpare: %s"%AvailableSpare)
-            sleep(1)
-        print "done"
+        filePath= "PC300_v081_IdentifyController.bin"
+        mStr = self.ReadFile(filePath)
+        print self.hexdump(mStr)
+        
                 
         return 0        
 

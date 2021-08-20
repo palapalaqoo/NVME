@@ -460,7 +460,7 @@ class NVMECom():
     #-- return list [ byte[0], byte[1], byte[2], ... ] if ReturnType=2 where byte[] is int type  
     #-- BytesOfElement, cut BytesOfElement to lists, ex. BytesOfElement=2,  return list [ byte[1]+byte[0], byte[3]+byte[2], ... ] 
         # if command success
-        if re.search("NVMe command result:00000000", strIn):
+        if True: #re.search("NVMe command result:00000000", strIn):
             line="0"        
             #patten=re.findall("\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}\s\w{2}", strIn)            
             patten=re.findall("\w+:(.+) \".+\"", strIn) # 0050: 32 36 35 4b 48 20 20 20 20 20 20 20 20 20 20 20 "265KH..........."
@@ -1695,7 +1695,8 @@ class NVMECom():
             chars = src[c:c+length]
             hex = ' '.join(["%02x" % ord(x) for x in chars])
             printable = ''.join(["%s" % ((ord(x) <= 127 and FILTER[ord(x)]) or '.') for x in chars])
-            lines.append("%04x  %-*s  %s\n" % (c, length*3, hex, printable))
+            lines.append("%04x: %-*s\"%s\"\n" % (c, length*3, hex, printable))
+            # lines.append("%04x: %-*s \"%s\"\n" % (c, length*3, hex, printable))
         return ''.join(lines)
     
     def HexListToStr(self, rawDataList):
@@ -1745,38 +1746,6 @@ class NVMECom():
             self.Print(mStr)    
         self.SetPrintOffset(currBk)         
 
-    def RaisingTempture(self, TargetTemp, TimeOut):
-    # TimeOut = time limit in secend
-    # TargetTemp =temp in Kelvin degree
-    # Return last tempture read from controller
-        TimeCnt=0
-        aa=time.time()
-        TempNow=0
-        while True:                     
-            # writing
-            mThreads=self.nvme_write_multi_thread(thread=4, sbk=0, bkperthr=512, value=0x5A)
-            for process in mThreads:   
-                process.join()
-            
-            TimeCnt= int(time.time()-aa) 
-            PS = self.GetPS()    
-            TempNow = self.GetLog.SMART.CompositeTemperature
-            mSuffix="Temperature: %s C, Power State: %s"%(self.KelvinToC(TempNow), PS)
-            
-            # progressbar
-            if TimeCnt<TimeOut:
-                self.PrintProgressBar(TimeCnt, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
-            else:
-                self.PrintProgressBar(TimeOut, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
-                self.Print ("After %s s, time out !,  stop to increase temperature !"%TimeOut)
-                break
-                    
-            if TempNow>=TargetTemp: 
-                self.Print ("")
-                self.Print ("After %s s, temperature is large then target temperature now, stop to increase temperature !"%TimeCnt)
-                break
-    
-        return TempNow
 
     def backUpClass(self, clsIn):
     # copy all clsIn class to CopyOfClk, including static members and dynamic members
@@ -1818,7 +1787,27 @@ class NVMECom():
                 # if find sublist, old list start < new list and old list stop = last (new list) and is not the same(NewList and OldList)
                 if start<N_len and stop==N_len-1 and start!=0:
                     rtNewStop = start-1
-        return rtNewStop    
+        return rtNewStop   
+    
+    def intToBinaryStr(self, x):
+    # imput int or sting, output string
+    # x = 12322, return string 2'b 0011 0000 0010 0010
+        bres = bin(int(x)).replace('0b', '').replace('-', '') # If no minus, second replace doesn't do anything
+        lres = len(bres) # We need the length to see how many 0s we need to add to get a quadruplets
+        # We adapt the number of added 0s to get full bit quadruplets.
+        # The '-' doesn't count since we want to handle it separately from the bit string
+        bres = bres.zfill(lres + (4-lres%4))
+        out=""
+        size = len(bres)
+        for i in range(size):
+            out += bres[i]
+            if i%4==3 and i!=size-1:
+                out += " " # add space
+                
+        out = "2'b " + ('-' if x < 0 else '') + out # add 2'b then add  '-' if is less then 0
+        
+    
+        return out        
 #== end of NVMECom =================================================
 
 class timer_():

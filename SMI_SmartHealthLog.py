@@ -24,7 +24,7 @@ class SMI_SmartHealthLog(NVME):
     # Script infomation >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ScriptName = "SMI_SmartHealthLog.py"
     Author = "Sam Chan"
-    Version = "20210712"
+    Version = "20210820"
     # </Script infomation> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # <Attributes> >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -228,6 +228,37 @@ class SMI_SmartHealthLog(NVME):
             self.Print( mStr , "f")      
         else:
             self.Print( mStr )  
+
+    def RaisingTempture(self, TargetTemp, TimeOut):
+    # TimeOut = time limit in secend
+    # TargetTemp =temp in Kelvin degree
+    # Return last tempture read from controller
+        TimeCnt=0
+        aa=time.time()
+        TempNow=0
+        # using DevWakeUpAllTheTime
+        Inst = DevWakeUpAllTheTime(self, False)
+        Inst.Start() # thread start to read all the time
+        while True:                     
+            sleep(1)            
+            TimeCnt= int(time.time()-aa)  
+            TempNow = self.GetLog.SMART.CompositeTemperature
+            mSuffix="Temperature: %s °C"%(self.KelvinToC(TempNow))
+            
+            # progressbar
+            if TimeCnt<TimeOut:
+                self.PrintProgressBar(TimeCnt, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
+            else:
+                self.PrintProgressBar(TimeOut, TimeOut, prefix = 'Time Usage:', suffix = mSuffix, length = 50)
+                self.Print ("After %s s, time out !,  stop to increase temperature !"%TimeOut)
+                break
+                    
+            if TempNow>=TargetTemp: 
+                self.Print ("")
+                self.Print ("After %s s, CompositeTemperature is large then %s(%s °C)!"%(TimeCnt, TargetTemp, self.KelvinToC(TargetTemp)))
+                break
+        Inst.Stop()
+        return TempNow
 
     # </Function> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     def __init__(self, argv):
@@ -1090,8 +1121,50 @@ class SMI_SmartHealthLog(NVME):
         return ret_code                     
     # </sub item scripts>
     
-    
-    
+    SubCase18TimeOut = (4000)
+    SubCase18Desc = "Test CompositeTemperature"
+    def SubCase18(self):
+        ret_code = 0
+        self.Print("Check if CompositeTemperature changed or not", "b") 
+        self.SetPrintOffset(4, "add")
+        LiveT = self.GetLog.SMART.CompositeTemperature
+        self.Print("Current CompositeTemperature: %s(%s °C)"%(LiveT, self.KelvinToC(LiveT)))        
+        self.Print("")        
+        self.Print("Expect Current CompositeTemperature > 0 °C, if equal to 0, fail the test")
+        if self.KelvinToC(LiveT)>0:            
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "f")     
+            ret_code = 1
+             
+        self.Print("")
+        TargetTemp = LiveT+1
+        TimeLimit = 60
+        self.Print ("Reading data to raise temperature, when CompositeTemperature >= %s( %s °C)"%(TargetTemp, self.KelvinToC(TargetTemp)))
+        self.Print ("Then pass the test, Time limit is %s s "%TimeLimit)
+        LiveT_c = self.RaisingTempture(TargetTemp, TimeLimit)
+        self.Print("Current CompositeTemperature: %s(%s °C)"%(LiveT_c, self.KelvinToC(LiveT_c))) 
+        if LiveT_c!=LiveT:            
+            self.Print("Pass", "p")
+        else:
+            self.Print("Fail", "w")      
+            self.Print("")
+            self.Print("It may not raise up the tempture due to current tempture is too high")
+            self.Print("Let try to cool down with sleep 10s")            
+            self.Print("Sleep 10s ..")
+            sleep(10)
+            self.Print("")
+            LiveT_c = self.GetLog.SMART.CompositeTemperature
+            self.Print("Current CompositeTemperature: %s(%s °C)"%(LiveT_c, self.KelvinToC(LiveT_c)))  
+            self.Print("")
+            self.Print("Check if Current CompositeTemperature changed")
+            if LiveT_c!=LiveT:            
+                self.Print("Pass", "p")
+            else:
+                self.Print("Fail", "f")     
+                ret_code = 1  
+                    
+        return ret_code
     
 if __name__ == "__main__":
     DUT = SMI_SmartHealthLog(sys.argv ) 
